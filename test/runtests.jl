@@ -10,6 +10,7 @@ import KernelAbstractions: CPU
 
 if get(ARGS, 1, "Array") == "CuArray"
     using CUDA
+    import CUDAKernels: CUDADevice
     ArrayType = CUDA.CuArray
     CUDA.allowscalar(false)
     device(::T) where {T <: CuArray} = CUDADevice()
@@ -17,6 +18,8 @@ else
     ArrayType = Array
     device(::T) where {T <: Array} = CPU()
 end
+
+@show ArrayType
 
 using CLIMAParameters: AbstractEarthParameterSet
 struct EarthParameterSet <: AbstractEarthParameterSet end
