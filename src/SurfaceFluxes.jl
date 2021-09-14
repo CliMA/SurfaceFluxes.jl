@@ -15,7 +15,8 @@
 """
 module SurfaceFluxes
 
-using NonlinearSolvers
+import NonlinearSolvers
+const NS = NonlinearSolvers
 using KernelAbstractions: @print
 
 using Thermodynamics
@@ -142,6 +143,9 @@ function surface_conditions(
     scheme,
     wθ_flux_star::Union{Nothing, FT} = nothing,
     universal_func::Union{Nothing, F} = Businger,
+    sol_type::NS.SolutionType = NS.CompactSolution(),
+    tol::NS.AbstractTolerance = NS.ResidualTolerance{FT}(sqrt(eps(FT))),
+    maxiter::Int = 10_000,
 ) where {FT <: AbstractFloat, AbstractEarthParameterSet, F}
 
     n_vars = length(MO_param_guess) - 1
@@ -167,9 +171,8 @@ function surface_conditions(
     # Define closure over args
     f!(F, x_all) = surface_fluxes_f!(F, x_all, args)
 
-    nls = NewtonsMethodAD(f!, MO_param_guess)
-    # sol = solve!(nls, CompactSolution(), ResidualTolerance(FT(10)), 1)
-    sol = solve!(nls, CompactSolution())
+    nls = NS.NewtonsMethodAD(f!, MO_param_guess)
+    sol = NS.solve!(nls, sol_type, tol, maxiter)
 
     root_tup = Tuple(sol.root)
     if sol.converged
