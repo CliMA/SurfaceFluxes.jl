@@ -5,6 +5,7 @@ using Test
 using NonlinearSolvers
 using SurfaceFluxes
 const SF = SurfaceFluxes
+const UF = SF.UniversalFunctions
 using StaticArrays
 import KernelAbstractions: CPU
 
@@ -191,7 +192,7 @@ cpu_shuffle(array::ArrayType) =
                 Tuple(x_s)[1],
                 z_rough[ii],
                 L,
-                SF.MomentumTransport(),
+                UF.MomentumTransport(),
                 SF.DGScheme(),
             )
             θ_in = recover_profile(
@@ -201,7 +202,7 @@ cpu_shuffle(array::ArrayType) =
                 Tuple(x_s)[2],
                 z_rough[ii],
                 L,
-                SF.HeatTransport(),
+                UF.HeatTransport(),
                 SF.DGScheme(),
             )
 
