@@ -1,7 +1,7 @@
 name = "SurfaceFluxes"
 uuid = "49b00bb7-8bd4-4f2b-b78c-51cd0450215f"
 authors = ["Climate Modeling Alliance"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
@@ -9,7 +9,6 @@ DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 NonlinearSolvers = "f4b8ab15-8e73-4e04-9661-b5912071d22b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 CLIMAParameters = "0.1, 0.2"
@@ -17,5 +16,4 @@ DocStringExtensions = "0.8"
 KernelAbstractions = "0.5, 0.6"
 NonlinearSolvers = "0.1"
 StaticArrays = "1"
-Thermodynamics = "0.4"
 julia = "1.4"
