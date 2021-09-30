@@ -6,9 +6,13 @@ functions for `SurfaceFluxes` module.
 """
 module UniversalFunctions
 
-using DocStringExtensions
-using CLIMAParameters
-using CLIMAParameters.SurfaceFluxes.UniversalFunctions
+import DocStringExtensions
+const DSE = DocStringExtensions
+
+import CLIMAParameters
+const CP = CLIMAParameters
+const APS = CP.AbstractParameterSet
+const CPUF = CP.SurfaceFluxes.UniversalFunctions
 
 # Transport Types
 export MomentumTransport, HeatTransport
@@ -23,7 +27,6 @@ const FTypes = Union{Real, AbstractArray}
 
 abstract type AbstractUniversalFunction{FT <: FTypes} end
 const AUF = AbstractUniversalFunction
-const APS = AbstractParameterSet
 
 Base.eltype(uf::AbstractUniversalFunction{FT}) where {FT} = FT
 
@@ -100,7 +103,7 @@ c_h(uf::AUF) = c_h(uf.param_set, uf)
 
 # Fields
 
-$(DocStringExtensions.FIELDS)
+$(DSE.FIELDS)
 """
 struct Businger{FT, PS} <: AbstractUniversalFunction{FT}
     "Parameter set"
@@ -111,9 +114,9 @@ struct Businger{FT, PS} <: AbstractUniversalFunction{FT}
 end
 
 # CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Businger) = Pr_0_Businger(param_set)
-a_m(param_set::APS, ::Businger) = a_m_Businger(param_set)
-a_h(param_set::APS, ::Businger) = a_h_Businger(param_set)
+Pr_0(param_set::APS, ::Businger) = CPUF.Pr_0_Businger(param_set)
+a_m(param_set::APS, ::Businger) = CPUF.a_m_Businger(param_set)
+a_h(param_set::APS, ::Businger) = CPUF.a_h_Businger(param_set)
 
 f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
 
@@ -237,7 +240,7 @@ end
 
 # Fields
 
-$(DocStringExtensions.FIELDS)
+$(DSE.FIELDS)
 """
 struct Gryanik{FT, PS} <: AbstractUniversalFunction{FT}
     "Parameter set"
@@ -248,11 +251,11 @@ struct Gryanik{FT, PS} <: AbstractUniversalFunction{FT}
 end
 
 # CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Gryanik) = Pr_0_Gryanik(param_set)
-a_m(param_set::APS, ::Gryanik) = a_m_Gryanik(param_set)
-a_h(param_set::APS, ::Gryanik) = a_h_Gryanik(param_set)
-b_m(param_set::APS, ::Gryanik) = b_m_Gryanik(param_set)
-b_h(param_set::APS, ::Gryanik) = b_h_Gryanik(param_set)
+Pr_0(param_set::APS, ::Gryanik) = CPUF.Pr_0_Gryanik(param_set)
+a_m(param_set::APS, ::Gryanik) = CPUF.a_m_Gryanik(param_set)
+a_h(param_set::APS, ::Gryanik) = CPUF.a_h_Gryanik(param_set)
+b_m(param_set::APS, ::Gryanik) = CPUF.b_m_Gryanik(param_set)
+b_h(param_set::APS, ::Gryanik) = CPUF.b_h_Gryanik(param_set)
 
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     if 0 < ζ
@@ -320,7 +323,7 @@ Equations in reference:
 
 # Fields
 
-$(DocStringExtensions.FIELDS)
+$(DSE.FIELDS)
 """
 struct Grachev{FT, PS} <: AbstractUniversalFunction{FT}
     "Parameter set"
@@ -331,12 +334,12 @@ struct Grachev{FT, PS} <: AbstractUniversalFunction{FT}
 end
 
 # CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Grachev) = Pr_0_Grachev(param_set)
-a_m(param_set::APS, ::Grachev) = a_m_Grachev(param_set)
-a_h(param_set::APS, ::Grachev) = a_h_Grachev(param_set)
-b_m(param_set::APS, ::Grachev) = b_m_Grachev(param_set)
-b_h(param_set::APS, ::Grachev) = b_h_Grachev(param_set)
-c_h(param_set::APS, ::Grachev) = c_h_Grachev(param_set)
+Pr_0(param_set::APS, ::Grachev) = CPUF.Pr_0_Grachev(param_set)
+a_m(param_set::APS, ::Grachev) = CPUF.a_m_Grachev(param_set)
+a_h(param_set::APS, ::Grachev) = CPUF.a_h_Grachev(param_set)
+b_m(param_set::APS, ::Grachev) = CPUF.b_m_Grachev(param_set)
+b_h(param_set::APS, ::Grachev) = CPUF.b_h_Grachev(param_set)
+c_h(param_set::APS, ::Grachev) = CPUF.c_h_Grachev(param_set)
 
 function phi(uf::Grachev, ζ, tt::MomentumTransport)
     if 0 < ζ

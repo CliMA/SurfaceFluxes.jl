@@ -17,16 +17,24 @@ module SurfaceFluxes
 
 import NonlinearSolvers
 const NS = NonlinearSolvers
-using KernelAbstractions: @print
+
+import KernelAbstractions
+const KA = KernelAbstractions
 
 using DocStringExtensions
-using CLIMAParameters: AbstractEarthParameterSet
-using CLIMAParameters.Planet: molmass_ratio, grav
-using CLIMAParameters.SubgridScale: von_karman_const
-using StaticArrays
+const DSE = DocStringExtensions
+
+import CLIMAParameters
+const CP = CLIMAParameters
+const CPP = CP.Planet
+const APS = CP.AbstractEarthParameterSet
+const CPSGS = CP.SubgridScale
+
+import StaticArrays
+const SA = StaticArrays
 
 include("UniversalFunctions.jl")
-using .UniversalFunctions
+import .UniversalFunctions
 const UF = UniversalFunctions
 
 abstract type SurfaceFluxesModel end
@@ -44,7 +52,7 @@ Surface flux conditions, returned from `surface_conditions`.
 
 # Fields
 
-$(DocStringExtensions.FIELDS)
+$(DSE.FIELDS)
 """
 struct SurfaceFluxConditions{FT, VFT}
     L_MO::FT
@@ -97,7 +105,7 @@ function surface_fluxes_f!(F, x, nt)
                 )
         else
             ϕ = x_tup[i]
-            transport = i - 1 == 1 ? MomentumTransport() : HeatTransport()
+            transport = i - 1 == 1 ? UF.MomentumTransport() : UF.HeatTransport()
             F_i =
                 ϕ - compute_physical_scale(
                     uf,
@@ -132,7 +140,7 @@ If `wθ_flux_star` is not given, then it is computed by iteration
 of equations 3, 17, and 18 in Nishizawa2018.
 """
 function surface_conditions(
-    param_set::AbstractEarthParameterSet,
+    param_set::APS,
     MO_param_guess::AbstractVector,
     x_in::AbstractVector,
     x_s::AbstractVector,
@@ -141,11 +149,11 @@ function surface_conditions(
     z_in::FT,
     scheme,
     wθ_flux_star::Union{Nothing, FT} = nothing,
-    universal_func::Union{Nothing, F} = Businger,
+    universal_func::Union{Nothing, F} = UF.Businger,
     sol_type::NS.SolutionType = NS.CompactSolution(),
     tol::NS.AbstractTolerance = NS.ResidualTolerance{FT}(sqrt(eps(FT))),
     maxiter::Int = 10_000,
-) where {FT <: AbstractFloat, AbstractEarthParameterSet, F}
+) where {FT <: AbstractFloat, APS, F}
 
     n_vars = length(MO_param_guess) - 1
     @assert length(MO_param_guess) == n_vars + 1
@@ -175,17 +183,17 @@ function surface_conditions(
 
     root_tup = Tuple(sol.root)
     if sol.converged
-        L_MO, x_star = root_tup[1], SVector(root_tup[2:end])
+        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
         u_star, θ_star = x_star[1], x_star[2]
     else
-        @print("Warning: Unconverged Surface Fluxes\n")
-        L_MO, x_star = root_tup[1], SVector(root_tup[2:end])
+        KA.@print("Warning: Unconverged Surface Fluxes\n")
+        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
         u_star, θ_star = x_star[1], x_star[2]
     end
 
-    _grav::FT = grav(param_set)
-    _von_karman_const::FT = von_karman_const(param_set)
-    wθ_flux_star = -u_star^3 * θ_scale / (_von_karman_const * _grav * L_MO)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    wθ_flux_star = -u_star^3 * θ_scale / (von_karman_const * grav * L_MO)
     flux = -u_star * x_star
 
     C_exchange = get_flux_coefficients(
@@ -239,7 +247,7 @@ from Nishizawa & Kitamura (2018).
 
 """
 function compute_physical_scale(
-    uf::AbstractUniversalFunction{FT},
+    uf::UF.AbstractUniversalFunction{FT},
     z_in,
     z_0,
     x_in,
@@ -247,20 +255,20 @@ function compute_physical_scale(
     transport,
     ::FVScheme,
 ) where {FT}
-    _von_karman_const::FT = von_karman_const(uf.param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     R_z0 = 1 - z_0 / z_in
     temp1 = log(z_in / z_0)
-    temp2 = -Psi(uf, z_in / uf.L, transport)
-    temp3 = z_0 / z_in * Psi(uf, z_0 / uf.L, transport)
-    temp4 = R_z0 * (psi(uf, z_0 / uf.L, transport) - 1)
+    temp2 = -UF.Psi(uf, z_in / uf.L, transport)
+    temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
+    temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
     Σterms = temp1 + temp2 + temp3 + temp4
-    return _π_group⁻¹ * _von_karman_const / Σterms * (x_in - x_s)
+    return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
 end
 
 function compute_physical_scale(
-    uf::AbstractUniversalFunction{FT},
+    uf::UF.AbstractUniversalFunction{FT},
     z_in,
     z_0,
     x_in,
@@ -268,14 +276,14 @@ function compute_physical_scale(
     transport,
     ::DGScheme,
 ) where {FT}
-    _von_karman_const::FT = von_karman_const(uf.param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     temp1 = log(z_in / z_0)
-    temp2 = -psi(uf, z_in / uf.L, transport)
-    temp3 = psi(uf, z_0 / uf.L, transport)
+    temp2 = -UF.psi(uf, z_in / uf.L, transport)
+    temp3 = UF.psi(uf, z_0 / uf.L, transport)
     Σterms = temp1 + temp2 + temp3
-    return _π_group⁻¹ * _von_karman_const / Σterms * (x_in - x_s)
+    return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
 end
 
 """
@@ -295,7 +303,7 @@ for DG and (12), (13) for FV from Nishizawa & Kitamura (2018).
 
 """
 function recover_profile(
-    param_set::AbstractEarthParameterSet,
+    param_set::APS,
     z,
     x_star,
     x_s,
@@ -303,20 +311,20 @@ function recover_profile(
     L_MO,
     transport,
     ::DGScheme,
-    universal_func = Businger,
+    universal_func = UF.Businger,
 ) where {FT}
     uf = universal_func(param_set, L_MO)
-    _von_karman_const::FT = von_karman_const(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
     temp1 = log(z / z_0)
-    temp2 = -psi(uf, z / uf.L, transport)
-    temp3 = psi(uf, z_0 / uf.L, transport)
+    temp2 = -UF.psi(uf, z / uf.L, transport)
+    temp3 = UF.psi(uf, z_0 / uf.L, transport)
     Σterms = temp1 + temp2 + temp3
-    return _π_group * x_star * Σterms / _von_karman_const + x_s
+    return _π_group * x_star * Σterms / von_karman_const + x_s
 end
 
 function recover_profile(
-    param_set::AbstractEarthParameterSet,
+    param_set::APS,
     z,
     x_star,
     x_s,
@@ -324,18 +332,18 @@ function recover_profile(
     L_MO,
     transport,
     ::FVScheme,
-    universal_func = Businger,
+    universal_func = UF.Businger,
 ) where {FT}
     uf = universal_func(param_set, L_MO)
-    _von_karman_const::FT = von_karman_const(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
     R_z0 = 1 - z_0 / z
     temp1 = log(z / z_0)
-    temp2 = -Psi(uf, z / uf.L, transport)
-    temp3 = z_0 / z * Psi(uf, z_0 / uf.L, transport)
-    temp4 = R_z0 * (psi(uf, z_0 / uf.L, transport) - 1)
+    temp2 = -UF.Psi(uf, z / uf.L, transport)
+    temp3 = z_0 / z * UF.Psi(uf, z_0 / uf.L, transport)
+    temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
     Σterms = temp1 + temp2 + temp3 + temp4
-    return _π_group * x_star * Σterms / _von_karman_const + x_s
+    return _π_group * x_star * Σterms / von_karman_const + x_s
 end
 
 ### Generic terms
@@ -345,17 +353,12 @@ end
 
 Returns the Monin-Obukhov length.
 """
-function monin_obukhov_length(
-    param_set::AbstractEarthParameterSet,
-    u_star,
-    θ_scale,
-    wθ_surf_flux,
-)
+function monin_obukhov_length(param_set::APS, u_star, θ_scale, wθ_surf_flux)
     FT = typeof(u_star)
-    _grav::FT = grav(param_set)
-    _von_karman_const::FT = von_karman_const(param_set)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
     return -u_star^3 * θ_scale /
-           (_von_karman_const * _grav * wθ_surf_flux + eps(FT))
+           (von_karman_const * grav * wθ_surf_flux + eps(FT))
 end
 
 monin_obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
@@ -385,16 +388,16 @@ function exchange_coefficients(
 ) where {VFT}
     N = length(F_exchange)
     FT = typeof(z)
-    _von_karman_const::FT = von_karman_const(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
     uf = universal_func(param_set, L_MO)
     x_star_tup = Tuple(x_star)
     K_exchange = similar(x_star)
     F_exchange_tup = Tuple(F_exchange)
     K_exchange .= ntuple(Val(length(x_star))) do i
-        transport = i == 1 ? MomentumTransport() : HeatTransport()
+        transport = i == 1 ? UF.MomentumTransport() : UF.HeatTransport()
         phi_t = phi(uf, z / L_MO, transport)
         _π_group = FT(UF.π_group(uf, transport))
-        num = -F_exchange_tup[i] * _von_karman_const * z
+        num = -F_exchange_tup[i] * von_karman_const * z
         den = _π_group * (x_star_tup[i] * phi_t)
         K_exch = num / den # Eq. 19 in
     end
@@ -437,7 +440,7 @@ function get_flux_coefficients(
         x_s_tup[1],
         (length(z0) > 1 ? z0_tup[1] : z0),
         L_MO,
-        MomentumTransport(),
+        UF.MomentumTransport(),
         scheme,
         universal_func,
     )
@@ -453,7 +456,7 @@ function get_flux_coefficients(
                 x_s_tup[i],
                 (length(z0) > 1 ? z0_tup[i] : z0),
                 L_MO,
-                HeatTransport(),
+                UF.HeatTransport(),
                 scheme,
                 universal_func,
             )
