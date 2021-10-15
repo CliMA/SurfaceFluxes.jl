@@ -95,7 +95,7 @@ function surface_fluxes_f!(F, x, nt)
     L_MO = monin_obukhov_length(param_set, u_star, θ_scale, wθ_surf_flux)
     uf = universal_func(param_set, L_MO)
     F_nt = ntuple(Val(n_vars + 1)) do i
-        if i == 1
+        if i == 1 # Monin Obukhov Length
             F_i =
                 x_tup[1] - monin_obukhov_length(
                     param_set,
@@ -104,7 +104,7 @@ function surface_fluxes_f!(F, x, nt)
                     wθ_surf_flux,
                 )
         else
-            ϕ = x_tup[i]
+            ϕ = x_tup[i] # 2 = Momentum, 3 = Heat, 4+ = Tracers
             transport = i - 1 == 1 ? UF.MomentumTransport() : UF.HeatTransport()
             F_i =
                 ϕ - compute_physical_scale(
@@ -486,8 +486,13 @@ function get_flux_coefficients(
     )
     C = similar(x_star)
     C .= ntuple(Val(length(x_star))) do i
+        ΔU = u_in - x_s_tup[i]
+        if ΔU == 0 
+           gustiness = eltype(x_star)(1e-4) # e.g. PYCLES gustiness constant for specific BL flow cases
+           ΔU = gustiness
+        end
         if i == 1
-            C_i = x_star[i]^2 / (u_in - x_s_tup[i])^2
+            C_i = x_star[i]^2 / ΔU^2
         else
             ϕ_in = recover_profile(
                 param_set,
@@ -500,9 +505,14 @@ function get_flux_coefficients(
                 scheme,
                 universal_func,
             )
-            C_i =
-                x_star[1] * x_star[i] / (u_in - x_s_tup[1]) /
-                (ϕ_in - x_s_tup[i])
+            Δϕ = ϕ_in - x_s_tup[i]
+            if Δϕ == 0 
+                C_i = eltype(x_star)(0)
+            else
+                C_i =
+                    x_star[1] * x_star[i] / ΔU /
+                    (ϕ_in - x_s_tup[i])
+            end
         end
         C_i
     end
