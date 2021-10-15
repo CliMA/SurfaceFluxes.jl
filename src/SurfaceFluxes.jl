@@ -85,14 +85,16 @@ function surface_fluxes_f!(F, x, nt)
     θ_scale = nt.θ_scale
 
     x_tup = Tuple(x)
-
-    u_star, θ_star = x_tup[2], x_tup[3]
+    
+    gustiness = Float64(1e-8)
+    u_star, θ_star = x_tup[2] + gustiness, x_tup[3]
     if wθ_flux_star == nothing
         wθ_surf_flux = -u_star * θ_star
     else
         wθ_surf_flux = wθ_flux_star
     end
     L_MO = monin_obukhov_length(param_set, u_star, θ_scale, wθ_surf_flux)
+
     uf = universal_func(param_set, L_MO)
     F_nt = ntuple(Val(n_vars + 1)) do i
         if i == 1 # Monin Obukhov Length
@@ -372,10 +374,10 @@ function recover_profile(
 ) where {FT}
     uf = universal_func(param_set, L_MO)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    _π_group = FT(UF.π_group(uf, transport))
-    R_z0 = 1 - z_0 / z
-    temp1 = log(z / z_0)
-    temp2 = -UF.Psi(uf, z / uf.L, transport)
+    _π_group = FT(UF.π_group(uf, transport)) 
+    R_z0 = 1 - z_0 / z 
+    temp1 = log(z / z_0)  
+    temp2 = -UF.Psi(uf, z / uf.L, transport) 
     temp3 = z_0 / z * UF.Psi(uf, z_0 / uf.L, transport)
     temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
     Σterms = temp1 + temp2 + temp3 + temp4
@@ -486,9 +488,10 @@ function get_flux_coefficients(
     )
     C = similar(x_star)
     C .= ntuple(Val(length(x_star))) do i
-        ΔU = u_in - x_s_tup[i]
-        if ΔU == 0 
-           gustiness = eltype(x_star)(1e-4) # e.g. PYCLES gustiness constant for specific BL flow cases
+        ΔU = u_in - x_s_tup[1]
+        if abs(ΔU) <= eps(eltype(x_star))
+           @show("Catching 0 denominator")
+           gustiness = eltype(x_star)(1e-8)
            ΔU = gustiness
         end
         if i == 1
