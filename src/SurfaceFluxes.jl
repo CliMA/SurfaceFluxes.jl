@@ -255,16 +255,8 @@ function compute_physical_scale(
     transport,
     ::FVScheme,
 ) where {FT}
-    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
-    _π_group = FT(UF.π_group(uf, transport))
-    _π_group⁻¹ = (1 / _π_group)
-    R_z0 = 1 - z_0 / z_in
-    temp1 = log(z_in / z_0)
-    temp2 = -UF.Psi(uf, z_in / uf.L, transport)
-    temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
-    temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
-    Σterms = temp1 + temp2 + temp3 + temp4
-    return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
+    physical_scale_ratio = compute_physical_scale_ratio(uf, z_in, z_0, transport, FVScheme())
+    return physical_scale_ratio * (x_in - x_s)
 end
 
 function compute_physical_scale(
@@ -276,6 +268,50 @@ function compute_physical_scale(
     transport,
     ::DGScheme,
 ) where {FT}
+    physical_scale_ratio = compute_physical_scale_ratio(uf, z_in, z_0, transport, DGScheme())
+    return physical_scale_ratio * (x_in - x_s)
+end
+
+"""
+    compute_physical_scale_ratio(uf, z_in, z_0, x_in, x_s, transport, ::FVScheme)
+
+    Returns u_star/(U(z₁)-U(0)), θ_star/(θ(z₁)-θ(0)), ... given equations (17), (18) for FV and (8), (9) for DG
+from Nishizawa & Kitamura (2018).
+
+## Arguments
+ - `uf` universal function family
+ - `z_in` Input height for the similarity functions. It is Δz for FV and the height
+    of the first nodal point for DG
+ - `z_0` roughness lengths for state variable array `x`
+ - `transport` Type of transport (momentum or heat)
+
+"""
+function compute_physical_scale_ratio(
+    uf::UF.AbstractUniversalFunction{FT},
+    z_in,
+    z_0,
+    transport,
+    ::FVScheme,
+) where {FT}
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    R_z0 = 1 - z_0 / z_in
+    temp1 = log(z_in / z_0)
+    temp2 = -UF.Psi(uf, z_in / uf.L, transport)
+    temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
+    temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
+    Σterms = temp1 + temp2 + temp3 + temp4
+    return _π_group⁻¹ * von_karman_const / Σterms
+end
+
+function compute_physical_scale_ratio(
+    uf::UF.AbstractUniversalFunction{FT},
+    z_in,
+    z_0,
+    transport,
+    ::DGScheme,
+) where {FT}
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
@@ -283,7 +319,7 @@ function compute_physical_scale(
     temp2 = -UF.psi(uf, z_in / uf.L, transport)
     temp3 = UF.psi(uf, z_0 / uf.L, transport)
     Σterms = temp1 + temp2 + temp3
-    return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
+    return _π_group⁻¹ * von_karman_const / Σterms
 end
 
 """
@@ -418,6 +454,10 @@ end
 Returns the exchange coefficients for bulk transfer formulas associated
 with the frictional parameters `x_star` and the surface layer similarity
 profiles. Taken from equations (36) and (37) of Byun (1990).
+
+
+#TODO: Write this as a function of ratios of the surface / star parameters
+
 """
 function get_flux_coefficients(
     param_set,
