@@ -83,16 +83,17 @@ function surface_fluxes_f!(F, x, nt)
     scheme = nt.scheme
     universal_func = nt.universal_func
     θ_scale = nt.θ_scale
+    qt_scale = nt.qt_scale
 
     x_tup = Tuple(x)
 
-    u_star, θ_star = x_tup[2], x_tup[3]
+    u_star, θ_star, qt_star = x_tup[2], x_tup[3], x_tup[4]
     if wθ_flux_star == nothing
         wθ_surf_flux = -u_star * θ_star
     else
         wθ_surf_flux = wθ_flux_star
     end
-    L_MO = monin_obukhov_length(param_set, u_star, θ_scale, wθ_surf_flux)
+    L_MO = monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
     uf = universal_func(param_set, L_MO)
     F_nt = ntuple(Val(n_vars + 1)) do i
         if i == 1
@@ -101,7 +102,9 @@ function surface_fluxes_f!(F, x, nt)
                     param_set,
                     u_star,
                     θ_scale,
+                    qt_scale,
                     wθ_surf_flux,
+                    qt_star
                 )
         else
             ϕ = x_tup[i]
@@ -130,11 +133,12 @@ Surface conditions given
     nodal point values in DG
  - `x_s` surface values for state variable array `x`
  - `z_0` roughness lengths for state variable array `x`
- - `θ_scale` virtual dry static energy (i.e., basic potential temperature)
+ - `vdse_scale` virtual dry static energy (i.e., basic potential temperature)
+ - `moisture_scale` total moisture scale
  - `z_in` Input height for the similarity functions. It is Δz for FV and the height
     of the first nodal point for DG
  - `wθ_flux_star` potential temperature flux (optional)
-  - `universal_func` family of flux-gradient universal functions used (optional)
+ - `universal_func` family of flux-gradient universal functions used (optional)
 
 If `wθ_flux_star` is not given, then it is computed by iteration
 of equations 3, 17, and 18 in Nishizawa2018.
@@ -146,6 +150,7 @@ function surface_conditions(
     x_s::AbstractVector,
     z_0::Union{AbstractVector, FT},
     θ_scale::FT,
+    qt_scale::FT,
     z_in::FT,
     scheme,
     wθ_flux_star::Union{Nothing, FT} = nothing,
@@ -171,6 +176,7 @@ function surface_conditions(
         x_s,
         scheme,
         θ_scale,
+        qt_scale,
         MO_param_guess,
         universal_func,
     )
@@ -349,16 +355,17 @@ end
 ### Generic terms
 
 """
-    monin_obukhov_length(param_set, u_star, θ_scale, wθ_surf_flux)
+    monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
 
 Returns the Monin-Obukhov length.
 """
-function monin_obukhov_length(param_set::APS, u_star, θ_scale, wθ_surf_flux)
+function monin_obukhov_length(param_set::APS, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
     FT = typeof(u_star)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    molmass_ratio::FT = CPP.molmass_ratio(param_set)
     return -u_star^3 * θ_scale /
-           (von_karman_const * grav * wθ_surf_flux + eps(FT))
+    (von_karman_const * grav * (1 + (molmass_ratio - 1)*qt_scale)*(-wθ_surf_flux) + (molmass_ratio - 1)*θ_scale * u_star * qt_star + eps(FT))
 end
 
 monin_obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
