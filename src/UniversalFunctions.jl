@@ -2,7 +2,11 @@
     UniversalFunctions
 
 Universal stability and stability correction
-functions for `SurfaceFluxes` module.
+functions for `SurfaceFluxes` module. Supports
+universal functions:
+ - `Businger`
+ - `Gryanik`
+ - `Grachev`
 """
 module UniversalFunctions
 
@@ -14,19 +18,22 @@ const CP = CLIMAParameters
 const APS = CP.AbstractParameterSet
 const CPUF = CP.SurfaceFluxes.UniversalFunctions
 
-# Transport Types
-export MomentumTransport, HeatTransport
-
-# Types
-export AbstractUniversalFunction, Gryanik, Grachev, Businger
-
-# Methods
-export phi, psi, Psi
-
 const FTypes = Union{Real, AbstractArray}
 
 abstract type AbstractUniversalFunction{FT <: FTypes} end
 const AUF = AbstractUniversalFunction
+
+#=
+    AbstractUniversalFunctionType
+
+Internal abstract type. Subtypes mirror `AbstractUniversalFunction`s.
+These mirrored subtypes are needed due to several constraints:
+ - Types we pass in concrete types to avoid UnionAll types (which incur allocations)
+ - We cannot pass in concrete types, e.g. `Businger{FT, typeof(param_set)}`
+   because we must be able to use ForwardDiff, which requires changing `FT`.
+=#
+abstract type AbstractUniversalFunctionType end
+const AUFT = AbstractUniversalFunctionType
 
 Base.eltype(uf::AbstractUniversalFunction{FT}) where {FT} = FT
 
@@ -45,7 +52,7 @@ Base.broadcastable(tt::AbstractTransportType) = Ref(tt)
     phi
 
 Universal stability function for wind shear
-(ϕ_m) and temperature gradient (ϕ_h)
+(`ϕ_m`) and temperature gradient (`ϕ_h`)
 """
 function phi end
 
@@ -53,7 +60,7 @@ function phi end
     psi
 
 Universal stability correction function for
-momentum (ψ_m) and heat (ψ_h)
+momentum (`ψ_m`) and heat (`ψ_h`)
 """
 function psi end
 
@@ -61,7 +68,7 @@ function psi end
     Psi
 
 Integral of universal stability correction
-function for momentum (ψ_m) and heat (ψ_h)
+function for momentum (`ψ_m`) and heat (`ψ_h`)
 """
 function Psi end
 
@@ -96,22 +103,24 @@ c_h(uf::AUF) = c_h(uf.param_set, uf)
 
 # Equations in reference:
 
-    ϕ_m: Eq. A1
-    ϕ_h: Eq. A2
-    ψ_m: Eq. A3
-    ψ_h: Eq. A4
+    `ϕ_m`: Eq. A1
+    `ϕ_h`: Eq. A2
+    `ψ_m`: Eq. A3
+    `ψ_h`: Eq. A4
 
 # Fields
 
 $(DSE.FIELDS)
 """
 struct Businger{FT, PS} <: AbstractUniversalFunction{FT}
-    "Parameter set"
-    param_set::PS
     "Monin-Obhukov Length"
     L::FT
-    Businger(param_set::PS, L::FT) where {FT, PS} = new{FT, PS}(param_set, L)
+    "Parameter set"
+    param_set::PS
 end
+
+struct BusingerType <: AbstractUniversalFunctionType end
+Businger() = BusingerType()
 
 # CLIMAParameters wrapper
 Pr_0(param_set::APS, ::Businger) = CPUF.Pr_0_Businger(param_set)
@@ -233,22 +242,24 @@ end
 
 # Equations in reference:
 
-    ϕ_m: Eq. 13
-    ϕ_h: Eq. 13
-    ψ_m: Eq. 14
-    ψ_h: Eq. 14
+    `ϕ_m`: Eq. 13
+    `ϕ_h`: Eq. 13
+    `ψ_m`: Eq. 14
+    `ψ_h`: Eq. 14
 
 # Fields
 
 $(DSE.FIELDS)
 """
 struct Gryanik{FT, PS} <: AbstractUniversalFunction{FT}
-    "Parameter set"
-    param_set::PS
     "Monin-Obhukov Length"
     L::FT
-    Gryanik(param_set::PS, L::FT) where {FT, PS} = new{FT, PS}(param_set, L)
+    "Parameter set"
+    param_set::PS
 end
+
+struct GryanikType <: AbstractUniversalFunctionType end
+Gryanik() = GryanikType()
 
 # CLIMAParameters wrapper
 Pr_0(param_set::APS, ::Gryanik) = CPUF.Pr_0_Gryanik(param_set)
@@ -316,22 +327,24 @@ end
 
 Equations in reference:
 
-    ϕ_m: Eq. 13
-    ϕ_h: Eq. 13
-    ψ_m: Eq. 14
-    ψ_h: Eq. 14
+    `ϕ_m`: Eq. 13
+    `ϕ_h`: Eq. 13
+    `ψ_m`: Eq. 14
+    `ψ_h`: Eq. 14
 
 # Fields
 
 $(DSE.FIELDS)
 """
 struct Grachev{FT, PS} <: AbstractUniversalFunction{FT}
-    "Parameter set"
-    param_set::PS
     "Monin-Obhukov Length"
     L::FT
-    Grachev(param_set::PS, L::FT) where {FT, PS} = new{FT, PS}(param_set, L)
+    "Parameter set"
+    param_set::PS
 end
+
+struct GrachevType <: AbstractUniversalFunctionType end
+Grachev() = GrachevType()
 
 # CLIMAParameters wrapper
 Pr_0(param_set::APS, ::Grachev) = CPUF.Pr_0_Grachev(param_set)
@@ -411,13 +424,17 @@ end
 ##### Conversions
 #####
 
-Businger(uf::Grachev) = Businger(uf.param_set, uf.L)
-Businger(uf::Gryanik) = Businger(uf.param_set, uf.L)
+Businger(uf::Grachev) = Businger(uf.L, uf.param_set)
+Businger(uf::Gryanik) = Businger(uf.L, uf.param_set)
 
-Grachev(uf::Businger) = Grachev(uf.param_set, uf.L)
-Grachev(uf::Gryanik) = Grachev(uf.param_set, uf.L)
+Grachev(uf::Businger) = Grachev(uf.L, uf.param_set)
+Grachev(uf::Gryanik) = Grachev(uf.L, uf.param_set)
 
-Gryanik(uf::Businger) = Gryanik(uf.param_set, uf.L)
-Gryanik(uf::Grachev) = Gryanik(uf.param_set, uf.L)
+Gryanik(uf::Businger) = Gryanik(uf.L, uf.param_set)
+Gryanik(uf::Grachev) = Gryanik(uf.L, uf.param_set)
+
+universal_func(::BusingerType, L_MO::FT, param_set::PS) where {FT, PS} = Businger{FT, PS}(L_MO, param_set)
+universal_func(::GryanikType, L_MO::FT, param_set::PS) where {FT, PS} = Gryanik{FT, PS}(L_MO, param_set)
+universal_func(::GrachevType, L_MO::FT, param_set::PS) where {FT, PS} = Grachev{FT, PS}(L_MO, param_set)
 
 end # module
