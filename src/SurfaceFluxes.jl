@@ -364,7 +364,7 @@ function monin_obukhov_length(param_set::APS, u_star, θ_scale, qt_scale, wθ_su
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
     molmass_ratio::FT = CPP.molmass_ratio(param_set)
-    return -u_star^3 * θ_scale /
+    return u_star^3 * θ_scale /
     (von_karman_const * grav * (1 + (molmass_ratio - 1)*qt_scale)*(-wθ_surf_flux) + (molmass_ratio - 1)*θ_scale * u_star * qt_star + eps(FT))
 end
 
