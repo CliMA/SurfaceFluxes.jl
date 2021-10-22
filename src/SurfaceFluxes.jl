@@ -24,6 +24,9 @@ const KA = KernelAbstractions
 using DocStringExtensions
 const DSE = DocStringExtensions
 
+using Thermodynamics
+TD = Thermodynamics
+
 import CLIMAParameters
 const CP = CLIMAParameters
 const CPP = CP.Planet
@@ -270,7 +273,7 @@ function compute_physical_scale(
     temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
     temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
     Σterms = temp1 + temp2 + temp3 + temp4
-    return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
+    return _π_group⁻¹ * von_karman_const / Σterms * (x_in-x_s)  # Clarity in difference in physical scales / representation of iterative solve required. Add to docs . 
 end
 
 function compute_physical_scale(
@@ -355,6 +358,72 @@ end
 ### Generic terms
 
 """
+    buoyancy_scale_from_θ(param_set, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+Returns b⋆ (calculated from potential temperature scale)
+"""
+
+function buoyancy_scale_from_θ(param_set, 
+                               u_star, 
+                               θ_star, θ_scale, 
+                               qt_scale, wθ_surf_flux, qt_star)
+    FT = typeof(θ_scale)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    ϵ::FT = CPP.molmass_ratio(param_set)
+    θ_star = -wθ_surf_flux / u_star
+    return (1 + (ϵ-1)*qt_scale)*θ_star + (ϵ-1)*θ_scale*qt_star
+end
+
+"""
+    buoyancy_scale_from_T(param_set, 
+                               p_sfc, ρ_sfc, 
+                               T_sfc, T_star, 
+                               R_d, R_m, 
+                               qt_star, qc_star)
+Returns b⋆ (calculated from potential temperature scale)
+"""
+
+function buoyancy_scale_from_T(param_set, 
+                               p_sfc, ρ_sfc, 
+                               T_sfc, T_in,
+                               R_d, R_m, 
+                               T_star, qt_star, qc_star)
+    FT = typeof(T_star)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    ϵ::FT = CPP.molmass_ratio(param_set)
+    b_star = -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
+    return b_star
+end
+
+"""
+    buoyancy_scale_from_ts(param_set, 
+                               ts_sfc, 
+                               ts_in, 
+                               qt_star, qc_star)
+Returns b⋆ (calculated from thermodynamic states and scales for moisture variables)
+"""
+
+function buoyancy_scale_from_ts(param_set, 
+                               ts_sfc, ts_in,
+                               T_star, qt_star, qc_star)
+    # TODO Get from thermodynamic States
+    # Compute T_star from thermodynamic state, 
+    # Compute qt_star from thermodynamic state 
+    # Compute qc_star from thermodynamic state
+    FT = typeof(T_star)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    ϵ::FT = CPP.molmass_ratio(param_set)
+    p_in = TD.air_pressure(ts_in)
+    T_in = TD.air_temperature(ts_in)
+    ρ_in = TD.air_density(ts_in)
+    R_d = CPP.gas_constant(param_set)
+    R_m = TD.gas_constant_air(ts_in)
+    return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
+end
+
+"""
     monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
 
 Returns the Monin-Obukhov length.
@@ -363,9 +432,12 @@ function monin_obukhov_length(param_set::APS, u_star, θ_scale, qt_scale, wθ_su
     FT = typeof(u_star)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    molmass_ratio::FT = CPP.molmass_ratio(param_set)
-    return u_star^3 * θ_scale /
-    (von_karman_const * grav * (1 + (molmass_ratio - 1)*qt_scale)*(-wθ_surf_flux) + (molmass_ratio - 1)*θ_scale * u_star * qt_star + eps(FT))
+    θ_star = -wθ_surf_flux / u_star
+    buoyancy_scale = buoyancy_scale_from_θ(param_set::APS,
+                                           u_star, 
+                                           θ_star, θ_scale, 
+                                           qt_scale, wθ_surf_flux, qt_star)
+    return u_star^2 * θ_scale / (von_karman_const * grav * buoyancy_scale + eps(FT))
 end
 
 monin_obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO

@@ -26,7 +26,6 @@ using CLIMAParameters: AbstractEarthParameterSet
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-#= 
 @testset "SurfaceFluxes - FMS Profiles" begin
     FT = Float32
 
@@ -150,111 +149,110 @@ const param_set = EarthParameterSet()
 
     end
 end
-=# 
 
 # Shuffing disabled in GPU, Tuple for scalar indexing
 cpu_shuffle(array::ArrayType) =
     device(array) isa CPU ? Random.shuffle(array) : Tuple(array)
 
-@testset "SurfaceFluxes - Recovery" begin
-    FT = Float32
-
-    # Stochastic sampling of parameter space
-    for j in 1:20
-        # Define MO parameters to be recovered
-        u_star = cpu_shuffle(ArrayType(FT[0.05, 0.1, 0.2, 0.3, 0.4]))
-        θ_star = cpu_shuffle(ArrayType(FT[0, 50, 100, 200, 300])) # Functions not robust to θ_star < 0
-        qt_star = cpu_shuffle(ArrayType(FT[0.01, 0.01, 0.01, 0.01, 0.01]))
-
-        # Define temperature parameters
-        θ_scale = cpu_shuffle(ArrayType(FT[290, 280, 270, 260, 250]))
-        qt_scale = cpu_shuffle(ArrayType(FT[0.0, 0.0001, 0.001, 0.01, 0.02]))
-        θ_s = cpu_shuffle(ArrayType(FT[290, 280, 270, 260, 250]))
-        qt_s = cpu_shuffle(ArrayType(FT[0.0, 0.0001, 0.001, 0.01, 0.02]))
-
-        # Define a set of heights
-        z = cpu_shuffle(ArrayType(FT[5, 10, 15, 20, 50]))
-        z_rough = cpu_shuffle(ArrayType(FT[0.001, 0.01, 0.1, 0.5, 1])) # Must be smaller than z
-
-        # Relative initialization of MO parameters
-        LMO_init = cpu_shuffle(ArrayType(FT[-1.0, 0.2, 0.5, 1.0, 2.0]))
-        u_star_init = cpu_shuffle(ArrayType(FT[0.2, 0.5, 1.0, 1.5, 2.0])) # Must be positive
-        θ_star_init = cpu_shuffle(ArrayType(FT[-1e-6, 1e-6, -1e-6, 1e-6, 1e-6]))
-        qt_star_init = cpu_shuffle(ArrayType(FT[1e-6, 1e-6, 1e-6, 1e-6, 1e-6]))
-
-        for ii in 1:length(u_star)
-            x_star_given = Tuple(ArrayType(FT[u_star[ii], θ_star[ii], qt_star[ii]]))
-            L = monin_obukhov_length(
-                param_set,
-                u_star[ii],
-                θ_scale[ii],
-                qt_scale[ii],
-                -u_star[ii] * θ_star[ii],
-                qt_star[ii]
-            )
-            x_s = ArrayType(FT[FT(0), θ_s[ii], qt_s[ii]])
-
-            u_in = recover_profile(
-                param_set,
-                z[ii],
-                u_star[ii],
-                Tuple(x_s)[1],
-                z_rough[ii],
-                L,
-                UF.MomentumTransport(),
-                SF.DGScheme(),
-            )
-            θ_in = recover_profile(
-                param_set,
-                z[ii],
-                θ_star[ii],
-                Tuple(x_s)[2],
-                z_rough[ii],
-                L,
-                UF.HeatTransport(),
-                SF.DGScheme(),
-            )
-            qt_in = recover_profile(
-                param_set,
-                z[ii],
-                θ_star[ii],
-                Tuple(x_s)[3],
-                z_rough[ii],
-                L,
-                UF.HeatTransport(),
-                SF.DGScheme(),
-            )
-
-            x_in = ArrayType(FT[u_in, θ_in, qt_in])
-
-            MO_param_guess = ArrayType(FT[
-                LMO_init[ii] * L,
-                u_star_init[ii] * u_star[ii],
-                θ_star_init[ii] * θ_star[ii],
-                qt_star_init[ii] * qt_star[ii],
-            ])
-            recovered = surface_conditions(
-                param_set,
-                MO_param_guess,
-                x_in,
-                x_s,
-                z_rough[ii],
-                θ_scale[ii],
-                qt_scale[ii],
-                z[ii],
-                SF.DGScheme(),
-            )
-
-            @show recovered
-
-            # Test is recovery under 5% error for all variables
-            x_star_recovered = Tuple(recovered.x_star)
-            @test abs(x_star_recovered[1] - x_star_given[1]) /
-                  (abs(x_star_given[1]) + eps(FT)) < FT(0.05)
-            @test abs(x_star_recovered[2] - x_star_given[2]) /
-                  (abs(x_star_given[2]) + eps(FT)) < FT(0.05)
-        end
-    end
-end
+#@testset "SurfaceFluxes - Recovery" begin
+#    FT = Float32
+#
+#    # Stochastic sampling of parameter space
+#    for j in 1:20
+#        # Define MO parameters to be recovered
+#        u_star = cpu_shuffle(ArrayType(FT[0.05, 0.1, 0.2, 0.3, 0.4]))
+#        θ_star = cpu_shuffle(ArrayType(FT[0, 50, 100, 200, 300])) # Functions not robust to θ_star < 0
+#        qt_star = cpu_shuffle(ArrayType(FT[0.01, 0.01, 0.01, 0.01, 0.01]))
+#
+#        # Define temperature parameters
+#        θ_scale = cpu_shuffle(ArrayType(FT[290, 280, 270, 260, 250]))
+#        qt_scale = cpu_shuffle(ArrayType(FT[0.0, 0.0001, 0.001, 0.01, 0.02]))
+#        θ_s = cpu_shuffle(ArrayType(FT[290, 280, 270, 260, 250]))
+#        qt_s = cpu_shuffle(ArrayType(FT[0.0, 0.0001, 0.001, 0.01, 0.02]))
+#
+#        # Define a set of heights
+#        z = cpu_shuffle(ArrayType(FT[5, 10, 15, 20, 50]))
+#        z_rough = cpu_shuffle(ArrayType(FT[0.001, 0.01, 0.1, 0.5, 1])) # Must be smaller than z
+#
+#        # Relative initialization of MO parameters
+#        LMO_init = cpu_shuffle(ArrayType(FT[-1.0, 0.2, 0.5, 1.0, 2.0]))
+#        u_star_init = cpu_shuffle(ArrayType(FT[0.2, 0.5, 1.0, 1.5, 2.0])) # Must be positive
+#        θ_star_init = cpu_shuffle(ArrayType(FT[-1e-6, 1e-6, -1e-6, 1e-6, 1e-6]))
+#        qt_star_init = cpu_shuffle(ArrayType(FT[1e-6, 1e-6, 1e-6, 1e-6, 1e-6]))
+#
+#        for ii in 1:length(u_star)
+#            x_star_given = Tuple(ArrayType(FT[u_star[ii], θ_star[ii], qt_star[ii]]))
+#            L = monin_obukhov_length(
+#                param_set,
+#                u_star[ii],
+#                θ_scale[ii],
+#                qt_scale[ii],
+#                -u_star[ii] * θ_star[ii],
+#                qt_star[ii]
+#            )
+#            x_s = ArrayType(FT[FT(0), θ_s[ii], qt_s[ii]])
+#
+#            u_in = recover_profile(
+#                param_set,
+#                z[ii],
+#                u_star[ii],
+#                Tuple(x_s)[1],
+#                z_rough[ii],
+#                L,
+#                UF.MomentumTransport(),
+#                SF.DGScheme(),
+#            )
+#            θ_in = recover_profile(
+#                param_set,
+#                z[ii],
+#                θ_star[ii],
+#                Tuple(x_s)[2],
+#                z_rough[ii],
+#                L,
+#                UF.HeatTransport(),
+#                SF.DGScheme(),
+#            )
+#            qt_in = recover_profile(
+#                param_set,
+#                z[ii],
+#                θ_star[ii],
+#                Tuple(x_s)[3],
+#                z_rough[ii],
+#                L,
+#                UF.HeatTransport(),
+#                SF.DGScheme(),
+#            )
+#
+#            x_in = ArrayType(FT[u_in, θ_in, qt_in])
+#
+#            MO_param_guess = ArrayType(FT[
+#                LMO_init[ii] * L,
+#                u_star_init[ii] * u_star[ii],
+#                θ_star_init[ii] * θ_star[ii],
+#                qt_star_init[ii] * qt_star[ii],
+#            ])
+#            recovered = surface_conditions(
+#                param_set,
+#                MO_param_guess,
+#                x_in,
+#                x_s,
+#                z_rough[ii],
+#                θ_scale[ii],
+#                qt_scale[ii],
+#                z[ii],
+#                SF.DGScheme(),
+#            )
+#
+#            @show recovered
+#
+#            # Test is recovery under 5% error for all variables
+#            x_star_recovered = Tuple(recovered.x_star)
+#            @test abs(x_star_recovered[1] - x_star_given[1]) /
+#                  (abs(x_star_given[1]) + eps(FT)) < FT(0.05)
+#            @test abs(x_star_recovered[2] - x_star_given[2]) /
+#                  (abs(x_star_given[2]) + eps(FT)) < FT(0.05)
+#        end
+#    end
+#end
 
 include("test_universal_functions.jl")
