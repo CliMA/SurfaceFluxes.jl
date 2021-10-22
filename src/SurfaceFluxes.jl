@@ -25,7 +25,7 @@ using DocStringExtensions
 const DSE = DocStringExtensions
 
 using Thermodynamics
-TD = Thermodynamics
+const TD = Thermodynamics
 
 import CLIMAParameters
 const CP = CLIMAParameters
@@ -226,6 +226,29 @@ function surface_conditions(
     )
 end
 
+function surface_conditions_from_ts(
+    param_set::APS,
+    L_MO_init::FT,
+    ts_in::TD.ThermodynamicState,
+    ts_sfc::TD.ThermodynamicState,
+    z_0::Union{AbstractVector, FT},
+    Δz::FT,
+    scheme,
+    universal_func::Union{Nothing, F} = UF.Businger,
+    sol_type::NS.SolutionType = NS.CompactSolution(),
+    tol::NS.AbstractTolerance = NS.ResidualTolerance{FT}(sqrt(eps(FT))),
+    maxiter::Int = 10_000,
+) where {FT <: AbstractFloat, APS, F}
+
+    # Nonlinear Solver Solution in Local Scope
+    local sol
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
+    L_MO = u_star^2 / von_karman_const / buoyancy_scale_from_ts(param_set, 
+                                                                ts_sfc, ts_in,
+                                                                L_MO)
+
+end
+
 """
     get_energy_flux(surf_conds::SurfaceFluxConditions{FT, VFT})
 
@@ -273,7 +296,7 @@ function compute_physical_scale(
     temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
     temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
     Σterms = temp1 + temp2 + temp3 + temp4
-    return _π_group⁻¹ * von_karman_const / Σterms * (x_in-x_s)  # Clarity in difference in physical scales / representation of iterative solve required. Add to docs . 
+    return _π_group⁻¹ * von_karman_const / Σterms * (x_in-x_s)
 end
 
 function compute_physical_scale(
@@ -293,6 +316,40 @@ function compute_physical_scale(
     temp3 = UF.psi(uf, z_0 / uf.L, transport)
     Σterms = temp1 + temp2 + temp3
     return _π_group⁻¹ * von_karman_const / Σterms * (x_in - x_s)
+end
+
+function compute_physical_scale_coeff(
+    uf::UF.AbstractUniversalFunction{FT},
+    z_in,
+    z_0,
+    ::FVScheme,
+) where {FT}
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    R_z0 = 1 - z_0 / z_in
+    temp1 = log(z_in / z_0)
+    temp2 = -UF.Psi(uf, z_in / uf.L, transport)
+    temp3 = z_0 / z_in * UF.Psi(uf, z_0 / uf.L, transport)
+    temp4 = R_z0 * (UF.psi(uf, z_0 / uf.L, transport) - 1)
+    Σterms = temp1 + temp2 + temp3 + temp4
+    return _π_group⁻¹ * von_karman_const / Σterms
+end
+
+function compute_physical_scale_coeff(
+    uf::UF.AbstractUniversalFunction{FT},
+    z_in,
+    z_0,
+    ::DGScheme,
+) where {FT}
+    von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    temp1 = log(z_in / z_0)
+    temp2 = -UF.psi(uf, z_in / uf.L, transport)
+    temp3 = UF.psi(uf, z_0 / uf.L, transport)
+    Σterms = temp1 + temp2 + temp3
+    return _π_group⁻¹ * von_karman_const / Σterms
 end
 
 """
@@ -380,7 +437,8 @@ end
                                T_sfc, T_star, 
                                R_d, R_m, 
                                qt_star, qc_star)
-Returns b⋆ (calculated from potential temperature scale)
+Returns b⋆ (calculated from potential temperature scale) 
+TODO: Terminology ( scale -> star )
 """
 
 function buoyancy_scale_from_T(param_set, 
@@ -400,27 +458,52 @@ end
     buoyancy_scale_from_ts(param_set, 
                                ts_sfc, 
                                ts_in, 
-                               qt_star, qc_star)
+                               L_MO)
 Returns b⋆ (calculated from thermodynamic states and scales for moisture variables)
+ts_sfc is the thermodynamic state at the surface
+ts_in is the thermodynamic state at the first input state.
 """
 
 function buoyancy_scale_from_ts(param_set, 
-                               ts_sfc, ts_in,
-                               T_star, qt_star, qc_star)
+                               ts_sfc, 
+                               ts_in,
+                               L_MO)
     # TODO Get from thermodynamic States
     # Compute T_star from thermodynamic state, 
     # Compute qt_star from thermodynamic state 
     # Compute qc_star from thermodynamic state
     FT = typeof(T_star)
+    uf = universal_func(param_set, L_MO)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
     ϵ::FT = CPP.molmass_ratio(param_set)
+    
+    # Unpack Thermodynamic States
     p_in = TD.air_pressure(ts_in)
     T_in = TD.air_temperature(ts_in)
     ρ_in = TD.air_density(ts_in)
     R_d = CPP.gas_constant(param_set)
     R_m = TD.gas_constant_air(ts_in)
+    
+    # TODO Change variable names for transport 
+    T_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(T_in - T_sfc)
+    qt_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(qt_in - qt_sfc)
+    qc_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(qc_in - qc_sfc)
+    
     return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
+end
+
+"""
+    monin_obukhov_length_from_b(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+
+Returns the Monin-Obukhov length as a function of b_star
+"""
+function monin_obukhov_length_from_b(param_set::APS, 
+                                     u_star, 
+                                     b_star)
+    FT = typeof(u_star)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    return u_star^2 / (von_karman_const * b_star + eps(FT))
 end
 
 """
@@ -428,7 +511,13 @@ end
 
 Returns the Monin-Obukhov length.
 """
-function monin_obukhov_length(param_set::APS, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+function monin_obukhov_length(param_set::APS, 
+                             u_star, 
+                             θ_scale, 
+                             qt_scale, 
+                             wθ_surf_flux, 
+                             qt_star)
+
     FT = typeof(u_star)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
