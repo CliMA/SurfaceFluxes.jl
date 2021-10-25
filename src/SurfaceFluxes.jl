@@ -45,7 +45,7 @@ abstract type SurfaceFluxesModel end
 struct FVScheme end
 struct DGScheme end
 
-export surface_conditions,
+export surface_conditions, test_surface_conditions,
     exchange_coefficients, recover_profile, monin_obukhov_length
 
 """
@@ -96,18 +96,72 @@ function surface_fluxes_f!(F, x, nt)
     else
         wθ_surf_flux = wθ_flux_star
     end
-    L_MO = monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+    L_MO = monin_obukhov_length(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+    b_star = buoyancy_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+
     uf = universal_func(param_set, L_MO)
     F_nt = ntuple(Val(n_vars + 1)) do i
         if i == 1
             F_i =
-                x_tup[1] - monin_obukhov_length(
+                x_tup[1] - monin_obukhov_length_from_b(
                     param_set,
                     u_star,
-                    θ_scale,
-                    qt_scale,
-                    wθ_surf_flux,
-                    qt_star
+                    b_star
+                )
+        else
+            ϕ = x_tup[i]
+            transport = i - 1 == 1 ? UF.MomentumTransport() : UF.HeatTransport()
+            F_i =
+                ϕ - compute_physical_scale(
+                    uf,
+                    z_in,
+                    length(nt.z_0) > 1 ? z_0[i - 1] : z_0,
+                    x_in[i - 1],
+                    x_s[i - 1],
+                    transport,
+                    scheme,
+                )
+        end
+        F_i
+    end
+    F .= F_nt
+end
+
+function test_surface_fluxes_f!(F, x, nt)
+    param_set = nt.param_set
+    wθ_flux_star = nt.wθ_flux_star
+    z_in = nt.z_in
+    z_0 = length(nt.z_0) > 1 ? Tuple(nt.z_0) : nt.z_0
+    x_in = Tuple(nt.x_in)
+    x_s = Tuple(nt.x_s)
+    n_vars = nt.n_vars
+    scheme = nt.scheme
+    universal_func = nt.universal_func
+    θ_scale = nt.θ_scale
+    qt_scale = nt.qt_scale
+
+    x_tup = Tuple(x)
+
+    u_star, θ_star, qt_star = x_tup[2], x_tup[3], x_tup[4]
+    if wθ_flux_star == nothing
+        wθ_surf_flux = -u_star * θ_star
+    else
+        wθ_surf_flux = wθ_flux_star
+    end
+    L_MO = monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+    b_star = buoyancy_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+
+    uf = universal_func(param_set, L_MO)
+    F_nt = x_tup[1] - monin_obukhov_length_from_b(param_set,
+                                                  u_star, 
+                                                  b_star)
+    F_nt = ntuple(Val(n_vars + 1)) do i
+        if i == 1
+            F_i =
+                x_tup[1] - monin_obukhov_length_from_b(
+                    param_set,
+                    u_star,
+                    b_star
                 )
         else
             ϕ = x_tup[i]
@@ -202,7 +256,87 @@ function surface_conditions(
 
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    wθ_flux_star = -u_star^3 * θ_scale / (von_karman_const * grav * L_MO)
+    wθ_flux_star = u_star * θ_star
+    flux = -u_star * x_star
+
+    C_exchange = get_flux_coefficients(
+        param_set,
+        z_in,
+        x_star,
+        x_s,
+        L_MO,
+        z_0,
+        scheme,
+        universal_func,
+    )
+
+    VFT = typeof(flux)
+    return SurfaceFluxConditions{FT, VFT}(
+        L_MO,
+        wθ_flux_star,
+        flux,
+        x_star,
+        C_exchange,
+    )
+end
+
+function test_surface_conditions(
+    param_set::APS,
+    MO_param_guess::AbstractVector,
+    x_in::AbstractVector,
+    x_s::AbstractVector,
+    z_0::Union{AbstractVector, FT},
+    θ_scale::FT,
+    qt_scale::FT,
+    z_in::FT,
+    scheme,
+    wθ_flux_star::Union{Nothing, FT} = nothing,
+    universal_func::Union{Nothing, F} = UF.Businger,
+    sol_type::NS.SolutionType = NS.CompactSolution(),
+    tol::NS.AbstractTolerance = NS.ResidualTolerance{FT}(sqrt(eps(FT))),
+    maxiter::Int = 10_000,
+) where {FT <: AbstractFloat, APS, F}
+
+    n_vars = length(MO_param_guess) - 1
+    @assert length(MO_param_guess) == n_vars + 1
+    @assert length(x_in) == n_vars
+    @assert length(x_s) == n_vars
+    local sol
+
+    args = (;
+        param_set,
+        wθ_flux_star,
+        z_in,
+        z_0,
+        n_vars,
+        x_in,
+        x_s,
+        scheme,
+        θ_scale,
+        qt_scale,
+        MO_param_guess,
+        universal_func,
+    )
+
+    # Define closure over args
+    f!(F, x_all) = test_surface_fluxes_f!(F, x_all, args)
+
+    nls = NS.NewtonsMethodAD(f!, MO_param_guess)
+    sol = NS.solve!(nls, sol_type, tol, maxiter)
+
+    root_tup = Tuple(sol.root)
+    if sol.converged
+        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
+        u_star, θ_star = x_star[1], x_star[2]
+    else
+        KA.@print("Warning: Unconverged Surface Fluxes\n")
+        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
+        u_star, θ_star = x_star[1], x_star[2]
+    end
+
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    wθ_flux_star = u_star * θ_star
     flux = -u_star * x_star
 
     C_exchange = get_flux_coefficients(
@@ -243,7 +377,7 @@ function surface_conditions_from_ts(
     # Nonlinear Solver Solution in Local Scope
     local sol
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
-    L_MO = u_star^2 / von_karman_const / buoyancy_scale_from_ts(param_set, 
+    L_MO = u_star^2 / von_karman_const / buoyancy_star_from_ts(param_set, 
                                                                 ts_sfc, ts_in,
                                                                 L_MO)
 
@@ -415,33 +549,31 @@ end
 ### Generic terms
 
 """
-    buoyancy_scale_from_θ(param_set, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+    buoyancy_star_from_θ(param_set, θ_scale, qt_scale, qt_star)
 Returns b⋆ (calculated from potential temperature scale)
 """
 
-function buoyancy_scale_from_θ(param_set, 
+function buoyancy_star_from_θ(param_set, 
                                u_star, 
                                θ_star, θ_scale, 
-                               qt_scale, wθ_surf_flux, qt_star)
+                               qt_scale, qt_star)
     FT = typeof(θ_scale)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
     ϵ::FT = CPP.molmass_ratio(param_set)
-    θ_star = -wθ_surf_flux / u_star
     return (1 + (ϵ-1)*qt_scale)*θ_star + (ϵ-1)*θ_scale*qt_star
 end
 
 """
-    buoyancy_scale_from_T(param_set, 
+    buoyancy_star_from_T(param_set, 
                                p_sfc, ρ_sfc, 
                                T_sfc, T_star, 
                                R_d, R_m, 
                                qt_star, qc_star)
 Returns b⋆ (calculated from potential temperature scale) 
-TODO: Terminology ( scale -> star )
 """
 
-function buoyancy_scale_from_T(param_set, 
+function buoyancy_star_from_T(param_set, 
                                p_sfc, ρ_sfc, 
                                T_sfc, T_in,
                                R_d, R_m, 
@@ -455,7 +587,7 @@ function buoyancy_scale_from_T(param_set,
 end
 
 """
-    buoyancy_scale_from_ts(param_set, 
+    buoyancy_star_from_ts(param_set, 
                                ts_sfc, 
                                ts_in, 
                                L_MO)
@@ -464,7 +596,7 @@ ts_sfc is the thermodynamic state at the surface
 ts_in is the thermodynamic state at the first input state.
 """
 
-function buoyancy_scale_from_ts(param_set, 
+function buoyancy_star_from_ts(param_set, 
                                ts_sfc, 
                                ts_in,
                                L_MO)
@@ -493,6 +625,29 @@ function buoyancy_scale_from_ts(param_set,
     return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
 end
 
+
+###
+### Monin Obukhov Length Calculation
+###
+"""
+    monin_obukhov_length(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+
+Returns the Monin-Obukhov length.
+"""
+function monin_obukhov_length(param_set::APS, 
+                             u_star, 
+                             θ_star, θ_scale, 
+                             qt_scale, qt_star)
+
+    FT = typeof(u_star)
+    grav::FT = CPP.grav(param_set)
+    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    buoyancy_star = buoyancy_star_from_θ(param_set::APS,
+                                           u_star, 
+                                           θ_star, θ_scale, 
+                                           qt_scale, qt_star)
+    return u_star^2 / (von_karman_const * buoyancy_star + eps(FT))
+end
 """
     monin_obukhov_length_from_b(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
 
@@ -506,30 +661,38 @@ function monin_obukhov_length_from_b(param_set::APS,
     return u_star^2 / (von_karman_const * b_star + eps(FT))
 end
 
-"""
-    monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
+monin_obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
-Returns the Monin-Obukhov length.
 """
-function monin_obukhov_length(param_set::APS, 
-                             u_star, 
-                             θ_scale, 
-                             qt_scale, 
-                             wθ_surf_flux, 
-                             qt_star)
+    compute_u_star(Δu, Δz, z_0, L_MO)
 
-    FT = typeof(u_star)
-    grav::FT = CPP.grav(param_set)
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    θ_star = -wθ_surf_flux / u_star
-    buoyancy_scale = buoyancy_scale_from_θ(param_set::APS,
-                                           u_star, 
-                                           θ_star, θ_scale, 
-                                           qt_scale, wθ_surf_flux, qt_star)
-    return u_star^2 * θ_scale / (von_karman_const * grav * buoyancy_scale + eps(FT))
+Δu = ⟨u⟩ - u_sfc
+Δz = z - z_sfc
+z_0 is the aerodynamic roughness length corresponding to momentum transport
+Given the Monin-Obukhov lengthscale, compute u_star, 
+the velocity scale. 
+"""
+function compute_u_star(param_set, 
+                        Δu, Δz, z_0, 
+                        L_MO) 
+    uf = universal_func(param_set, L_MO)
+    return Δu * compute_physical_scale_coeff(uf, Δz, z_0, L_MO)
 end
 
-monin_obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
+"""
+    compute_X_star(ΔX, Δz, z_0, L_MO)
+
+ΔX = ⟨X⟩ - X_sfc
+X is an arbitrary tracer variable, assumes Monin-Obukhov length 
+is known. 
+z_0 is the aerodynamic roughness length corresponding to variable X.
+"""
+function compute_X_star(param_set, 
+                        ΔX, Δz, z_0, 
+                        L_MO) 
+    uf = universal_func(param_set, L_MO)
+    return ΔX / Pr_t * compute_physical_scale_coeff(uf, Δz, z_0, L_MO)
+end
 
 """
     exchange_coefficients(
