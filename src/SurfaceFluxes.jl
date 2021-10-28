@@ -97,7 +97,7 @@ function surface_fluxes_f!(F, x, nt)
         wθ_surf_flux = wθ_flux_star
     end
     L_MO = monin_obukhov_length(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
-    b_star = buoyancy_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+    b_star = b_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
 
     uf = universal_func(param_set, L_MO)
     F_nt = ntuple(Val(n_vars + 1)) do i
@@ -149,7 +149,7 @@ function test_surface_fluxes_f!(F, x, nt)
         wθ_surf_flux = wθ_flux_star
     end
     L_MO = monin_obukhov_length(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
-    b_star = buoyancy_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
+    b_star = b_star_from_θ(param_set, u_star, θ_star, θ_scale, qt_scale, qt_star)
 
     uf = universal_func(param_set, L_MO)
     F_nt = x_tup[1] - monin_obukhov_length_from_b(param_set,
@@ -377,7 +377,7 @@ function surface_conditions_from_ts(
     # Nonlinear Solver Solution in Local Scope
     local sol
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
-    L_MO = u_star^2 / von_karman_const / buoyancy_star_from_ts(param_set, 
+    L_MO = u_star^2 / von_karman_const / b_star_from_ts(param_set, 
                                                                 ts_sfc, ts_in,
                                                                 L_MO)
 
@@ -549,11 +549,11 @@ end
 ### Generic terms
 
 """
-    buoyancy_star_from_θ(param_set, θ_scale, qt_scale, qt_star)
+    b_star_from_θ(param_set, θ_scale, qt_scale, qt_star)
 Returns b⋆ (calculated from potential temperature scale)
 """
 
-function buoyancy_star_from_θ(param_set, 
+function b_star_from_θ(param_set, 
                                u_star, 
                                θ_star, θ_scale, 
                                qt_scale, qt_star)
@@ -565,7 +565,7 @@ function buoyancy_star_from_θ(param_set,
 end
 
 """
-    buoyancy_star_from_T(param_set, 
+    b_star_from_T(param_set, 
                                p_sfc, ρ_sfc, 
                                T_sfc, T_star, 
                                R_d, R_m, 
@@ -573,7 +573,7 @@ end
 Returns b⋆ (calculated from potential temperature scale) 
 """
 
-function buoyancy_star_from_T(param_set, 
+function b_star_from_T(param_set, 
                                p_sfc, ρ_sfc, 
                                T_sfc, T_in,
                                R_d, R_m, 
@@ -587,7 +587,7 @@ function buoyancy_star_from_T(param_set,
 end
 
 """
-    buoyancy_star_from_ts(param_set, 
+    b_star_from_ts(param_set, 
                                ts_sfc, 
                                ts_in, 
                                L_MO)
@@ -596,7 +596,7 @@ ts_sfc is the thermodynamic state at the surface
 ts_in is the thermodynamic state at the first input state.
 """
 
-function buoyancy_star_from_ts(param_set, 
+function b_star_from_ts(param_set, 
                                ts_sfc, 
                                ts_in,
                                L_MO)
@@ -642,11 +642,11 @@ function monin_obukhov_length(param_set::APS,
     FT = typeof(u_star)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    buoyancy_star = buoyancy_star_from_θ(param_set::APS,
+    b_star = b_star_from_θ(param_set::APS,
                                            u_star, 
                                            θ_star, θ_scale, 
                                            qt_scale, qt_star)
-    return u_star^2 / (von_karman_const * buoyancy_star + eps(FT))
+    return u_star^2 / (von_karman_const * b_star + eps(FT))
 end
 """
     monin_obukhov_length_from_b(param_set, u_star, θ_scale, qt_scale, wθ_surf_flux, qt_star)
