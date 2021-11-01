@@ -29,6 +29,8 @@ for (n, f) in enumerate(files)
     end
 
     # Data at first interior node (x_ave)
+    # TODO Make sure that the first node ii = 1 is at the "surface" 
+    # for the tests to be consistent
     ii = 2
     FT = Float32
     ArrayType = Array
@@ -43,10 +45,10 @@ for (n, f) in enumerate(files)
     ## Initial guesses for MO parameters
     LMO_init = eps(FT)
     u_star_init = FT(0.1)
-    th_star_init = -FT(0.1)
+    b_star_init = -FT(0.1)
     qt_star_init = -FT(1e-5)
     MO_param_guess =
-        ArrayType(FT[LMO_init, u_star_init, th_star_init, qt_star_init])
+        ArrayType(FT[LMO_init, u_star_init, b_star_init, qt_star_init])
 
     # Surface values for variables
     jj = 1
@@ -78,10 +80,8 @@ for (n, f) in enumerate(files)
         5.72575636226887e-05,
     ])
     z_rough = ArrayType(FT[Tuple(z0)[ii], Tuple(zt)[ii], Tuple(zq)[ii]])
-
     # Constants
-    Δz = Tuple(z)[ii]
-
+    Δz = Tuple(z)[jj]
     args = (
         param_set,
         MO_param_guess,

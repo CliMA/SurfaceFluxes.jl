@@ -98,9 +98,7 @@ function surface_fluxes_f!(F, x, nt)
     L_MO = monin_obukhov_length_from_b(param_set, u_star, b_star)
 
     uf = universal_func(param_set, L_MO)
-    F_nt = x_tup[1] - monin_obukhov_length_from_b(param_set,
-                                                  u_star, 
-                                                  b_star)
+    F_nt = x_tup[1] - L_MO
     F_nt = ntuple(Val(n_vars + 1)) do i
         if i == 1
             F_i =
