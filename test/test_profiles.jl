@@ -4,6 +4,8 @@ using LaTeXStrings
 using SurfaceFluxes
 const SF = SurfaceFluxes
 using Statistics
+using Thermodynamics
+const TD = Thermodynamics
 
 using CLIMAParameters: AbstractEarthParameterSet
 struct EarthParameterSet <: AbstractEarthParameterSet end
@@ -15,14 +17,15 @@ for (n, f) in enumerate(files)
     @info "Casename = $f"
     data = NCDataset("./test/"*f);
     z = data["z_half"];
-    ρ = data.group["profiles"]["rho"];
     u = data.group["profiles"]["u_mean"];
     v = data.group["profiles"]["v_mean"];
     qt = data.group["profiles"]["qt_mean"];
     ql = data.group["profiles"]["ql_mean"];
+    ρ = data.group["profiles"]["rho"];
     p0 = data.group["profiles"]["p0"];
     b = data.group["profiles"]["buoyancy_mean"];
-    θli = data.group["profiles"]["thetali_mean"];
+    θli = data.group["profiles"]["thetali_mean"]; # Care with variable names across cases ()?
+    T = data.group["profiles"]["temperature_mean"]; # Care with variable names across cases ()?
 
     function ave(X)
         return mean(X, dims=2)
@@ -36,8 +39,11 @@ for (n, f) in enumerate(files)
     ArrayType = Array
 
     z_ave = Tuple(z)[ii]
+    u_ave = Tuple(ave(u))[ii] 
     b_ave = Tuple(ave(b))[ii]
+    ρ_ave = Tuple(ave(ρ))[ii]
     θ_ave = Tuple(ave(θli))[ii]
+    T_ave = Tuple(ave(T))[ii]
     u_ave = Tuple(ave(u))[ii]
     qt_ave = Tuple(ave(qt))[ii]
     x_ave = ArrayType(FT[u_ave, b_ave, qt_ave])
@@ -54,8 +60,10 @@ for (n, f) in enumerate(files)
     jj = 1
     u_sfc = FT(0)
     b_sfc = Tuple(ave(b))[jj]
+    ρ_sfc = Tuple(ave(ρ))[jj]
     qt_sfc = Tuple(ave(qt))[jj]
     θ_sfc = Tuple(ave(θli))[jj]
+    T_sfc = Tuple(ave(T))[jj]
     z_sfc = FT(0)
     x_s = ArrayType(FT[u_sfc, b_sfc, qt_sfc])
 
@@ -80,19 +88,32 @@ for (n, f) in enumerate(files)
         5.72575636226887e-05,
     ])
     z_rough = ArrayType(FT[Tuple(z0)[ii], Tuple(zt)[ii], Tuple(zq)[ii]])
+
+    ts_sfc = TD.PhaseEquil_ρTq(param_set, ρ_sfc, T_sfc, qt_sfc)
+    ts_in = TD.PhaseEquil_ρTq(param_set, ρ_ave, T_ave, qt_ave)
+
     # Constants
     Δz = Tuple(z)[jj]
+    #args = (
+    #    param_set,
+    #    MO_param_guess,
+    #    x_ave,
+    #    x_s,
+    #    z_rough,
+    #    θ_ave,
+    #    qt_ave,
+    #    z_ave / 2,
+    #)
+    L_MO_init = FT(1.0)
     args = (
         param_set,
-        MO_param_guess,
-        x_ave,
-        x_s,
+        L_MO_init,
+        ts_in, ts_sfc, u_ave,
         z_rough,
-        θ_ave,
-        qt_ave,
         z_ave / 2,
     )
 
+    #result = surface_conditions(args..., SF.DGScheme())
     result = surface_conditions(args..., SF.DGScheme())
     @show result
 end
