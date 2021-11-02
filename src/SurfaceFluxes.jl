@@ -45,7 +45,7 @@ abstract type SurfaceFluxesModel end
 struct FVScheme end
 struct DGScheme end
 
-export surface_conditions,
+export surface_conditions, b_star_from_ts,
     exchange_coefficients, recover_profile, monin_obukhov_length, monin_obukhov_length_from_b
 
 """
@@ -88,7 +88,7 @@ function surface_fluxes_f!(F, x, nt)
     qt_scale = nt.qt_scale
 
     x_tup = Tuple(x)
-
+    L_MO = x_tup[1]
     u_star, b_star, qt_star = x_tup[2], x_tup[3], x_tup[4]
     if wb_flux_star == nothing
         wb_surf_flux = -u_star * b_star
@@ -96,10 +96,9 @@ function surface_fluxes_f!(F, x, nt)
         wb_surf_flux = -u_star * b_star
     end
     L_MO = monin_obukhov_length_from_b(param_set, u_star, b_star)
-
     uf = universal_func(param_set, L_MO)
     F_nt = x_tup[1] - L_MO
-    F_nt = ntuple(Val(n_vars + 1)) do i
+    F_nt = ntuple(Val(n_vars+1)) do i
         if i == 1
             F_i =
                 x_tup[1] - monin_obukhov_length_from_b(
@@ -223,10 +222,9 @@ function surface_conditions_from_ts(
     # Nonlinear Solver Solution in Local Scope
     local sol
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
-    L_MO = u_star^2 / von_karman_const / b_star_from_ts(param_set, 
+    L_MO = u_star^2 / von_karman_const / b_star_from_ts(param_set, Δz, z0, 
                                                                 ts_sfc, ts_in,
                                                                 L_MO)
-
 end
 
 """
@@ -304,6 +302,8 @@ function compute_physical_scale_coeff(
     uf::UF.AbstractUniversalFunction{FT},
     z_in,
     z_0,
+    L_MO,
+    transport, 
     ::FVScheme,
 ) where {FT}
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
@@ -322,6 +322,8 @@ function compute_physical_scale_coeff(
     uf::UF.AbstractUniversalFunction{FT},
     z_in,
     z_0,
+    L_MO, 
+    transport,
     ::DGScheme,
 ) where {FT}
     von_karman_const::FT = CPSGS.von_karman_const(uf.param_set)
@@ -396,46 +398,47 @@ end
 
 ### Generic terms
 
-"""
-    b_star_from_θ(param_set, θ_scale, qt_scale, qt_star)
-Returns b⋆ (calculated from potential temperature scale)
-"""
-
-function b_star_from_θ(param_set, 
-                               u_star, 
-                               θ_star, θ_scale, 
-                               qt_scale, qt_star)
-    FT = typeof(θ_scale)
-    grav::FT = CPP.grav(param_set)
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    ϵ::FT = CPP.molmass_ratio(param_set)
-    return (1 + (ϵ-1)*qt_scale)*θ_star + (ϵ-1)*θ_scale*qt_star
-end
+#"""
+#    b_star_from_θ(param_set, θ_scale, qt_scale, qt_star)
+#Returns b⋆ (calculated from potential temperature scale)
+#"""
+#
+#function b_star_from_θ(param_set, 
+#                               u_star, 
+#                               θ_star, θ_scale, 
+#                               qt_scale, qt_star)
+#    FT = typeof(θ_scale)
+#    grav::FT = CPP.grav(param_set)
+#    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+#    ϵ::FT = CPP.molmass_ratio(param_set)
+#    return (1 + (ϵ-1)*qt_scale)*θ_star + (ϵ-1)*θ_scale*qt_star
+#end
 
 """
     b_star_from_T(param_set, 
                                p_sfc, ρ_sfc, 
                                T_sfc, T_star, 
-                               R_d, R_m, 
-                               qt_star, qc_star)
+                               R_d, R_m)
 Returns b⋆ (calculated from potential temperature scale) 
 """
-
-function b_star_from_T(param_set, 
-                               p_sfc, ρ_sfc, 
-                               T_sfc, T_in,
-                               R_d, R_m, 
-                               T_star, qt_star, qc_star)
-    FT = typeof(T_star)
-    grav::FT = CPP.grav(param_set)
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    ϵ::FT = CPP.molmass_ratio(param_set)
-    b_star = -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
-    return b_star
-end
+#function b_star_from_T(param_set, 
+#                               p_sfc, ρ_sfc, 
+#                               T_sfc, T_in,
+#                               R_d, R_m, 
+#                               )
+#    FT = typeof(T_star)
+#    grav::FT = CPP.grav(param_set)
+#    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+#    ϵ::FT = CPP.molmass_ratio(param_set)
+#    T_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(T_in - T_sfc)
+#    qt_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(qt_in - qt_sfc)
+#    #qc_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(qc_in - qc_sfc)
+#    b_star = -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star)# + R_d/R_m *ϵ*qc_star) 
+#    return b_star
+#end
 
 """
-    b_star_from_ts(param_set, 
+    b_star_from_ts(param_set, Δz, z0,
                                ts_sfc, 
                                ts_in, 
                                L_MO)
@@ -445,14 +448,12 @@ ts_in is the thermodynamic state at the first input state.
 """
 
 function b_star_from_ts(param_set, 
+                               Δz, z_0,
                                ts_sfc, 
                                ts_in,
                                L_MO)
-    # TODO Get from thermodynamic States
-    # Compute T_star from thermodynamic state, 
-    # Compute qt_star from thermodynamic state 
-    # Compute qc_star from thermodynamic state
-    FT = typeof(T_star)
+    FT = typeof(L_MO)
+    universal_func = UF.Businger
     uf = universal_func(param_set, L_MO)
     grav::FT = CPP.grav(param_set)
     von_karman_const::FT = CPSGS.von_karman_const(param_set)
@@ -460,17 +461,19 @@ function b_star_from_ts(param_set,
     
     # Unpack Thermodynamic States
     p_in = TD.air_pressure(ts_in)
+    qt_in = TD.total_specific_humidity(ts_in)
     T_in = TD.air_temperature(ts_in)
+    T_sfc = TD.air_temperature(ts_sfc)
+    qt_sfc = TD.total_specific_humidity(ts_sfc)
     ρ_in = TD.air_density(ts_in)
-    R_d = CPP.gas_constant(param_set)
+    R_d = CPP.R_d(param_set)
     R_m = TD.gas_constant_air(ts_in)
     
-    # TODO Change variable names for transport 
-    T_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(T_in - T_sfc)
-    qt_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(qt_in - qt_sfc)
-    qc_star = compute_physical_scale_coeff(uf, Δz, z_0, LMO)*(qc_in - qc_sfc)
+    T_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO, UF.HeatTransport(), DGScheme())*(T_in - T_sfc)
+    qt_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO, UF.HeatTransport(), DGScheme())*(qt_in - qt_sfc)
+   #qc_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(qc_in - qc_sfc)
     
-    return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star + R_d/R_m *ϵ*qc_star) 
+    return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star)# + R_d/R_m *ϵ*qc_star) 
 end
 
 
@@ -644,5 +647,4 @@ function get_flux_coefficients(
     end
     return C
 end
-
 end # SurfaceFluxes module
