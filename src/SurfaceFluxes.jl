@@ -84,6 +84,7 @@ function surface_fluxes_f!(F, x, nt)
     n_vars = nt.n_vars
     scheme = nt.scheme
     u_in = nt.u_in
+    u_sfc = nt.u_sfc
     ts_sfc = nt.ts_sfc
     ts_in = nt.ts_in
     LMO_init = nt.L_MO_init
@@ -91,45 +92,34 @@ function surface_fluxes_f!(F, x, nt)
     x_tup = Tuple(x)
 
     L_MO = x_tup[1]
-    u_star, b_star = x_tup[2], x_tup[3]
-    Δz = z_in
-    L_MO = monin_obukhov_length_from_b(param_set, u_star, b_star)
     uf = universal_func(param_set, L_MO)
-    F_nt = x_tup[1] - L_MO
-    F_nt = ntuple(Val(n_vars+1)) do i
-        if i == 1 # Equation for Monin-Obukhov Length
-            b_star = b_star_from_ts(param_set, 
+    Δz = z_in
+    u_star = u_in * compute_physical_scale_coeff(
+                                           uf,
+                                           z_in, 
+                                           z_0[1],
+                                           L_MO,
+                                           UF.MomentumTransport(),
+                                           scheme)
+    b_star = b_star_from_ts(param_set, 
                                     z_in, z_0[3], 
                                     ts_sfc, ts_in, 
                                     L_MO)
-            F_i =
-                x_tup[1] - monin_obukhov_length_from_b(
-                    param_set,
-                    u_star,
-                    b_star
-                )
-        elseif i == 2 # Equation for Momentum Transport (u⋆)
-            ϕ = x_tup[2]
-            transport = UF.MomentumTransport()
-            F_i =
-                ϕ - compute_physical_scale(
-                    uf,
-                    z_in,
-                    length(nt.z_0) > 1 ? z_0[i - 1] : z_0,
-                    u_in,
-                    eltype(L_MO)(0),
-                    transport,
-                    scheme,
-                )
-         else
-            ϕ = x_tup[3] # Equation for buoyancy transport (b⋆)    
-            F_i = ϕ - b_star_from_ts(param_set,
-                                     z_in, z_0[3], 
-                                     ts_sfc, ts_in, 
-                                     L_MO)
-        end
-        F_i
-    end
+    L_MO = monin_obukhov_length_from_b(param_set, u_star, b_star)
+    u_star = u_in * compute_physical_scale_coeff(
+                                           uf,
+                                           z_in, 
+                                           z_0[1],
+                                           L_MO,
+                                           UF.MomentumTransport(),
+                                           scheme
+                                          )
+    F_nt =
+        x_tup[1] - monin_obukhov_length_from_b(
+            param_set,
+            u_star,
+            b_star
+        )
     F .= F_nt
 end
 
@@ -138,7 +128,7 @@ function surface_conditions(
     L_MO_init::FT,
     ts_in::TD.ThermodynamicState,
     ts_sfc::TD.ThermodynamicState,
-    u_in, 
+    u_in, u_sfc,
     z_0::Union{AbstractVector, FT},
     z_in::FT,
     scheme,
@@ -160,16 +150,13 @@ function surface_conditions(
     # tracer scale quantities are then constrained by this L_MO_init)
     n_vars = 2
     z_0b = z_0[3]
-    b_star = b_star_from_ts(param_set, z_in, z_0b,
-                            ts_sfc, ts_in, 
-                            L_MO_init)
 
     local sol
 
     args = (;
         param_set,
         L_MO_init,
-        u_in, 
+        u_in,  u_sfc,
         ts_in, ts_sfc, 
         z_in,
         z_0,
@@ -179,7 +166,7 @@ function surface_conditions(
     )
     
     MO_param_guess =
-        Array(FT[L_MO_init, 0.1, 0.00001])
+        Array(FT[L_MO_init])
 
     # Define closure over args
     f!(F, x_all) = surface_fluxes_f!(F, x_all, args)
@@ -189,19 +176,15 @@ function surface_conditions(
 
     root_tup = Tuple(sol.root)
     if sol.converged
-        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
-        u_star, b_star = x_star[1], x_star[2]
+        L_MO = root_tup[1] 
     else
         KA.@print("Warning: Unconverged Surface Fluxes\n")
-        L_MO, x_star = root_tup[1], SA.SVector(root_tup[2:end])
-        u_star, b_star = x_star[1], x_star[2]
+        L_MO = root_tup[1]
     end
 
-    wb_flux = -u_star * b_star
-    flux = -u_star * x_star
+    @show L_MO
 
-    @show (L_MO,u_star,b_star);
-
+    # TODO REVAMP get_flux_coefficients()
     #C_exchange = get_flux_coefficients(
     #    param_set,
     #    z_in,
@@ -391,23 +374,29 @@ function recover_profile(
     return _π_group * x_star * Σterms / von_karman_const + x_s
 end
 
-### Generic terms
+### Thermodynamic variables and scale parameters
 
 function b_star_from_ρ(param_set, 
-                       p_sfc, ρ_sfc, 
-                       T_sfc, T_in,
+                       ts_sfc, ts_in, 
                        ::FVScheme
                        )
+    # Unpack air densities from thermodynamic states
+    ρ_in = TD.air_density(ts_in)
+    ρ_sfc = TD.air_density(ts_sfc)
+    # Get buoyancy scale parameter from surface and interior densities
     ρ_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(ρ_in - ρ_sfc)
     b_star = -grav * ρ_star/ ρ_in
     return b_star
 end
 
 function b_star_from_T(param_set, 
-                       p_sfc, ρ_sfc, 
-                       T_sfc, T_in,
+                       ts_sfc, ts_in,
                        ::DGScheme
                        )
+    # Unpack air densities from thermodynamic states
+    ρ_in = TD.air_density(ts_in)
+    ρ_sfc = TD.air_density(ts_sfc)
+    # Get buoyancy scale parameter from surface and interior densities
     ρ_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(ρ_in - ρ_sfc)
     b_star = -grav * ρ_star/ ρ_in
     return b_star
@@ -482,6 +471,7 @@ function b_star_from_ts(param_set,
     T_sfc = TD.air_temperature(ts_sfc)
     qt_sfc = TD.total_specific_humidity(ts_sfc)
     ρ_in = TD.air_density(ts_in)
+    ρ_sfc = TD.air_density(ts_sfc)
     R_d = CPP.R_d(param_set)
     R_m = TD.gas_constant_air(ts_in)
     
@@ -489,7 +479,7 @@ function b_star_from_ts(param_set,
     qt_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO, UF.HeatTransport(), DGScheme())*(qt_in - qt_sfc)
    #qc_star = compute_physical_scale_coeff(uf, Δz, z_0, L_MO)*(qc_in - qc_sfc)
     
-    return -grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star)# + R_d/R_m *ϵ*qc_star) 
+    return grav * p_in/ρ_in/R_m/T_in * (T_star/T_in - R_d/R_m*(ϵ-1)*qt_star)# + R_d/R_m *ϵ*qc_star) 
 end
 
 

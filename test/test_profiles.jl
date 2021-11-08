@@ -46,7 +46,7 @@ for (n, f) in enumerate(files)
     T_ave = Tuple(ave(T))[ii]
     u_ave = Tuple(ave(u))[ii]
     qt_ave = Tuple(ave(qt))[ii]
-    x_ave = ArrayType(FT[u_ave, b_ave, qt_ave])
+    x_ave = ArrayType(FT[u_ave, b_ave])
 
     ## Initial guesses for MO parameters
     LMO_init = eps(FT)
@@ -92,23 +92,17 @@ for (n, f) in enumerate(files)
     ts_sfc = TD.PhaseEquil_ρTq(param_set, ρ_sfc, T_sfc, qt_sfc)
     ts_in = TD.PhaseEquil_ρTq(param_set, ρ_ave, T_ave, qt_ave)
 
+    u_in = u_ave
+
     # Constants
     Δz = Tuple(z)[jj]
-    #args = (
-    #    param_set,
-    #    MO_param_guess,
-    #    x_ave,
-    #    x_s,
-    #    z_rough,
-    #    θ_ave,
-    #    qt_ave,
-    #    z_ave / 2,
-    #)
     L_MO_init = FT(1.0)
+    u_sfc = FT(0.0)
     args = (
         param_set,
         L_MO_init,
-        ts_in, ts_sfc, u_ave,
+        ts_in, ts_sfc,
+        u_in, u_sfc,
         z_rough,
         z_ave / 2,
     )
