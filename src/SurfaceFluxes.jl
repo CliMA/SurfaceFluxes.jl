@@ -80,6 +80,7 @@ function surface_fluxes_f!(F, x, nt)
     param_set = nt.param_set
     universal_func = nt.universal_func
     z_in = nt.z_in
+    z_sfc = nt.z_sfc
     z_0 = length(nt.z_0) > 1 ? Tuple(nt.z_0) : nt.z_0
     n_vars = nt.n_vars
     scheme = nt.scheme
@@ -91,29 +92,19 @@ function surface_fluxes_f!(F, x, nt)
 
     x_tup = Tuple(x)
 
-    L_MO = x_tup[1]
-    uf = universal_func(param_set, L_MO)
-    Δz = z_in
+    uf = universal_func(param_set, x_tup[1])
+    Δz = z_in - z_sfc
     u_star = u_in * compute_physical_scale_coeff(
                                            uf,
                                            z_in, 
                                            z_0[1],
-                                           L_MO,
+                                           x_tup[1],
                                            UF.MomentumTransport(),
                                            scheme)
     b_star = b_star_from_ts(param_set, 
                                     z_in, z_0[3], 
                                     ts_sfc, ts_in, 
-                                    L_MO)
-    L_MO = monin_obukhov_length_from_b(param_set, u_star, b_star)
-    u_star = u_in * compute_physical_scale_coeff(
-                                           uf,
-                                           z_in, 
-                                           z_0[1],
-                                           L_MO,
-                                           UF.MomentumTransport(),
-                                           scheme
-                                          )
+                                    x_tup[1])
     F_nt =
         x_tup[1] - monin_obukhov_length_from_b(
             param_set,
@@ -130,7 +121,7 @@ function surface_conditions(
     ts_sfc::TD.ThermodynamicState,
     u_in, u_sfc,
     z_0::Union{AbstractVector, FT},
-    z_in::FT,
+    z_in::FT, z_sfc::FT,
     scheme,
     universal_func::Union{Nothing, F} = UF.Businger,
     sol_type::NS.SolutionType = NS.CompactSolution(),
@@ -158,7 +149,7 @@ function surface_conditions(
         L_MO_init,
         u_in,  u_sfc,
         ts_in, ts_sfc, 
-        z_in,
+        z_in, z_sfc,
         z_0,
         n_vars,
         scheme,
@@ -185,16 +176,15 @@ function surface_conditions(
     @show L_MO
 
     # TODO REVAMP get_flux_coefficients()
-    #C_exchange = get_flux_coefficients(
-    #    param_set,
-    #    z_in,
-    #    x_star,
-    #    x_s,
-    #    L_MO,
-    #    z_0,
-    #    scheme,
-    #    universal_func,
-    #)
+    C_exchange = get_momentum_flux_coefficient(
+        param_set,
+        z_in, z_sfc,
+        u_in, u_sfc,
+        L_MO,
+        z_0[1],
+        scheme,
+        universal_func,
+    )
     #VFT = typeof(flux)
     #return SurfaceFluxConditions{FT, VFT}(
     #    L_MO,
@@ -592,6 +582,42 @@ function exchange_coefficients(
 end
 
 """
+    get_momentum_flux_coefficient(
+        param_set,
+        z,
+        x_star::VFT,
+        L_MO,
+        z0,
+        universal_func,
+    )
+
+Returns the exchange coefficients for bulk transfer formulas associated
+with the frictional parameters `x_star` and the surface layer similarity
+profiles. Taken from equations (36) and (37) of Byun (1990).
+"""
+function get_momentum_flux_coefficient(
+    param_set,
+    z_in, z_sfc,
+    u_in, u_sfc,
+    L_MO,
+    z_0m::Union{AbstractVector, FT},
+    scheme,
+    universal_func,
+) where {VFT, FT}
+    Δz = z_in - z_sfc
+    Δu = u_in - u_sfc
+    u_star = u_in * compute_physical_scale_coeff(
+                                           universal_func(param_set, L_MO),
+                                           Δz,  
+                                           z_0m[1],
+                                           L_MO,
+                                           UF.MomentumTransport(),
+                                           scheme)
+    C = u_star^2 / (Δu)^2 # Eq. (36) Byun(1990)
+    return C
+end
+
+"""
     get_flux_coefficients(
         param_set,
         z,
@@ -607,45 +633,29 @@ profiles. Taken from equations (36) and (37) of Byun (1990).
 """
 function get_flux_coefficients(
     param_set,
-    z_in,
-    x_star::VFT,
-    x_s,
+    z_in, z_sfc,
+    x_in, x_sfc,
     L_MO,
-    z0::Union{AbstractVector, FT},
+    z_0x::FT,
     scheme,
     universal_func,
 ) where {VFT, FT}
-    N = length(x_star)
-    z0_tup = Tuple(z0)
-    x_star_tup = Tuple(x_star)
-    x_s_tup = Tuple(x_s)
-    u_in = recover_profile(
-        param_set,
-        z_in,
-        x_star_tup[1],
-        x_s_tup[1],
-        (length(z0) > 1 ? z0_tup[1] : z0),
-        L_MO,
-        UF.MomentumTransport(),
-        scheme,
-        universal_func,
-    )
-    C = similar(x_star)
-    C .= ntuple(Val(length(x_star))) do i
+    N = length(x_in)
+    Δz = z_in - z_sfc
+    Δx = x_in - x_sfc
+    z0_tup = Tuple(z_0)
+    u_star = u_in * compute_physical_scale_coeff(
+                                           universal_func(param_set, L_MO),
+                                           Δz,  
+                                           z_0m,
+                                           L_MO,
+                                           UF.MomentumTransport(),
+                                           scheme)
+    C = similar(x_in)
+    C .= ntuple(Val(length(x_in))) do i
         if i == 1
             C_i = x_star[i]^2 / (u_in - x_s_tup[i])^2 # Eq. (36) Byun(1990)
         else
-            ϕ_in = recover_profile(
-                param_set,
-                z_in,
-                x_star_tup[i],
-                x_s_tup[i],
-                (length(z0) > 1 ? z0_tup[i] : z0),
-                L_MO,
-                UF.HeatTransport(),
-                scheme,
-                universal_func,
-            )
             C_i =
                 x_star[1] * x_star[i] / (u_in - x_s_tup[1]) /
                 (ϕ_in - x_s_tup[i]) # Eq. (37) Byun(1990)

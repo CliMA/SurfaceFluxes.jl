@@ -104,7 +104,7 @@ for (n, f) in enumerate(files)
         ts_in, ts_sfc,
         u_in, u_sfc,
         z_rough,
-        z_ave / 2,
+        z_ave / 2, z_sfc
     )
 
     #result = surface_conditions(args..., SF.DGScheme())
