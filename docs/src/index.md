@@ -4,6 +4,29 @@
 SurfaceFluxes
 ```
 
+## Core input types
+
+```@docs
+SurfaceFluxes.SurfaceValues
+SurfaceFluxes.InteriorValues
+```
+
+## Dispatch types
+
+```@docs
+SurfaceFluxes.Fluxes
+SurfaceFluxes.FluxesAndFrictionVelocity
+SurfaceFluxes.Coefficients
+SurfaceFluxes.ValuesOnly
+```
+
+## User-facing methods
+
+```@docs
+SurfaceFluxes.surface_conditions
+SurfaceFluxes.recover_profile
+```
+
 ## Universal Functions
 
 ```@docs
@@ -20,13 +43,4 @@ SurfaceFluxes.UniversalFunctions.Businger
 SurfaceFluxes.UniversalFunctions.phi
 SurfaceFluxes.UniversalFunctions.psi
 SurfaceFluxes.UniversalFunctions.Psi
-```
-
-## Fluxes API
-
-```@docs
-SurfaceFluxes.surface_conditions
-SurfaceFluxes.exchange_coefficients
-SurfaceFluxes.recover_profile
-SurfaceFluxes.monin_obukhov_length
 ```

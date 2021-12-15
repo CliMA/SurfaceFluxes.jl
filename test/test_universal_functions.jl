@@ -1,10 +1,13 @@
 using Test
-using SurfaceFluxes.UniversalFunctions
-using SurfaceFluxes.UniversalFunctions: b_m, a_m, a_h, b_h, Pr_0
-using CLIMAParameters
-using CLIMAParameters.SurfaceFluxes.UniversalFunctions
-using CLIMAParameters.Planet
-struct EarthParameterSet <: AbstractEarthParameterSet end
+
+import SurfaceFluxes
+const SF = SurfaceFluxes
+const UF = SF.UniversalFunctions
+
+import CLIMAParameters
+const CP = CLIMAParameters
+
+struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
 # TODO: Right now, we test these functions for
@@ -16,12 +19,12 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = FT(-2):FT(0.01):FT(200)
         for L in (-FT(10), FT(10))
-            args = (param_set, L)
-            for uf in (Gryanik(args...), Grachev(args...), Businger(args...))
-                for transport in (MomentumTransport(), HeatTransport())
-                    ϕ = phi.(uf, ζ, transport)
+            args = (L, param_set)
+            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+                for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                    ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
-                    ψ = psi.(uf, ζ, transport)
+                    ψ = UF.psi.(uf, ζ, transport)
                     @test eltype(ψ) == FT
                 end
             end
@@ -31,12 +34,12 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (param_set, L)
-            for uf in (Gryanik(args...), Grachev(args...), Businger(args...))
-                for transport in (MomentumTransport(), HeatTransport())
-                    ϕ = phi.(uf, ζ, transport)
+            args = (L, param_set)
+            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+                for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                    ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
-                    ψ = psi.(uf, ζ, transport)
+                    ψ = UF.psi.(uf, ζ, transport)
                     @test eltype(ψ) == FT
                 end
             end
@@ -46,10 +49,10 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (param_set, L)
-            uf = Businger(args...)
-            for transport in (MomentumTransport(), HeatTransport())
-                Ψ = Psi.(uf, ζ, transport)
+            args = (L, param_set)
+            uf = UF.Businger(args...)
+            for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                Ψ = UF.Psi.(uf, ζ, transport)
                 @test eltype(Ψ) == FT
             end
         end
@@ -58,38 +61,38 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = FT(10)
         L = FT(10)
-        args = (param_set, L)
+        args = (L, param_set)
 
-        uf = Gryanik(args...)
-        @test Businger(uf) isa Businger
-        @test Grachev(uf) isa Grachev
+        uf = UF.Gryanik(args...)
+        @test UF.Businger(uf) isa UF.Businger
+        @test UF.Grachev(uf) isa UF.Grachev
 
-        uf = Grachev(args...)
-        @test Businger(uf) isa Businger
-        @test Gryanik(uf) isa Gryanik
+        uf = UF.Grachev(args...)
+        @test UF.Businger(uf) isa UF.Businger
+        @test UF.Gryanik(uf) isa UF.Gryanik
 
-        uf = Businger(args...)
-        @test Grachev(uf) isa Grachev
-        @test Gryanik(uf) isa Gryanik
+        uf = UF.Businger(args...)
+        @test UF.Grachev(uf) isa UF.Grachev
+        @test UF.Gryanik(uf) isa UF.Gryanik
     end
     @testset "Asymptotic range" begin
         FT = Float32
 
-        ϕ_h_ζ∞(uf::Grachev) = 1 + FT(b_h(uf))
-        ϕ_m_ζ∞(uf::Grachev, ζ) = FT(a_m(uf)) / FT(b_m(uf)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Grachev) = 1 + FT(UF.b_h(uf))
+        ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(UF.a_m(uf)) / FT(UF.b_m(uf)) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::Gryanik) = FT(Pr_0(uf)) * (1 + FT(a_h(uf) / b_h(uf)))
-        ϕ_m_ζ∞(uf::Gryanik, ζ) = FT(a_m(uf) / b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(UF.Pr_0(uf)) * (1 + FT(UF.a_h(uf) / UF.b_h(uf)))
+        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
 
         for L in (-FT(10), FT(10))
-            args = (param_set, L)
-            for uf in (Grachev(args...), Gryanik(args...))
+            args = (L, param_set)
+            for uf in (UF.Grachev(args...), UF.Gryanik(args...))
                 for ζ in FT(10) .^ (4, 6, 8, 10)
-                    ϕ_h = phi(uf, ζ, HeatTransport())
+                    ϕ_h = UF.phi(uf, ζ, UF.HeatTransport())
                     @test isapprox(ϕ_h, ϕ_h_ζ∞(uf))
                 end
                 for ζ in FT(10) .^ (8, 9, 10)
-                    ϕ_m = phi(uf, ζ, MomentumTransport())
+                    ϕ_m = UF.phi(uf, ζ, UF.MomentumTransport())
                     @test isapprox(ϕ_m, ϕ_m_ζ∞(uf, ζ))
                 end
             end
