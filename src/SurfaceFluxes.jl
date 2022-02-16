@@ -26,20 +26,88 @@ using DocStringExtensions
 const DSE = DocStringExtensions
 
 import Thermodynamics
+import Thermodynamics.ThermodynamicsParameters
 const TD = Thermodynamics
 
 import CLIMAParameters
-const CP = CLIMAParameters
-const CPP = CP.Planet
-const APS = CP.AbstractEarthParameterSet
-const CPSGS = CP.SubgridScale
 
 import StaticArrays
 const SA = StaticArrays
 
 include("UniversalFunctions.jl")
 import .UniversalFunctions
+import .UniversalFunctions.AbstractUniversalFunctionParameters
 const UF = UniversalFunctions
+
+
+struct SurfaceFluxesParameters{FT, AUFPS <: AbstractUniversalFunctionParameters}
+    von_karman_const::FT
+    grav::FT
+    gas_constant::FT
+    kappa_d::FT
+    T_0::FT
+    molmass_dryair::FT
+    molmass_water::FT
+    cp_v::FT
+    LH_v0::FT
+    R_d::FT
+    R_v::FT
+    molmass_ratio::FT
+    cp_d::FT
+    cv_d::FT
+    UFPS::AUFPS
+    TPS::ThermodynamicsParameters
+end
+
+function SurfaceFluxesParameters(
+    param_set,
+    UFPS::AUFPS,
+    TPS::ThermodynamicsParameters{FT}
+) where {FT, AUFPS <: AbstractUniversalFunctionParameters}
+    
+    aliases = ["von_karman_const","grav","molmass_dryair",
+        "molmass_water","gas_constant","kappa_d","T_0", "cp_v", "LH_v0"]
+    (von_karman_const, grav, molmass_dryair, molmass_water,
+    gas_constant, kappa_d, T_0, cp_v, LH_v0) = CLIMAParameters.get_parameter_values(
+        param_set,
+        aliases,
+        "SurfaceFluxesParameters"
+    )
+    # derived parameters
+    R_d = gas_constant / molmass_dryair
+    R_v = gas_constant / molmass_water
+    molmass_ratio = molmass_dryair / molmass_water
+    cp_d = R_d / kappa_d
+    cv_d = cp_d - R_d
+    
+
+    return SurfaceFluxesParameters{
+        CLIMAParameters.get_parametric_type(param_set),
+    }(
+        von_karman_const,
+        grav,
+        gas_constant,
+        kappa_d,
+        T_0,
+        molmass_dryair,
+        molmass_water,
+        cp_v,
+        LH_v0,
+        R_d,
+        R_v,
+        molmass_ratio,
+        cp_d,
+        cv_d,
+        UFPS,
+        TPS,
+    )
+end
+
+
+
+    
+
+
 
 abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
@@ -239,9 +307,9 @@ z0(sc::AbstractSurfaceConditions, ::UF.MomentumTransport) = sc.z0m
 Δu1(sc::AbstractSurfaceConditions) = sc.state_in.u[1] - sc.state_sfc.u[1]
 Δu2(sc::AbstractSurfaceConditions) = sc.state_in.u[2] - sc.state_sfc.u[2]
 
-qt_in(sc::AbstractSurfaceConditions) = TD.total_specific_humidity(ts_in(sc))
-qt_sfc(sc::AbstractSurfaceConditions) = TD.total_specific_humidity(ts_sfc(sc))
-Δqt(sc::AbstractSurfaceConditions) = qt_in(sc) - qt_sfc(sc)
+qt_in(param_set::SurfaceFluxesParameters, sc::AbstractSurfaceConditions) = TD.total_specific_humidity(param_set.TPS, ts_in(sc))
+qt_sfc(param_set::SurfaceFluxesParameters, sc::AbstractSurfaceConditions) = TD.total_specific_humidity(param_set.TPS, ts_sfc(sc))
+Δqt(param_set::SurfaceFluxesParameters, sc::AbstractSurfaceConditions) = qt_in(param_set, sc) - qt_sfc(param_set, sc)
 
 u_in(sc::AbstractSurfaceConditions) = sc.state_in.u
 u_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.u
@@ -279,7 +347,7 @@ Result struct of type SurfaceFluxConditions{FT} contains:
   - Ch:     Thermal Exchange Coefficient
 """
 function surface_conditions(
-    param_set::APS,
+    param_set::SurfaceFluxesParameters,
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme::SolverScheme = FVScheme();
@@ -359,10 +427,10 @@ function obukhov_length(
         if error_on_non_convergence()
             KA.@print("-----------------------------------------\n")
             KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-            KA.@print(", T_in = ", TD.air_temperature(ts_in(sc)))
-            KA.@print(", T_sfc = ", TD.air_temperature(ts_sfc(sc)))
-            KA.@print(", q_in = ", TD.total_specific_humidity(ts_in(sc)))
-            KA.@print(", q_sfc = ", TD.total_specific_humidity(ts_sfc(sc)))
+            KA.@print(", T_in = ", TD.air_temperature(param_set.TPS, ts_in(sc)))
+            KA.@print(", T_sfc = ", TD.air_temperature(param_set.TPS, ts_sfc(sc)))
+            KA.@print(", q_in = ", TD.total_specific_humidity(param_set.TPS, ts_in(sc)))
+            KA.@print(", q_sfc = ", TD.total_specific_humidity(param_set.TPS, ts_sfc(sc)))
             KA.@print(", u_in = ", u_in(sc))
             KA.@print(", u_sfc = ", u_sfc(sc))
             error("Unconverged Surface Fluxes.")
@@ -374,16 +442,16 @@ function obukhov_length(
     return L_MO
 end
 
-function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
-    return -sc.ustar^3 / FT(CPSGS.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme)
+function obukhov_length(param_set::SurfaceFluxesParameters, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
+    return -sc.ustar^3 / FT(param_set.von_karman_const) / compute_buoyancy_flux(param_set, sc, scheme)
 end
 
-function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
+function obukhov_length(param_set::SurfaceFluxesParameters, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
     lhf = latent_heat_flux(param_set, sc.Ch, sc, scheme)
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(CPSGS.von_karman_const(param_set)) / buoyancy_flux
+    return -ustar^3 / FT(param_set.von_karman_const) / buoyancy_flux
 end
 
 """
@@ -391,8 +459,8 @@ end
 
 Helper function for the iterative solver with the Monin-Obukhov length equation with buoyancy flux.
 """
-function local_lmo(param_set, x_lmo, sc::Fluxes, uft::UF.AUFT, scheme)
-    κ = CPSGS.von_karman_const(param_set)
+function local_lmo(param_set::SurfaceFluxesParameters, x_lmo, sc::Fluxes, uft::UF.AUFT, scheme)
+    κ = param_set.von_karman_const
     u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
     return -(windspeed(sc) * u_scale)^3 / κ / compute_buoyancy_flux(param_set, sc, scheme)
 end
@@ -403,8 +471,8 @@ end
 Helper function for the iterative solver with the Monin-Obukhov
 length equation with buoyancy star.
 """
-function local_lmo(param_set, x_lmo, sc::ValuesOnly, uft::UF.AUFT, scheme)
-    κ = CPSGS.von_karman_const(param_set)
+function local_lmo(param_set::SurfaceFluxesParameters, x_lmo, sc::ValuesOnly, uft::UF.AUFT, scheme)
+    κ = param_set.von_karman_const
     u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
     return (windspeed(sc) * u_scale)^2 / κ / compute_bstar(param_set, x_lmo, sc, uft, scheme)
 end
@@ -414,19 +482,19 @@ end
 
 Returns the buoyancy flux when the surface fluxes are known.
 """
-function compute_buoyancy_flux(param_set, shf::FT, lhf::FT, ts_in, ts_sfc, scheme) where {FT}
+function compute_buoyancy_flux(param_set::SurfaceFluxesParameters, shf::FT, lhf::FT, ts_in, ts_sfc, scheme) where {FT}
 
-    grav::FT = CPP.grav(param_set)
-    ε_vd::FT = CPP.molmass_ratio(param_set)
+    grav = param_set.grav
+    ε_vd = param_set.molmass_ratio
 
-    cp_m = TD.cp_m(ts_in)
-    L_v = TD.latent_heat_vapor(ts_in)
-    ρ_sfc = TD.air_density(ts_sfc)
-    T_in = TD.air_temperature(ts_in)
+    cp_m = TD.cp_m(param_set.TPS, ts_in)
+    L_v = TD.latent_heat_vapor(param_set.TPS, ts_in)
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc)
+    T_in = TD.air_temperature(param_set.TPS, ts_in)
     return grav / ρ_sfc * (shf / cp_m / T_in + (ε_vd - 1) * lhf / L_v)
 end
 
-function compute_buoyancy_flux(param_set, sc::Union{FluxesAndFrictionVelocity, Fluxes}, scheme)
+function compute_buoyancy_flux(param_set::SurfaceFluxesParameters, sc::Union{FluxesAndFrictionVelocity, Fluxes}, scheme)
     return compute_buoyancy_flux(param_set, sc.shf, sc.lhf, ts_in(sc), ts_sfc(sc), scheme)
 end
 
@@ -435,12 +503,12 @@ end
 
 Returns buoyancy star based on known air densities.
 """
-function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::UF.AUFT, scheme) where {FT}
-    uf = UF.universal_func(uft, L_MO, param_set)
-    grav::FT = CPP.grav(param_set)
+function compute_bstar(param_set::SurfaceFluxesParameters, L_MO, sc::AbstractSurfaceConditions{FT}, uft::UF.AUFT, scheme) where {FT}
+    uf = UF.universal_func(uft, L_MO, param_set.UFPS)
+    grav = param_set.grav
 
-    ρ_in = TD.air_density(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_in = TD.air_density(param_set.TPS, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
 
     ρ_star = compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (ρ_in - ρ_sfc)
 
@@ -452,7 +520,7 @@ end
 
 Returns buoyancy star based on known friction velocity  and fluxes.
 """
-compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
+compute_bstar(param_set::SurfaceFluxesParameters, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
     -compute_buoyancy_flux(param_set, sc, scheme) / sc.ustar
 
 """
@@ -460,7 +528,7 @@ compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
 
 Return buoyancy star based on known fluxes.
 """
-compute_bstar(param_set, L_MO, sc::Fluxes, uft, scheme) =
+compute_bstar(param_set::SurfaceFluxesParameters, L_MO, sc::Fluxes, uft, scheme) =
     -compute_buoyancy_flux(param_set, sc, scheme) / compute_ustar(param_set, L_MO, sc, uft, scheme)
 
 
@@ -493,14 +561,14 @@ Compute given the Monin-Obukhov lengthscale.
 =#
 function compute_ustar end
 
-compute_ustar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) = sc.ustar
+compute_ustar(param_set::SurfaceFluxesParameters, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) = sc.ustar
 
-compute_ustar(param_set, L_MO, sc::Fluxes, uft, scheme) =
+compute_ustar(param_set::SurfaceFluxesParameters, L_MO, sc::Fluxes, uft, scheme) =
     windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
 
-compute_ustar(param_set, L_MO, sc::Coefficients, uft, scheme) = sqrt(sc.Cd) * (windspeed(sc))
+compute_ustar(param_set::SurfaceFluxesParameters, L_MO, sc::Coefficients, uft, scheme) = sqrt(sc.Cd) * (windspeed(sc))
 
-compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme) =
+compute_ustar(param_set::SurfaceFluxesParameters, L_MO, sc::ValuesOnly, uft, scheme) =
     windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
 
 """
@@ -516,11 +584,11 @@ function momentum_exchange_coefficient(
     uft::UF.AUFT,
     scheme,
 )
-    κ = CPSGS.von_karman_const(param_set)
+    κ = param_set.von_karman_const
     transport = UF.MomentumTransport()
     FT = eltype(L_MO)
-    ρ_in = TD.air_density(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_in = TD.air_density(param_set.TPS, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
     Δρ = ρ_in - ρ_sfc
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     if Δρ ≈ FT(0)
@@ -536,7 +604,7 @@ end
 
 Return Cd, the momentum exchange coefficient.
 """
-function momentum_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme)
+function momentum_exchange_coefficient(param_set::SurfaceFluxesParameters, L_MO, sc::Coefficients, uft, scheme)
     return sc.Cd
 end
 
@@ -554,7 +622,7 @@ function heat_exchange_coefficient(
     scheme,
 )
     FT = eltype(L_MO)
-    Δθ = TD.dry_pottemp(ts_in(sc)) - TD.dry_pottemp(ts_sfc(sc))
+    Δθ = TD.dry_pottemp(param_set.TPS, ts_in(sc)) - TD.dry_pottemp(param_set.TPS, ts_sfc(sc))
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     θstar = Δθ * compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme)
     if Δθ ≈ FT(0) || windspeed(sc) ≈ FT(0)
@@ -571,7 +639,7 @@ end
 Return Ch, the heat exchange coefficient given the
 Monin-Obukhov lengthscale.
 """
-function heat_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme)
+function heat_exchange_coefficient(param_set::SurfaceFluxesParameters, L_MO, sc::Coefficients, uft, scheme)
     return sc.Ch
 end
 
@@ -586,8 +654,8 @@ Compute and return the momentum fluxes
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - scheme: Discretization scheme (currently supports FD and FV)
 """
-function momentum_fluxes(param_set, Cd, sc::AbstractSurfaceConditions, scheme)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+function momentum_fluxes(param_set::SurfaceFluxesParameters, Cd, sc::AbstractSurfaceConditions, scheme)
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
     ρτxz = -ρ_sfc * Cd * Δu1(sc) * windspeed(sc)
     ρτyz = -ρ_sfc * Cd * Δu2(sc) * windspeed(sc)
     return (ρτxz, ρτyz)
@@ -604,15 +672,15 @@ Compute and return the sensible heat fluxes
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - scheme: Discretization scheme (currently supports FD and FV)
 """
-function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
-    grav::FT = CPP.grav(param_set)
-    cp_d::FT = CPP.cp_d(param_set)
-    R_d::FT = CPP.R_d(param_set)
-    T_0::FT = CPP.T_0(param_set)
-    cp_m = TD.cp_m(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
-    T_in = TD.air_temperature(ts_in(sc))
-    T_sfc = TD.air_temperature(ts_sfc(sc))
+function sensible_heat_flux(param_set::SurfaceFluxesParameters, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
+    grav = param_set.grav
+    cp_d = param_set.cp_d
+    R_d = param_set.R_d
+    T_0 = param_set.T_0
+    cp_m = TD.cp_m(param_set.TPS, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
+    T_in = TD.air_temperature(param_set.TPS, ts_in(sc))
+    T_sfc = TD.air_temperature(param_set.TPS, ts_sfc(sc))
     ΔT = T_in - T_sfc
     hd_sfc = cp_d * (T_sfc - T_0) + R_d * T_0
     ΔΦ = grav * Δz(sc)
@@ -621,8 +689,8 @@ function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficient
 end
 
 function evaporation(sc::Union{ValuesOnly, Coefficients}, param_set, Ch)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
-    return -ρ_sfc * Ch * windspeed(sc) * Δqt(sc)
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
+    return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc)
 end
 
 
@@ -632,7 +700,7 @@ end
 In cases where surface fluxes are known,
 return the known sensible heat flux.
 """
-function sensible_heat_flux(param_set, Ch, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
+function sensible_heat_flux(param_set::SurfaceFluxesParameters, Ch, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
     return sc.shf
 end
 
@@ -642,7 +710,7 @@ end
 In cases where surface fluxes are known,
 return the known latent heat flux.
 """
-function latent_heat_flux(param_set, L_MO, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
+function latent_heat_flux(param_set::SurfaceFluxesParameters, L_MO, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
     return sc.lhf
 end
 
@@ -657,13 +725,13 @@ Compute and return the latent heat flux
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - scheme: Discretization scheme (currently supports FD and FV)
 """
-function latent_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
-    grav::FT = CPP.grav(param_set)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
-    cp_v::FT = CPP.cp_v(param_set)
-    Lv_0::FT = CPP.LH_v0(param_set)
-    T_0::FT = CPP.T_0(param_set)
-    T_sfc = TD.air_temperature(ts_sfc(sc))
+function latent_heat_flux(param_set::SurfaceFluxesParameters, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
+    grav::FT = param_set.grav
+    ρ_sfc = TD.air_density(param_set.TPS, ts_sfc(sc))
+    cp_v::FT = param_set.cp_v
+    Lv_0::FT = param_set.LH_v0
+    T_0::FT = param_set.T_0
+    T_sfc = TD.air_temperature(param_set.TPS, ts_sfc(sc))
     hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
     Φ_sfc = grav * z_sfc(sc)
     E = evaporation(sc, param_set, Ch)
@@ -688,15 +756,15 @@ for the FV scheme.
   - scheme: Discretization scheme (currently supports FD and FV)
 """
 function compute_physical_scale_coeff(
-    param_set::APS,
+    param_set::SurfaceFluxesParameters,
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     transport,
     uft,
     ::FVScheme,
 ) where {FT}
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    uf = UF.universal_func(uft, L_MO, param_set)
+    von_karman_const = param_set.von_karman_const
+    uf = UF.universal_func(uft, L_MO,param_set.UFPS)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     R_z0 = 1 - z0(sc, transport) / Δz(sc)
@@ -732,8 +800,8 @@ function compute_physical_scale_coeff(
     uft,
     ::FDScheme,
 ) where {FT}
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
-    uf = UF.universal_func(uft, L_MO, param_set)
+    von_karman_const = param_set.von_karman_const
+    uf = UF.universal_func(uft, L_MO, param_set.UFPS)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     denom1 = log(Δz(sc) / z0(sc, transport))
@@ -761,7 +829,7 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
 # TODO: add tests
 """
 function recover_profile(
-    param_set::APS,
+    param_set::SurfaceFluxesParameters,
     sc::AbstractSurfaceConditions,
     L_MO,
     Z,
@@ -772,8 +840,8 @@ function recover_profile(
     scheme::Union{FVScheme, FDScheme},
 ) where {FT}
     @assert isless.(Z, sc.vals_in.z)
-    uf = UF.universal_func(uft, L_MO, param_set)
-    von_karman_const::FT = CPSGS.von_karman_const(param_set)
+    uf = UF.universal_func(uft, L_MO, param_set.UFPS)
+    von_karman_const::FT = param_set.von_karman_const
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     num1 = log(Z / z0(sc, transport))
