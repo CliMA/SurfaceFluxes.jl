@@ -94,10 +94,11 @@ struct BusingerParameters{FT} <: AbstractUniversalFunctionParameters
 end
 function BusingerParameters(param_set)
 
+    #unique aliases in parameter file
     aliases = [
-        "Pr_0",
-        "a_m",
-        "a_h"
+        "Pr_0_Businger",
+        "a_m_Businger",
+        "a_h_Businger"
     ]
 
     (
@@ -269,13 +270,13 @@ struct GryanikParameters{FT} <: AbstractUniversalFunctionParameters
     b_h::FT 
 end
 function GryanikParameters(param_set)
-
+    #unique aliases in parameter file
     aliases = [
-        "Pr_0",
-        "a_m",
-        "a_h",
-        "b_m",
-        "b_h",
+        "Pr_0_Gryanik",
+        "a_m_Gryanik",
+        "a_h_Gryanik",
+        "b_m_Gryanik",
+        "b_h_Gryanik",
     ]
 
     (
@@ -400,15 +401,14 @@ struct GrachevParameters{FT} <: AbstractUniversalFunctionParameters
     c_h::FT
 end
 function GrachevParameters(param_set)
-
+    #unique aliases in parameter file
     aliases = [
-        "Pr_0",
-        "a_m",
-        "a_h",
-        "b_m",
-        "b_h",
-        "c_h",
-
+        "Pr_0_Grachev",
+        "a_m_Grachev",
+        "a_h_Grachev",
+        "b_m_Grachev",
+        "b_h_Grachev",
+        "c_h_Grachev",
     ]
 
     (
