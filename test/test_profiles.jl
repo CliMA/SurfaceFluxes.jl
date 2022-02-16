@@ -11,9 +11,6 @@ const AW = ArtifactWrappers
 import UnPack
 const TD = Thermodynamics
 
-using CLIMAParameters: AbstractEarthParameterSet
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
@@ -92,8 +89,8 @@ for f in files
     z0m = FT(0.001)
     z0b = FT(0.001)
 
-    ts_sfc = TD.PhaseEquil_ρθq(param_set, ρ_sfc, θ_sfc, qt_sfc)
-    ts_in = TD.PhaseEquil_ρθq(param_set, ρ_in, θ_in, qt_in)
+    ts_sfc = TD.PhaseEquil_ρθq(param_set.TPS, ρ_sfc, θ_sfc, qt_sfc)
+    ts_in = TD.PhaseEquil_ρθq(param_set.TPS, ρ_in, θ_in, qt_in)
 
     u_in = SVector{2, FT}(u_in, v_in)
     u_sfc = SVector{2, FT}(u_sfc, v_sfc)

@@ -22,6 +22,7 @@ import CLIMAParameters
 # for Businger, Gryakin, Grachev <: AbstractUniversalFunctionParameters
 abstract type AbstractUniversalFunctionParameters end
 
+
 const FTypes = Union{Real, AbstractArray}
 
 abstract type AbstractUniversalFunction{FT <: FTypes} end

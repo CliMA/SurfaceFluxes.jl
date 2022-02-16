@@ -4,11 +4,26 @@ import SurfaceFluxes
 const SF = SurfaceFluxes
 const UF = SF.UniversalFunctions
 
-import CLIMAParameters
-const CP = CLIMAParameters
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+# create the parameter sets for Gryanik and Grachev from src_parameter_dict
+import CLIMAParameters
+import Thermodynamics.ThermodynamicsParameters
+import SurfaceFluxes.SurfaceFluxesParameters
+import SurfaceFluxes.GryanikParameters
+import SurfaceFluxes.GrachevParameters
+
+gryanik_param_set = SurfaceFluxesParameters(
+    src_parameter_dict,
+    Gryanik(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
+)
+
+grachev_param_set = SurfaceFluxesParameters(
+    src_parameter_dict,
+    Grachev(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
+)
+
 
 # TODO: Right now, we test these functions for
 # type stability and correctness in the asymptotic
@@ -19,8 +34,7 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = FT(-2):FT(0.01):FT(200)
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+            for uf in (UF.Gryanik(L, gryanik_param_set), UF.Grachev(L, grachev_param_set), UF.Businger(L, businger_param_set))
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -34,8 +48,7 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+            for uf in (UF.Gryanik(L, gryanik_param_set), UF.Grachev(L, grachev_param_set), UF.Businger(L, businger_param_set))
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -49,8 +62,7 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            uf = UF.Businger(args...)
+            uf = UF.Businger(L,businger_param_set)
             for transport in (UF.MomentumTransport(), UF.HeatTransport())
                 Ψ = UF.Psi.(uf, ζ, transport)
                 @test eltype(Ψ) == FT
@@ -61,28 +73,27 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = FT(10)
         L = FT(10)
-        args = (L, param_set)
-
-        uf = UF.Gryanik(args...)
+        
+        uf = UF.Gryanik(L, gryanik_param_set)
         @test UF.Businger(uf) isa UF.Businger
         @test UF.Grachev(uf) isa UF.Grachev
 
-        uf = UF.Grachev(args...)
+        uf = UF.Grachev(L, grachev_param_set)
         @test UF.Businger(uf) isa UF.Businger
         @test UF.Gryanik(uf) isa UF.Gryanik
 
-        uf = UF.Businger(args...)
+        uf = UF.Businger(L, businger_param_set)
         @test UF.Grachev(uf) isa UF.Grachev
         @test UF.Gryanik(uf) isa UF.Gryanik
     end
     @testset "Asymptotic range" begin
         FT = Float32
 
-        ϕ_h_ζ∞(uf::UF.Grachev) = 1 + FT(UF.b_h(uf))
-        ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(UF.a_m(uf)) / FT(UF.b_m(uf)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Grachev) = 1 + FT(uf.param_set.b_h)
+        ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(uf.param_set.a_m) / FT(uf.param_set.b_m) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(UF.Pr_0(uf)) * (1 + FT(UF.a_h(uf) / UF.b_h(uf)))
-        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(uf.param_set.Pr_0) * (1 + FT(uf.param_set.a_h / uf.param_set.b_h))
+        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(uf.param_set.a_m / uf.param_set.b_m^FT(2 / 3)) * ζ^FT(1 / 3)
 
         for L in (-FT(10), FT(10))
             args = (L, param_set)

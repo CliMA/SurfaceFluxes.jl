@@ -6,7 +6,9 @@ import Random
 Random.seed!(1234)
 using Test
 import Thermodynamics
+const TD = Thermodynamics
 using SurfaceFluxes
+
 const SF = SurfaceFluxes
 const UF = SF.UniversalFunctions
 using StaticArrays
@@ -15,12 +17,41 @@ import KernelAbstractions: CPU
 
 
 import CLIMAParameters
-const CP = CLIMAParameters
-const CPP = CP.Planet
-const APS = CP.AbstractEarthParameterSet
-const CPSGS = CP.SubgridScale
-const CPSGS = CP.SubgridScale
-const TD = Thermodynamics
+import Thermodynamics.ThermodynamicsParameters
+import SurfaceFluxes.SurfaceFluxesParameters
+import SurfaceFluxes.BusingerParameters
+
+#get parameters from defaults file
+src_parameter_dict =
+    CLIMAParameters.create_parameter_struct(dict_type = "alias")
+
+# create parameter structure (only Businger is used in this file)
+
+gryanik_param_set = SurfaceFluxesParameters(
+    src_parameter_dict,
+    BusingerParameters(src_parameter_dict),
+    ThermodynamicsParameters(src_parameter_dict),
+)
+
+# for the tests we need some additional parameters
+# here we choose to take these from the businger_param_set
+test_parameter_dict = Dict("von_karman_const" => businger_param_set.von_karman_const)
+
+#=
+
+import SurfaceFluxes.GryanikParameters
+gryanik_param_set = SurfaceFluxesParameters(
+    src_parameter_dict,
+    Gryanik(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
+)
+import SurfaceFluxes.GrachevParameters
+grachev_param_set = SurfaceFluxesParameters(
+    src_parameter_dict,
+    Grachev(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
+)
+=#
 
 # TODO: add GPU tests back in, similar to Thermodynamics
 # if get(ARGS, 1, "Array") == "CuArray"
@@ -36,9 +67,9 @@ device(::T) where {T <: Array} = CPU()
 
 @show ArrayType
 
-using CLIMAParameters: AbstractEarthParameterSet
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+#using CLIMAParameters: AbstractEarthParameterSet
+#struct EarthParameterSet <: AbstractEarthParameterSet end
+#const param_set = EarthParameterSet()
 
 @testset "SurfaceFluxes - Recovery Profiles" begin
     FT = Float32
@@ -61,13 +92,13 @@ const param_set = EarthParameterSet()
     # No explicit buoyancy terms in ClimateMachine
     b_star = ArrayType([0.00690834676781433, 0.00428178089592372, 0.00121229800895103, 0.00262353784027441])
 
-    κ = CPSGS.von_karman_const(param_set)
+    κ = test_parameter_dict["von_karman_const"]
     for ii in 1:length(b_star)
         # Compute L_MO given u_star and b_star
         L_MO = u_star[ii]^2 / κ / b_star[ii]
 
-        ts_sfc = TD.PhaseEquil_ρθq(param_set, ρ_sfc, θ_sfc[ii], qt_sfc)
-        ts_in = TD.PhaseEquil_ρθq(param_set, ρ_in, θ[ii], qt_in)
+        ts_sfc = TD.PhaseEquil_ρθq(param_set.TPS, ρ_sfc, θ_sfc[ii], qt_sfc)
+        ts_in = TD.PhaseEquil_ρθq(param_set.TPS, ρ_in, θ[ii], qt_in)
 
         state_sfc = SF.SurfaceValues(FT(0), SVector{2, FT}(0, 0), ts_sfc)
         state_in = SF.InteriorValues(z[ii], SVector{2, FT}(speed[ii], 0), ts_in)

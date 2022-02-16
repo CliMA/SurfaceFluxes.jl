@@ -408,7 +408,7 @@ function obukhov_length end
 obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
 function obukhov_length(
-    param_set,
+    param_set::SurfaceFluxesParameters,
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
@@ -578,7 +578,7 @@ Compute and return Cd, the momentum exchange coefficient, given the
 Monin-Obukhov lengthscale.
 """
 function momentum_exchange_coefficient(
-    param_set,
+    param_set::SurfaceFluxesParameters,
     L_MO,
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     uft::UF.AUFT,
@@ -615,7 +615,7 @@ Compute and return Ch, the heat exchange coefficient given the
 Monin-Obukhov lengthscale.
 """
 function heat_exchange_coefficient(
-    param_set,
+    param_set::SurfaceFluxesParameters,
     L_MO,
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     uft,
@@ -793,7 +793,7 @@ for the Finite Differneces scheme.
   - scheme: Discretization scheme (currently supports FD and FV)
 """
 function compute_physical_scale_coeff(
-    param_set,
+    param_set::SurfaceFluxesParameters,
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     transport,
