@@ -19,18 +19,18 @@ import KernelAbstractions: CPU
 import CLIMAParameters
 import Thermodynamics.ThermodynamicsParameters
 import SurfaceFluxes.SurfaceFluxesParameters
-import SurfaceFluxes.BusingerParameters
+import SurfaceFluxes.UniversalFunctions.BusingerParameters
 
 #get parameters from defaults file
-src_parameter_dict =
+src_parameter_dict_64 =
     CLIMAParameters.create_parameter_struct(dict_type = "alias")
 
 # create parameter structure (only Businger is used in this file)
 
-gryanik_param_set = SurfaceFluxesParameters(
-    src_parameter_dict,
-    BusingerParameters(src_parameter_dict),
-    ThermodynamicsParameters(src_parameter_dict),
+businger_param_set = SurfaceFluxesParameters(
+    src_parameter_dict_64,
+    BusingerParameters(src_parameter_dict_64),
+    ThermodynamicsParameters(src_parameter_dict_64),
 )
 
 # for the tests we need some additional parameters
@@ -97,8 +97,8 @@ device(::T) where {T <: Array} = CPU()
         # Compute L_MO given u_star and b_star
         L_MO = u_star[ii]^2 / κ / b_star[ii]
 
-        ts_sfc = TD.PhaseEquil_ρθq(param_set.TPS, ρ_sfc, θ_sfc[ii], qt_sfc)
-        ts_in = TD.PhaseEquil_ρθq(param_set.TPS, ρ_in, θ[ii], qt_in)
+        ts_sfc = TD.PhaseEquil_ρθq(businger_param_set.TPS, ρ_sfc, θ_sfc[ii], qt_sfc)
+        ts_in = TD.PhaseEquil_ρθq(businger_param_set.TPS, ρ_in, θ[ii], qt_in)
 
         state_sfc = SF.SurfaceValues(FT(0), SVector{2, FT}(0, 0), ts_sfc)
         state_in = SF.InteriorValues(z[ii], SVector{2, FT}(speed[ii], 0), ts_in)
@@ -114,10 +114,10 @@ device(::T) where {T <: Array} = CPU()
         uf = UF.Businger()
         for jj in 1:length(sc)
             u_scale_fd =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FDScheme())
+                SF.compute_physical_scale_coeff(businger_param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FDScheme())
             Δu_fd = u_star[ii] / u_scale_fd
             u_scale_fv =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FVScheme())
+                SF.compute_physical_scale_coeff(businger_param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FVScheme())
             Δu_fv = u_star[ii] / u_scale_fv
             @test (Δu_fd - Δu_fv) ./ Δu_fd * 100 <= FT(50)
         end

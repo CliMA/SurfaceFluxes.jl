@@ -68,10 +68,10 @@ function SurfaceFluxesParameters(
     aliases = ["von_karman_const","grav","molmass_dryair",
         "molmass_water","gas_constant","kappa_d","T_0", "cp_v", "LH_v0"]
     (von_karman_const, grav, molmass_dryair, molmass_water,
-    gas_constant, kappa_d, T_0, cp_v, LH_v0) = CLIMAParameters.get_parameter_values(
-        param_set,
-        aliases,
-        "SurfaceFluxesParameters"
+     gas_constant, kappa_d, T_0, cp_v, LH_v0) = CLIMAParameters.get_parameter_values!(
+         param_set,
+         aliases,
+         "SurfaceFluxesParameters"
     )
     # derived parameters
     R_d = gas_constant / molmass_dryair
@@ -82,7 +82,7 @@ function SurfaceFluxesParameters(
     
 
     return SurfaceFluxesParameters{
-        CLIMAParameters.get_parametric_type(param_set),
+        CLIMAParameters.get_parametric_type(param_set), AUFPS
     }(
         von_karman_const,
         grav,
