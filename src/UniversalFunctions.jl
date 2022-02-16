@@ -87,6 +87,37 @@ function Psi end
 #####
 ##### Businger
 #####
+struct BusingerParameters{FT} <: AbstractUniversalFunctionParameters
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+end
+function BusingerParameters(param_set)
+
+    aliases = [
+        "Pr_0",
+        "a_m",
+        "a_h"
+    ]
+
+    (
+        Pr_0,
+        a_m,
+        a_h
+    ) = CLIMAParameters.get_parameter_values!(
+        param_set,
+        aliases,
+        "Businger"
+    )
+
+    return BusingerParameters{
+    CLIMAParameters.get_parametric_type(param_set),
+    }(
+        Pr_0,
+        a_m,
+        a_h,
+    )
+end
 
 """
     Businger
@@ -110,44 +141,13 @@ function Psi end
 
 $(DSE.FIELDS)
 """
-struct Businger{FT} <: AbstractUniversalFunction{FT}
+struct Businger{FT, FT2} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
     "Parameter set"
-    param_set::BusingerParameters{FT}
+    param_set::BusingerParameters{FT2}
 end
 
-struct BusingerParameters{FT} <: AbstractUniversalFunctionParameters
-    Pr_0_Businger::FT
-    a_m_Businger::FT
-    a_h_Businger::FT
-end
-function BusingerParameters(param_set)
-
-    aliases = [
-        "Pr_0_Businger",
-        "a_m_Businger",
-        "a_h_Businger"
-    ]
-
-    (
-        Pr_0_Businger,
-        a_m_Businger,
-        a_h_Businger
-    ) = CLIMAParameters.get_parameter_values(
-        param_set,
-        aliases,
-        "Businger"
-    )
-
-    return BusingerParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0_Businger,
-        a_m_Businger,
-        a_h_Businger    
-    )
-end
 
 struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
@@ -176,7 +176,7 @@ function phi(uf::Businger, ζ, tt::HeatTransport)
     else
         FT = eltype(uf)
         _a_h = FT(uf.param_set.a_h)
-        _π_group = FT(π_group(param_set, uf, tt))
+        _π_group = FT(π_group(uf, tt))
         return _a_h * ζ / _π_group + 1
     end
 end
@@ -200,7 +200,7 @@ function psi(uf::Businger, ζ, tt::HeatTransport)
     else
         FT = eltype(uf)
         _a_h = FT(uf.param_set.a_h)
-        _π_group = FT(π_group(param_set, uf, tt))
+        _π_group = FT(π_group(uf, tt))
         return -_a_h * ζ / _π_group
     end
 end
@@ -240,14 +240,14 @@ function Psi(uf::Businger, ζ, tt::HeatTransport)
     if abs(ζ) < eps(typeof(uf.L))
         # Psi_h in Eq. A14
         if ζ >= 0
-            _π_group = FT(π_group(param_set, uf, tt))
+            _π_group = FT(π_group(uf, tt))
             return -_a_h * ζ / (2 * _π_group)
         else
             return -9 * ζ / 4
         end
     else
         if ζ >= 0
-            _π_group = FT(π_group(param_set, uf, tt))
+            _π_group = FT(π_group(uf, tt))
             return -_a_h * ζ / (2 * _π_group)
         else
             f_h = f_heat(uf, ζ)
@@ -260,6 +260,47 @@ end
 #####
 ##### Gryanik
 #####
+
+struct GryanikParameters{FT} <: AbstractUniversalFunctionParameters
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT 
+end
+function GryanikParameters(param_set)
+
+    aliases = [
+        "Pr_0",
+        "a_m",
+        "a_h",
+        "b_m",
+        "b_h",
+    ]
+
+    (
+        Pr_0,
+        a_m,
+        a_h,
+        b_m,
+        b_h,
+    ) = CLIMAParameters.get_parameter_values!(
+        param_set,
+        aliases,
+        "Gryanik"
+    )
+
+    return GryanikParameters{
+    CLIMAParameters.get_parametric_type(param_set),
+    }(
+        Pr_0,
+        a_m,
+        a_h,   
+        b_m,
+        b_h,
+    )
+
+end
 
 """
     Gryanik <: AbstractUniversalFunction{FT}
@@ -278,53 +319,13 @@ end
 
 $(DSE.FIELDS)
 """
-struct Gryanik{FT} <: AbstractUniversalFunction{FT}
+struct Gryanik{FT,FT2} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
     "Parameter set"
-    param_set::GryanikParameters{FT}
+    param_set::GryanikParameters{FT2}
 end
 
-struct GryanikParameters{FT} <: AbstractUniversalFunctionParameters
-    Pr_0_Gryanik::FT
-    a_m_Gryanik::FT
-    a_h_Gryanik::FT
-    b_m_Gryanik::FT
-    b_h_Gryanik::FT 
-end
-function GryanikParameters(param_set)
-
-    aliases = [
-        "Pr_0_Gryanik",
-        "a_m_Gryanik",
-        "a_h_Gryanik",
-        "b_m_Gryanik",
-        "b_h_Gryanik",
-    ]
-
-    (
-        Pr_0_Gryanik,
-        a_m_Gryanik,
-        a_h_Gryanik,
-        b_m_Gryanik,
-        b_h_Gryanik,
-    ) = CLIMAParameters.get_parameter_values(
-        param_set,
-        aliases,
-        "Gryanik"
-    )
-
-    return GryanikParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0_Gryanik,
-        a_m_Gryanik,
-        a_h_Gryanik    
-        b_m_Gryanik,
-        b_h_Gryanik,
-    )
-
-end
 
 
     
@@ -333,48 +334,56 @@ Gryanik() = GryanikType()
 
 
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _a_m = FT(uf.param_set.a_m)
         _b_m = FT(uf.param_set.b_m)
         return 1 + (_a_m * ζ) / (1 + _b_m * ζ)^(FT(2 / 3))
     else
-        return phi(Businger(uf), ζ, tt)
+        # return phi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
 function phi(uf::Gryanik, ζ, tt::HeatTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _Pr_0 = FT(uf.param_set.Pr_0)
         _a_h = FT(uf.param_set.a_h)
         _b_h = FT(uf.param_set.b_h)
         return _Pr_0 * (1 + (_a_h * ζ) / (1 + _b_h * ζ))
     else
-        return phi(Businger(uf), ζ, tt)
+        # return phi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
 function psi(uf::Gryanik, ζ, tt::MomentumTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _a_m = FT(uf.param_set.a_m)
         _b_m = FT(uf.param_set.b_m)
         return -3 * (_a_m / _b_m) * ((1 + _b_m * ζ)^(FT(1 / 3)) - 1)
     else
-        return psi(Businger(uf), ζ, tt)
+        # return psi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
 function psi(uf::Gryanik, ζ, tt::HeatTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _Pr_0 = FT(uf.param_set.Pr_0)
         _a_h = FT(uf.param_set.a_h)
         _b_h = FT(uf.param_set.b_h)
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
-        return psi(Businger(uf), ζ, tt)
+        # return psi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
@@ -382,6 +391,51 @@ end
 #####
 ##### Grachev
 #####
+struct GrachevParameters{FT} <: AbstractUniversalFunctionParameters
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT
+    c_h::FT
+end
+function GrachevParameters(param_set)
+
+    aliases = [
+        "Pr_0",
+        "a_m",
+        "a_h",
+        "b_m",
+        "b_h",
+        "c_h",
+
+    ]
+
+    (
+        Pr_0,
+        a_m,
+        a_h,
+        b_m,
+        b_h,
+        c_h
+    ) = CLIMAParameters.get_parameter_values!(
+        param_set,
+        aliases,
+        "Grachev"
+    )
+
+    return GrachevParameters{
+    CLIMAParameters.get_parametric_type(param_set),
+    }(
+        Pr_0,
+        a_m,
+        a_h,    
+        b_m,
+        b_h,
+        c_h,
+    )
+
+end
 
 """
     Grachev <: AbstractUniversalFunction{FT}
@@ -400,58 +454,13 @@ Equations in reference:
 
 $(DSE.FIELDS)
 """
-struct Grachev{FT} <: AbstractUniversalFunction{FT}
+struct Grachev{FT,FT2} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
     "Parameter set"
-    param_set::GrachevParameters{FT}
+    param_set::GrachevParameters{FT2}
 end
 
-struct GrachevParameters{FT} <: AbstractUniversalFunctionParameters
-    Pr_0_Grachev::FT
-    a_m_Grachev::FT
-    a_h_Grachev::FT
-    b_m_Grachev::FT
-    b_h_Grachev::FT
-    c_h_Grachev::FT
-end
-function GrachevParameters(param_set)
-
-    aliases = [
-        "Pr_0_Grachev",
-        "a_m_Grachev",
-        "a_h_Grachev",
-        "b_m_Grachev",
-        "b_h_Grachev",
-        "c_h_Grachev",
-
-    ]
-
-    (
-        Pr_0_Grachev,
-        a_m_Grachev,
-        a_h_Grachev,
-        b_m_Grachev,
-        b_h_Grachev,
-        c_h_Grachev
-    ) = CLIMAParameters.get_parameter_values(
-        param_set,
-        aliases,
-        "Grachev"
-    )
-
-    return GrachevParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0_Grachev,
-        a_m_Grachev,
-        a_h_Grachev    
-        b_m_Grachev,
-        b_h_Grachev,
-        c_h_Grachev
-    )
-
-end
 
 
 
@@ -462,30 +471,34 @@ Grachev() = GrachevType()
 # CLIMAParameters wrapper
 
 function phi(uf::Grachev, ζ, tt::MomentumTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _a_m = FT(uf.param_set.a_m)
         _b_m = FT(uf.param_set.b_m)
         return 1 + _a_m * ζ * (1 + ζ)^FT(1 / 3) / (1 + _b_m * ζ)
     else
-        return phi(Businger(uf), ζ, tt)
+        # return phi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
 function phi(uf::Grachev, ζ, tt::HeatTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _a_h = FT(uf.param_set.a_h)
         _b_h = FT(uf.param_set.b_h)
         _c_h = FT(uf.param_set.c_h)
         return 1 + (_a_h * ζ + _b_h * ζ^2) / (1 + _c_h * ζ + ζ^2)
     else
-        return phi(Businger(uf), ζ, tt)
+        # return phi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return phi(uf,FT(0),tt)
     end
 end
 
 function psi(uf::Grachev, ζ, tt::MomentumTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _a_m = FT(uf.param_set.a_m)
         _b_m = FT(uf.param_set.b_m)
@@ -504,12 +517,14 @@ function psi(uf::Grachev, ζ, tt::MomentumTransport)
         bracket_term = log_term_1 - log_term_2 + 2 * sqrt3 * atan_terms
         return linear_term + _a_m * B_m / (2 * _b_m) * bracket_term
     else
-        return psi(Businger(uf), ζ, tt)
+        # return psi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return psi(uf,FT(0),tt)
     end
 end
 
 function psi(uf::Grachev, ζ, tt::HeatTransport)
-    if 0 < ζ
+    if 0 <= ζ
         FT = eltype(uf)
         _Pr_0 = FT(uf.param_set.Pr_0)
         _a_h = FT(uf.param_set.a_h)
@@ -523,25 +538,27 @@ function psi(uf::Grachev, ζ, tt::HeatTransport)
         term_2 = _b_h / 2 * log1p(_c_h * ζ + ζ^2)
         return -coeff * log_terms - term_2
     else
-        return psi(Businger(uf), ζ, tt)
+        # return psi(Businger(uf), ζ, tt)
+        FT = eltype(uf)
+        return psi(uf,FT(0),tt)
     end
 end
 
 #####
-##### Conversions
+##### Conversions 
 #####
 
-Businger(uf::Grachev) = Businger(uf.L, uf.param_set)
-Businger(uf::Gryanik) = Businger(uf.L, uf.param_set)
+#Businger(uf::Grachev) = Businger(uf.L, uf.param_set)
+#Businger(uf::Gryanik) = Businger(uf.L, uf.param_set)
 
-Grachev(uf::Businger) = Grachev(uf.L, uf.param_set)
-Grachev(uf::Gryanik) = Grachev(uf.L, uf.param_set)
+#Grachev(uf::Businger) = Grachev(uf.L, uf.param_set)
+#Grachev(uf::Gryanik) = Grachev(uf.L, uf.param_set)
 
-Gryanik(uf::Businger) = Gryanik(uf.L, uf.param_set)
-Gryanik(uf::Grachev) = Gryanik(uf.L, uf.param_set)
+#Gryanik(uf::Businger) = Gryanik(uf.L, uf.param_set)
+#Gryanik(uf::Grachev) = Gryanik(uf.L, uf.param_set)
 
-universal_func(::BusingerType, L_MO::FT, param_set::BusingerParameters{FT}) where {FT} = Businger{FT}(L_MO, param_set)
-universal_func(::GryanikType, L_MO::FT, param_set::GryanikParameters{FT}) where {FT} = Gryanik{FT}(L_MO, param_set)
-universal_func(::GrachevType, L_MO::FT, param_set::GrachevParameters{FT}) where {FT} = Grachev{FT}(L_MO, param_set)
+universal_func(::BusingerType, L_MO::FT, param_set::BusingerParameters{FT2}) where {FT,FT2} = Businger{FT,FT2}(L_MO, param_set)
+universal_func(::GryanikType, L_MO::FT, param_set::GryanikParameters{FT2}) where {FT,FT2} = Gryanik{FT,FT2}(L_MO, param_set)
+universal_func(::GrachevType, L_MO::FT, param_set::GrachevParameters{FT2}) where {FT,FT2} = Grachev{FT,FT2}(L_MO, param_set)
 
 end # module
