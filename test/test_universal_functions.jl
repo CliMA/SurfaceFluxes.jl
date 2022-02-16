@@ -99,17 +99,16 @@ grachev_param_set = SurfaceFluxesParameters(
     end=#
     @testset "Asymptotic range" begin
         FT = Float32
-
+      
         ϕ_h_ζ∞(uf::UF.Grachev) = 1 + FT(uf.param_set.b_h)
         ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(uf.param_set.a_m) / FT(uf.param_set.b_m) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(uf.param_set.Pr_0) * (1 + FT(uf.param_set.a_h / uf.param_set.b_h))
-        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(uf.param_set.a_m / uf.param_set.b_m^FT(2 / 3)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(uf.param_set.Pr_0) * (1 + FT(uf.param_set.a_h) / FT(uf.param_set.b_h))
+        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(uf.param_set.a_m / FT(uf.param_set.b_m)^FT(2 / 3)) * ζ^FT(1 / 3)
 
         for L in (-FT(10), FT(10))
             for uf in (UF.Grachev(L, grachev_param_set.UFPS), UF.Gryanik(L, gryanik_param_set.UFPS))
                 for ζ in FT(10) .^ (4, 6, 8, 10)
-                    println(ζ)
                     ϕ_h = UF.phi(uf, ζ, UF.HeatTransport())
                     @test isapprox(ϕ_h, ϕ_h_ζ∞(uf))
                 end
