@@ -22,8 +22,7 @@ import SurfaceFluxes.SurfaceFluxesParameters
 import SurfaceFluxes.UniversalFunctions.BusingerParameters
 
 #get parameters from defaults file
-src_parameter_dict_64 =
-    CLIMAParameters.create_parameter_struct(dict_type = "alias")
+src_parameter_dict_64 = CLIMAParameters.create_parameter_struct(dict_type = "alias")
 
 # create parameter structure (only Businger is used in this file)
 
@@ -113,11 +112,23 @@ device(::T) where {T <: Array} = CPU()
         )
         uf = UF.Businger()
         for jj in 1:length(sc)
-            u_scale_fd =
-                SF.compute_physical_scale_coeff(businger_param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FDScheme())
+            u_scale_fd = SF.compute_physical_scale_coeff(
+                businger_param_set,
+                sc[jj],
+                L_MO,
+                UF.MomentumTransport(),
+                uf,
+                SF.FDScheme(),
+            )
             Δu_fd = u_star[ii] / u_scale_fd
-            u_scale_fv =
-                SF.compute_physical_scale_coeff(businger_param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FVScheme())
+            u_scale_fv = SF.compute_physical_scale_coeff(
+                businger_param_set,
+                sc[jj],
+                L_MO,
+                UF.MomentumTransport(),
+                uf,
+                SF.FVScheme(),
+            )
             Δu_fv = u_star[ii] / u_scale_fv
             @test (Δu_fd - Δu_fv) ./ Δu_fd * 100 <= FT(50)
         end

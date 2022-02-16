@@ -95,29 +95,11 @@ end
 function BusingerParameters(param_set)
 
     #unique aliases in parameter file
-    aliases = [
-        "Pr_0_Businger",
-        "a_m_Businger",
-        "a_h_Businger"
-    ]
+    aliases = ["Pr_0_Businger", "a_m_Businger", "a_h_Businger"]
 
-    (
-        Pr_0,
-        a_m,
-        a_h
-    ) = CLIMAParameters.get_parameter_values!(
-        param_set,
-        aliases,
-        "Businger"
-    )
+    (Pr_0, a_m, a_h) = CLIMAParameters.get_parameter_values!(param_set, aliases, "Businger")
 
-    return BusingerParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0,
-        a_m,
-        a_h,
-    )
+    return BusingerParameters{CLIMAParameters.get_parametric_type(param_set)}(Pr_0, a_m, a_h)
 end
 
 """
@@ -267,39 +249,15 @@ struct GryanikParameters{FT} <: AbstractUniversalFunctionParameters
     a_m::FT
     a_h::FT
     b_m::FT
-    b_h::FT 
+    b_h::FT
 end
 function GryanikParameters(param_set)
     #unique aliases in parameter file
-    aliases = [
-        "Pr_0_Gryanik",
-        "a_m_Gryanik",
-        "a_h_Gryanik",
-        "b_m_Gryanik",
-        "b_h_Gryanik",
-    ]
+    aliases = ["Pr_0_Gryanik", "a_m_Gryanik", "a_h_Gryanik", "b_m_Gryanik", "b_h_Gryanik"]
 
-    (
-        Pr_0,
-        a_m,
-        a_h,
-        b_m,
-        b_h,
-    ) = CLIMAParameters.get_parameter_values!(
-        param_set,
-        aliases,
-        "Gryanik"
-    )
+    (Pr_0, a_m, a_h, b_m, b_h) = CLIMAParameters.get_parameter_values!(param_set, aliases, "Gryanik")
 
-    return GryanikParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0,
-        a_m,
-        a_h,   
-        b_m,
-        b_h,
-    )
+    return GryanikParameters{CLIMAParameters.get_parametric_type(param_set)}(Pr_0, a_m, a_h, b_m, b_h)
 
 end
 
@@ -320,7 +278,7 @@ end
 
 $(DSE.FIELDS)
 """
-struct Gryanik{FT,FT2} <: AbstractUniversalFunction{FT}
+struct Gryanik{FT, FT2} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
     "Parameter set"
@@ -329,7 +287,7 @@ end
 
 
 
-    
+
 struct GryanikType <: AbstractUniversalFunctionType end
 Gryanik() = GryanikType()
 
@@ -343,7 +301,7 @@ function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     else
         # return phi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -357,7 +315,7 @@ function phi(uf::Gryanik, ζ, tt::HeatTransport)
     else
         # return phi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -370,7 +328,7 @@ function psi(uf::Gryanik, ζ, tt::MomentumTransport)
     else
         # return psi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -384,7 +342,7 @@ function psi(uf::Gryanik, ζ, tt::HeatTransport)
     else
         # return psi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -402,38 +360,11 @@ struct GrachevParameters{FT} <: AbstractUniversalFunctionParameters
 end
 function GrachevParameters(param_set)
     #unique aliases in parameter file
-    aliases = [
-        "Pr_0_Grachev",
-        "a_m_Grachev",
-        "a_h_Grachev",
-        "b_m_Grachev",
-        "b_h_Grachev",
-        "c_h_Grachev",
-    ]
+    aliases = ["Pr_0_Grachev", "a_m_Grachev", "a_h_Grachev", "b_m_Grachev", "b_h_Grachev", "c_h_Grachev"]
 
-    (
-        Pr_0,
-        a_m,
-        a_h,
-        b_m,
-        b_h,
-        c_h
-    ) = CLIMAParameters.get_parameter_values!(
-        param_set,
-        aliases,
-        "Grachev"
-    )
+    (Pr_0, a_m, a_h, b_m, b_h, c_h) = CLIMAParameters.get_parameter_values!(param_set, aliases, "Grachev")
 
-    return GrachevParameters{
-    CLIMAParameters.get_parametric_type(param_set),
-    }(
-        Pr_0,
-        a_m,
-        a_h,    
-        b_m,
-        b_h,
-        c_h,
-    )
+    return GrachevParameters{CLIMAParameters.get_parametric_type(param_set)}(Pr_0, a_m, a_h, b_m, b_h, c_h)
 
 end
 
@@ -454,7 +385,7 @@ Equations in reference:
 
 $(DSE.FIELDS)
 """
-struct Grachev{FT,FT2} <: AbstractUniversalFunction{FT}
+struct Grachev{FT, FT2} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
     "Parameter set"
@@ -464,7 +395,7 @@ end
 
 
 
-    
+
 struct GrachevType <: AbstractUniversalFunctionType end
 Grachev() = GrachevType()
 
@@ -479,7 +410,7 @@ function phi(uf::Grachev, ζ, tt::MomentumTransport)
     else
         # return phi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -493,7 +424,7 @@ function phi(uf::Grachev, ζ, tt::HeatTransport)
     else
         # return phi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return phi(uf,FT(0),tt)
+        return phi(uf, FT(0), tt)
     end
 end
 
@@ -519,7 +450,7 @@ function psi(uf::Grachev, ζ, tt::MomentumTransport)
     else
         # return psi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return psi(uf,FT(0),tt)
+        return psi(uf, FT(0), tt)
     end
 end
 
@@ -540,7 +471,7 @@ function psi(uf::Grachev, ζ, tt::HeatTransport)
     else
         # return psi(Businger(uf), ζ, tt)
         FT = eltype(uf)
-        return psi(uf,FT(0),tt)
+        return psi(uf, FT(0), tt)
     end
 end
 
@@ -557,8 +488,11 @@ end
 #Gryanik(uf::Businger) = Gryanik(uf.L, uf.param_set)
 #Gryanik(uf::Grachev) = Gryanik(uf.L, uf.param_set)
 
-universal_func(::BusingerType, L_MO::FT, param_set::BusingerParameters{FT2}) where {FT,FT2} = Businger{FT,FT2}(L_MO, param_set)
-universal_func(::GryanikType, L_MO::FT, param_set::GryanikParameters{FT2}) where {FT,FT2} = Gryanik{FT,FT2}(L_MO, param_set)
-universal_func(::GrachevType, L_MO::FT, param_set::GrachevParameters{FT2}) where {FT,FT2} = Grachev{FT,FT2}(L_MO, param_set)
+universal_func(::BusingerType, L_MO::FT, param_set::BusingerParameters{FT2}) where {FT, FT2} =
+    Businger{FT, FT2}(L_MO, param_set)
+universal_func(::GryanikType, L_MO::FT, param_set::GryanikParameters{FT2}) where {FT, FT2} =
+    Gryanik{FT, FT2}(L_MO, param_set)
+universal_func(::GrachevType, L_MO::FT, param_set::GrachevParameters{FT2}) where {FT, FT2} =
+    Grachev{FT, FT2}(L_MO, param_set)
 
 end # module

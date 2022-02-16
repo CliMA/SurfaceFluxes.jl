@@ -13,8 +13,7 @@ const TD = Thermodynamics
 
 
 # want Float32 parameters here
-src_parameter_dict =
-    CLIMAParameters.create_parameter_struct(dict_type = "alias", value_type=Float32)
+src_parameter_dict = CLIMAParameters.create_parameter_struct(dict_type = "alias", value_type = Float32)
 
 businger_param_set = SurfaceFluxesParameters(
     src_parameter_dict,
