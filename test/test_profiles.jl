@@ -1,3 +1,8 @@
+if !haskey(ENV, "BUILDKITE")
+    import Pkg
+    Pkg.develop(Pkg.PackageSpec(; path = dirname(@__DIR__)))
+end
+
 import NCDatasets
 const NC = NCDatasets
 import SurfaceFluxes

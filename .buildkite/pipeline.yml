@@ -7,8 +7,9 @@ steps:
     key: "init_cpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
-      - "julia --project -e 'using Pkg; Pkg.add(PackageSpec(name=\"Thermodynamics\", rev=\"orad/refactor-parameters-v1b\"))'"
-      - "julia --project -e 'using Pkg; Pkg.add(PackageSpec(name=\"CLIMAParameters\", rev=\"orad/refactor-parameters-v2b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.add(PackageSpec(name=\"Thermodynamics\", rev=\"orad/refactor-parameters-v1b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.add(PackageSpec(name=\"CLIMAParameters\", rev=\"orad/refactor-parameters-v2b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path = \".\")'"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test/ -e 'using Pkg; Pkg.precompile()'"
       - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
@@ -21,8 +22,9 @@ steps:
     key: "init_gpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
-      - "julia --project -e 'using Pkg; Pkg.add(PackageSpec(name=\"Thermodynamics\", rev=\"orad/refactor-parameters-v1b\"))'"
-      - "julia --project -e 'using Pkg; Pkg.add(PackageSpec(name=\"CLIMAParameters\", rev=\"orad/refactor-parameters-v2b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.add(PackageSpec(name=\"Thermodynamics\", rev=\"orad/refactor-parameters-v1b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.add(PackageSpec(name=\"CLIMAParameters\", rev=\"orad/refactor-parameters-v2b\"))'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path = \".\")'"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test/ -e 'using Pkg; Pkg.precompile()'"
       - "julia --project=test/ -e 'using Pkg; Pkg.add(\"CUDA\")'"

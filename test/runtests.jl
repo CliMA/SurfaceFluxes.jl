@@ -1,5 +1,6 @@
-if !("." in LOAD_PATH) # for ease of local testing
-    push!(LOAD_PATH, ".")
+if !haskey(ENV, "BUILDKITE")
+    import Pkg
+    Pkg.develop(Pkg.PackageSpec(; path = dirname(@__DIR__)))
 end
 
 import Random

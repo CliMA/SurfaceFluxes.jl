@@ -1,5 +1,9 @@
-using Test
+if !haskey(ENV, "BUILDKITE")
+    import Pkg
+    Pkg.develop(Pkg.PackageSpec(; path = dirname(@__DIR__)))
+end
 
+using Test
 import SurfaceFluxes
 const SF = SurfaceFluxes
 const UF = SF.UniversalFunctions
