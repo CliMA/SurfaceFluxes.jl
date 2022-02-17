@@ -41,7 +41,7 @@ steps:
 
   - label: "CPU tests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test()'"
+      - "julia --project=test test/runtests.jl"
     agents:
       config: cpu
       queue: central
@@ -49,7 +49,7 @@ steps:
 
   - label: "GPU tests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
+      - "julia --project=test test/runtests.jl CuArray"
     agents:
       config: gpu
       queue: central
