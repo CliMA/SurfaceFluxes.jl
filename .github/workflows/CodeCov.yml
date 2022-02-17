@@ -25,8 +25,8 @@ jobs:
       env:
         JULIA_PROJECT: "@."
       run: |
-        julia --project=@ -e 'using Pkg; Pkg.add(PackageSpec(name=\"Thermodynamics\", rev=\"orad/refactor-parameters-v1b\"))'
-        julia --project=@ -e 'using Pkg; Pkg.add(PackageSpec(name=\"CLIMAParameters\", rev=\"orad/refactor-parameters-v2b\"))'
+        julia --project=@ -e 'using Pkg; Pkg.add(PackageSpec(name="Thermodynamics", rev="orad/refactor-parameters-v1b"))'
+        julia --project=@ -e 'using Pkg; Pkg.add(PackageSpec(name="CLIMAParameters", rev="orad/refactor-parameters-v2b"))'
 
         julia --project=@. -e 'using Pkg; Pkg.instantiate()'
         julia --project=@. -e 'using Pkg; Pkg.test(coverage=true)'
