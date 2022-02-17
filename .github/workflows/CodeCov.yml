@@ -29,7 +29,7 @@ jobs:
         julia --project=@. -e 'using Pkg; Pkg.add(PackageSpec(name="CLIMAParameters", rev="orad/refactor-parameters-v2b"))'
         julia --project=@. -e 'using Pkg; Pkg.instantiate()'
         julia --project=@. -e 'using Pkg; Pkg.test(coverage=true)'
-
+        julia --project=test; add Pkg
     - name: Generate coverage file
       env:
         JULIA_PROJECT: "@."
