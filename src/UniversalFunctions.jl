@@ -147,7 +147,7 @@ function phi(uf::Businger, ζ, ::MomentumTransport)
         return 1 / f_m
     else
         FT = eltype(uf)
-        _a_m = FT(uf.param_set.a_m)
+        _a_m = uf.param_set.a_m
         return _a_m * ζ + 1
     end
 end
@@ -158,7 +158,7 @@ function phi(uf::Businger, ζ, tt::HeatTransport)
         return 1 / f_h
     else
         FT = eltype(uf)
-        _a_h = FT(uf.param_set.a_h)
+        _a_h = uf.param_set.a_h
         _π_group = FT(π_group(uf, tt))
         return _a_h * ζ / _π_group + 1
     end
@@ -171,7 +171,7 @@ function psi(uf::Businger, ζ, ::MomentumTransport)
         log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
         return log_term - 2 * atan(f_m) + FT(π) / 2
     else
-        _a_m = FT(uf.param_set.a_m)
+        _a_m = uf.param_set.a_m
         return -_a_m * ζ
     end
 end
@@ -182,7 +182,7 @@ function psi(uf::Businger, ζ, tt::HeatTransport)
         return 2 * log((1 + f_h) / 2)
     else
         FT = eltype(uf)
-        _a_h = FT(uf.param_set.a_h)
+        _a_h = uf.param_set.a_h
         _π_group = FT(π_group(uf, tt))
         return -_a_h * ζ / _π_group
     end
@@ -193,7 +193,7 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
     if abs(ζ) < eps(FT)
         # Psi_m in Eq. A13
         if ζ >= 0
-            _a_m = FT(uf.param_set.a_m)
+            _a_m = uf.param_set.a_m
             return -_a_m * ζ / 2
         else
             return -FT(15) * ζ / FT(8)
@@ -211,7 +211,7 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
             cubic_term = (1 - f_m^3) / (12 * ζ)
             return log_term - tan_term + π_term - 1 + cubic_term
         else
-            _a_m = FT(uf.param_set.a_m)
+            _a_m = uf.param_set.a_m
             return -_a_m * ζ / 2
         end
     end
@@ -219,7 +219,7 @@ end
 
 function Psi(uf::Businger, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    _a_h = FT(uf.param_set.a_h)
+    _a_h = uf.param_set.a_h
     if abs(ζ) < eps(typeof(uf.L))
         # Psi_h in Eq. A14
         if ζ >= 0
@@ -295,8 +295,8 @@ Gryanik() = GryanikType()
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _a_m = FT(uf.param_set.a_m)
-        _b_m = FT(uf.param_set.b_m)
+        _a_m = uf.param_set.a_m
+        _b_m = uf.param_set.b_m
         return 1 + (_a_m * ζ) / (1 + _b_m * ζ)^(FT(2 / 3))
     else
         # return phi(Businger(uf), ζ, tt)
@@ -308,9 +308,9 @@ end
 function phi(uf::Gryanik, ζ, tt::HeatTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _Pr_0 = FT(uf.param_set.Pr_0)
-        _a_h = FT(uf.param_set.a_h)
-        _b_h = FT(uf.param_set.b_h)
+        _Pr_0 = uf.param_set.Pr_0
+        _a_h = uf.param_set.a_h
+        _b_h = uf.param_set.b_h
         return _Pr_0 * (1 + (_a_h * ζ) / (1 + _b_h * ζ))
     else
         # return phi(Businger(uf), ζ, tt)
@@ -322,8 +322,8 @@ end
 function psi(uf::Gryanik, ζ, tt::MomentumTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _a_m = FT(uf.param_set.a_m)
-        _b_m = FT(uf.param_set.b_m)
+        _a_m = uf.param_set.a_m
+        _b_m = uf.param_set.b_m
         return -3 * (_a_m / _b_m) * ((1 + _b_m * ζ)^(FT(1 / 3)) - 1)
     else
         # return psi(Businger(uf), ζ, tt)
@@ -335,9 +335,9 @@ end
 function psi(uf::Gryanik, ζ, tt::HeatTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _Pr_0 = FT(uf.param_set.Pr_0)
-        _a_h = FT(uf.param_set.a_h)
-        _b_h = FT(uf.param_set.b_h)
+        _Pr_0 = uf.param_set.Pr_0
+        _a_h = uf.param_set.a_h
+        _b_h = uf.param_set.b_h
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
         # return psi(Businger(uf), ζ, tt)
@@ -404,8 +404,8 @@ Grachev() = GrachevType()
 function phi(uf::Grachev, ζ, tt::MomentumTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _a_m = FT(uf.param_set.a_m)
-        _b_m = FT(uf.param_set.b_m)
+        _a_m = uf.param_set.a_m
+        _b_m = uf.param_set.b_m
         return 1 + _a_m * ζ * (1 + ζ)^FT(1 / 3) / (1 + _b_m * ζ)
     else
         # return phi(Businger(uf), ζ, tt)
@@ -417,9 +417,9 @@ end
 function phi(uf::Grachev, ζ, tt::HeatTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _a_h = FT(uf.param_set.a_h)
-        _b_h = FT(uf.param_set.b_h)
-        _c_h = FT(uf.param_set.c_h)
+        _a_h = uf.param_set.a_h
+        _b_h = uf.param_set.b_h
+        _c_h = uf.param_set.c_h
         return 1 + (_a_h * ζ + _b_h * ζ^2) / (1 + _c_h * ζ + ζ^2)
     else
         # return phi(Businger(uf), ζ, tt)
@@ -431,8 +431,8 @@ end
 function psi(uf::Grachev, ζ, tt::MomentumTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _a_m = FT(uf.param_set.a_m)
-        _b_m = FT(uf.param_set.b_m)
+        _a_m = uf.param_set.a_m
+        _b_m = uf.param_set.b_m
         B_m = cbrt(1 / _b_m - 1)
         x = cbrt(1 + ζ)
         sqrt3 = FT(sqrt(3))
@@ -457,10 +457,10 @@ end
 function psi(uf::Grachev, ζ, tt::HeatTransport)
     if 0 <= ζ
         FT = eltype(uf)
-        _Pr_0 = FT(uf.param_set.Pr_0)
-        _a_h = FT(uf.param_set.a_h)
-        _b_h = FT(uf.param_set.b_h)
-        _c_h = FT(uf.param_set.c_h)
+        _Pr_0 = uf.param_set.Pr_0
+        _a_h = uf.param_set.a_h
+        _b_h = uf.param_set.b_h
+        _c_h = uf.param_set.c_h
         B_h = sqrt(_c_h^2 - 4)
         coeff = _a_h / B_h - _b_h * _c_h / (2 * B_h)
         log_term_1 = log((2 * ζ + _c_h - B_h) / (2 * ζ + _c_h + B_h))

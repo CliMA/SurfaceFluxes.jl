@@ -454,7 +454,7 @@ function obukhov_length(
     scheme;
     kwargs...,
 ) where {FT}
-    return -sc.ustar^3 / FT(param_set.von_karman_const) / compute_buoyancy_flux(param_set, sc, scheme)
+    return -sc.ustar^3 / param_set.von_karman_const / compute_buoyancy_flux(param_set, sc, scheme)
 end
 
 function obukhov_length(
@@ -468,7 +468,7 @@ function obukhov_length(
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(param_set.von_karman_const) / buoyancy_flux
+    return -ustar^3 / param_set.von_karman_const / buoyancy_flux
 end
 
 """
