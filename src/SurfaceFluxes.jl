@@ -239,9 +239,9 @@ z0(sc::AbstractSurfaceConditions, ::UF.MomentumTransport) = sc.z0m
 Δu1(sc::AbstractSurfaceConditions) = sc.state_in.u[1] - sc.state_sfc.u[1]
 Δu2(sc::AbstractSurfaceConditions) = sc.state_in.u[2] - sc.state_sfc.u[2]
 
-qt_in(sc::AbstractSurfaceConditions) = TD.total_specific_humidity(ts_in(sc))
-qt_sfc(sc::AbstractSurfaceConditions) = TD.total_specific_humidity(ts_sfc(sc))
-Δqt(sc::AbstractSurfaceConditions) = qt_in(sc) - qt_sfc(sc)
+qt_in(param_set::APS, sc::AbstractSurfaceConditions) = TD.total_specific_humidity(param_set, ts_in(sc))
+qt_sfc(param_set::APS, sc::AbstractSurfaceConditions) = TD.total_specific_humidity(param_set, ts_sfc(sc))
+Δqt(param_set::APS, sc::AbstractSurfaceConditions) = qt_in(param_set, sc) - qt_sfc(param_set, sc)
 
 u_in(sc::AbstractSurfaceConditions) = sc.state_in.u
 u_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.u
@@ -359,10 +359,10 @@ function obukhov_length(
         if error_on_non_convergence()
             KA.@print("-----------------------------------------\n")
             KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-            KA.@print(", T_in = ", TD.air_temperature(ts_in(sc)))
-            KA.@print(", T_sfc = ", TD.air_temperature(ts_sfc(sc)))
-            KA.@print(", q_in = ", TD.total_specific_humidity(ts_in(sc)))
-            KA.@print(", q_sfc = ", TD.total_specific_humidity(ts_sfc(sc)))
+            KA.@print(", T_in = ", TD.air_temperature(param_set, ts_in(sc)))
+            KA.@print(", T_sfc = ", TD.air_temperature(param_set, ts_sfc(sc)))
+            KA.@print(", q_in = ", TD.total_specific_humidity(param_set, ts_in(sc)))
+            KA.@print(", q_sfc = ", TD.total_specific_humidity(param_set, ts_sfc(sc)))
             KA.@print(", u_in = ", u_in(sc))
             KA.@print(", u_sfc = ", u_sfc(sc))
             error("Unconverged Surface Fluxes.")
@@ -419,10 +419,10 @@ function compute_buoyancy_flux(param_set, shf::FT, lhf::FT, ts_in, ts_sfc, schem
     grav::FT = CPP.grav(param_set)
     ε_vd::FT = CPP.molmass_ratio(param_set)
 
-    cp_m = TD.cp_m(ts_in)
-    L_v = TD.latent_heat_vapor(ts_in)
-    ρ_sfc = TD.air_density(ts_sfc)
-    T_in = TD.air_temperature(ts_in)
+    cp_m = TD.cp_m(param_set, ts_in)
+    L_v = TD.latent_heat_vapor(param_set, ts_in)
+    ρ_sfc = TD.air_density(param_set, ts_sfc)
+    T_in = TD.air_temperature(param_set, ts_in)
     return grav / ρ_sfc * (shf / cp_m / T_in + (ε_vd - 1) * lhf / L_v)
 end
 
@@ -439,8 +439,8 @@ function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::
     uf = UF.universal_func(uft, L_MO, param_set)
     grav::FT = CPP.grav(param_set)
 
-    ρ_in = TD.air_density(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_in = TD.air_density(param_set, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
 
     ρ_star = compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (ρ_in - ρ_sfc)
 
@@ -519,8 +519,8 @@ function momentum_exchange_coefficient(
     κ = CPSGS.von_karman_const(param_set)
     transport = UF.MomentumTransport()
     FT = eltype(L_MO)
-    ρ_in = TD.air_density(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_in = TD.air_density(param_set, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
     Δρ = ρ_in - ρ_sfc
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     if Δρ ≈ FT(0)
@@ -554,7 +554,7 @@ function heat_exchange_coefficient(
     scheme,
 )
     FT = eltype(L_MO)
-    Δθ = TD.dry_pottemp(ts_in(sc)) - TD.dry_pottemp(ts_sfc(sc))
+    Δθ = TD.dry_pottemp(param_set, ts_in(sc)) - TD.dry_pottemp(param_set, ts_sfc(sc))
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     θstar = Δθ * compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme)
     if Δθ ≈ FT(0) || windspeed(sc) ≈ FT(0)
@@ -587,7 +587,7 @@ Compute and return the momentum fluxes
   - scheme: Discretization scheme (currently supports FD and FV)
 """
 function momentum_fluxes(param_set, Cd, sc::AbstractSurfaceConditions, scheme)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
     ρτxz = -ρ_sfc * Cd * Δu1(sc) * windspeed(sc)
     ρτyz = -ρ_sfc * Cd * Δu2(sc) * windspeed(sc)
     return (ρτxz, ρτyz)
@@ -609,10 +609,10 @@ function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficient
     cp_d::FT = CPP.cp_d(param_set)
     R_d::FT = CPP.R_d(param_set)
     T_0::FT = CPP.T_0(param_set)
-    cp_m = TD.cp_m(ts_in(sc))
-    ρ_sfc = TD.air_density(ts_sfc(sc))
-    T_in = TD.air_temperature(ts_in(sc))
-    T_sfc = TD.air_temperature(ts_sfc(sc))
+    cp_m = TD.cp_m(param_set, ts_in(sc))
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
+    T_in = TD.air_temperature(param_set, ts_in(sc))
+    T_sfc = TD.air_temperature(param_set, ts_sfc(sc))
     ΔT = T_in - T_sfc
     hd_sfc = cp_d * (T_sfc - T_0) + R_d * T_0
     ΔΦ = grav * Δz(sc)
@@ -621,8 +621,8 @@ function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficient
 end
 
 function evaporation(sc::Union{ValuesOnly, Coefficients}, param_set, Ch)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
-    return -ρ_sfc * Ch * windspeed(sc) * Δqt(sc)
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
+    return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc)
 end
 
 
@@ -659,11 +659,11 @@ Compute and return the latent heat flux
 """
 function latent_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
     grav::FT = CPP.grav(param_set)
-    ρ_sfc = TD.air_density(ts_sfc(sc))
+    ρ_sfc = TD.air_density(param_set, ts_sfc(sc))
     cp_v::FT = CPP.cp_v(param_set)
     Lv_0::FT = CPP.LH_v0(param_set)
     T_0::FT = CPP.T_0(param_set)
-    T_sfc = TD.air_temperature(ts_sfc(sc))
+    T_sfc = TD.air_temperature(param_set, ts_sfc(sc))
     hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
     Φ_sfc = grav * z_sfc(sc)
     E = evaporation(sc, param_set, Ch)
