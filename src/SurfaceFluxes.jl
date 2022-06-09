@@ -65,7 +65,7 @@ Surface flux conditions, returned from `surface_conditions`.
 
 $(DSE.FIELDS)
 """
-struct SurfaceFluxConditions{FT <: AbstractFloat}
+struct SurfaceFluxConditions{FT <: Real}
     L_MO::FT
     shf::FT
     lhf::FT
@@ -98,7 +98,7 @@ Input container for state variables at the ground level.
 
 $(DSE.FIELDS)
 """
-struct SurfaceValues{FT <: AbstractFloat, A, TS <: TD.ThermodynamicState}
+struct SurfaceValues{FT <: Real, A, TS <: TD.ThermodynamicState}
     z::FT
     u::A
     ts::TS
@@ -113,13 +113,13 @@ Input container for state variables at the first interior node.
 
 $(DSE.FIELDS)
 """
-struct InteriorValues{FT <: AbstractFloat, A, TS <: TD.ThermodynamicState}
+struct InteriorValues{FT <: Real, A, TS <: TD.ThermodynamicState}
     z::FT
     u::A
     ts::TS
 end
 
-abstract type AbstractSurfaceConditions{FT <: AbstractFloat, VI <: InteriorValues, VS <: SurfaceValues} end
+abstract type AbstractSurfaceConditions{FT <: Real, VI <: InteriorValues, VS <: SurfaceValues} end
 
 
 """
