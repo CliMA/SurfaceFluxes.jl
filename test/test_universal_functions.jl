@@ -57,24 +57,6 @@ const param_set = EarthParameterSet()
             end
         end
     end
-    @testset "Conversions" begin
-        FT = Float32
-        ζ = FT(10)
-        L = FT(10)
-        args = (L, param_set)
-
-        uf = UF.Gryanik(args...)
-        @test UF.Businger(uf) isa UF.Businger
-        @test UF.Grachev(uf) isa UF.Grachev
-
-        uf = UF.Grachev(args...)
-        @test UF.Businger(uf) isa UF.Businger
-        @test UF.Gryanik(uf) isa UF.Gryanik
-
-        uf = UF.Businger(args...)
-        @test UF.Grachev(uf) isa UF.Grachev
-        @test UF.Gryanik(uf) isa UF.Gryanik
-    end
     @testset "Asymptotic range" begin
         FT = Float32
 
