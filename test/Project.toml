@@ -13,9 +13,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 
-
 [compat]
-CLIMAParameters = "0.1, 0.2, 0.3, 0.4, 0.5, 0.6"
 KernelAbstractions = "0.5, 0.6, 0.7"
 StaticArrays = "1"
-Thermodynamics = "0.7, 0.8"

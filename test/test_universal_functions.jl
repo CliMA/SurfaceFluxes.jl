@@ -2,13 +2,17 @@ using Test
 
 import SurfaceFluxes
 const SF = SurfaceFluxes
-const UF = SF.UniversalFunctions
+import SurfaceFluxes.UniversalFunctions as UF
 
 import CLIMAParameters
 const CP = CLIMAParameters
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+const FT = Float32;
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+param_set = create_parameters(toml_dict, UF.BusingerType())
+
+universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(toml_dict, uft))
 
 # TODO: Right now, we test these functions for
 # type stability and correctness in the asymptotic
@@ -19,8 +23,8 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = FT(-2):FT(0.01):FT(200)
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType())
+                uf = universal_functions(uft, L)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -34,8 +38,8 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            for uf in (UF.Gryanik(args...), UF.Grachev(args...), UF.Businger(args...))
+            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType())
+                uf = universal_functions(uft, L)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -49,8 +53,8 @@ const param_set = EarthParameterSet()
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            uf = UF.Businger(args...)
+            uft = UF.BusingerType()
+            uf = universal_functions(uft, L)
             for transport in (UF.MomentumTransport(), UF.HeatTransport())
                 Ψ = UF.Psi.(uf, ζ, transport)
                 @test eltype(Ψ) == FT
@@ -67,8 +71,8 @@ const param_set = EarthParameterSet()
         ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
 
         for L in (-FT(10), FT(10))
-            args = (L, param_set)
-            for uf in (UF.Grachev(args...), UF.Gryanik(args...))
+            for uft in (UF.GryanikType(), UF.GrachevType())
+                uf = universal_functions(uft, L)
                 for ζ in FT(10) .^ (4, 6, 8, 10)
                     ϕ_h = UF.phi(uf, ζ, UF.HeatTransport())
                     @test isapprox(ϕ_h, ϕ_h_ζ∞(uf))

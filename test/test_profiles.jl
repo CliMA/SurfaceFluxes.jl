@@ -2,7 +2,7 @@ import NCDatasets
 const NC = NCDatasets
 import SurfaceFluxes
 const SF = SurfaceFluxes
-const UF = SurfaceFluxes.UniversalFunctions
+import SurfaceFluxes.UniversalFunctions as UF
 using Statistics
 using StaticArrays
 import Thermodynamics
@@ -11,9 +11,12 @@ const AW = ArtifactWrappers
 import UnPack
 const TD = Thermodynamics
 
-using CLIMAParameters: AbstractEarthParameterSet
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+const FT = Float32;
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+param_set = create_parameters(toml_dict, UF.BusingerType())
+thermo_params = SFP.thermodynamics_params(param_set)
+
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
@@ -62,7 +65,6 @@ for f in files
     # TODO Make sure that the first node ii = 1 is at the "surface"
     # for the tests to be consistent
     ii = 2
-    FT = Float32
 
     shf = mean(getval(SHF))
     lhf = mean(getval(LHF))
@@ -92,8 +94,8 @@ for f in files
     z0m = FT(0.001)
     z0b = FT(0.001)
 
-    ts_sfc = TD.PhaseEquil_ρθq(param_set, ρ_sfc, θ_sfc, qt_sfc)
-    ts_in = TD.PhaseEquil_ρθq(param_set, ρ_in, θ_in, qt_in)
+    ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
+    ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ_in, qt_in)
 
     u_in = SVector{2, FT}(u_in, v_in)
     u_sfc = SVector{2, FT}(u_sfc, v_sfc)
@@ -113,6 +115,5 @@ for f in files
     elseif f == "Gabls.nc"
         sc = SF.ValuesOnly{FT}(; kwargs...)
     end
-    uf = UF.Businger()
-    result = SF.surface_conditions(param_set, sc, uf)
+    result = SF.surface_conditions(param_set, sc)
 end

@@ -8,18 +8,17 @@ using Test
 import Thermodynamics
 using SurfaceFluxes
 const SF = SurfaceFluxes
-const UF = SF.UniversalFunctions
+const SFP = SF.Parameters
 using StaticArrays
 import KernelAbstractions: CPU
 
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+const FT = Float32;
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+param_set = create_parameters(toml_dict, UF.BusingerType())
+thermo_params = SFP.thermodynamics_params(param_set)
+uft = SFP.universal_func_type(param_set)
 
-
-import CLIMAParameters
-const CP = CLIMAParameters
-const CPP = CP.Planet
-const APS = CP.AbstractEarthParameterSet
-const CPSGS = CP.SubgridScale
-const CPSGS = CP.SubgridScale
 const TD = Thermodynamics
 
 # TODO: add GPU tests back in, similar to Thermodynamics
@@ -35,10 +34,6 @@ device(::T) where {T <: Array} = CPU()
 # end
 
 @show ArrayType
-
-using CLIMAParameters: AbstractEarthParameterSet
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
 
 @testset "SurfaceFluxes - Recovery Profiles" begin
     FT = Float32
@@ -61,13 +56,13 @@ const param_set = EarthParameterSet()
     # No explicit buoyancy terms in ClimateMachine
     b_star = ArrayType([0.00690834676781433, 0.00428178089592372, 0.00121229800895103, 0.00262353784027441])
 
-    κ = CPSGS.von_karman_const(param_set)
+    κ = SFP.von_karman_const(param_set)
     for ii in 1:length(b_star)
         # Compute L_MO given u_star and b_star
         L_MO = u_star[ii]^2 / κ / b_star[ii]
 
-        ts_sfc = TD.PhaseEquil_ρθq(param_set, ρ_sfc, θ_sfc[ii], qt_sfc)
-        ts_in = TD.PhaseEquil_ρθq(param_set, ρ_in, θ[ii], qt_in)
+        ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc[ii], qt_sfc)
+        ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ[ii], qt_in)
 
         state_sfc = SF.SurfaceValues(FT(0), SVector{2, FT}(0, 0), ts_sfc)
         state_in = SF.InteriorValues(z[ii], SVector{2, FT}(speed[ii], 0), ts_in)
@@ -80,18 +75,21 @@ const param_set = EarthParameterSet()
             SF.Coefficients{FT}(; kwargs..., Cd = FT(0.001), Ch = FT(0.001)),
             SF.ValuesOnly{FT}(; kwargs...),
         )
-        uf = UF.Businger()
         for jj in 1:length(sc)
             u_scale_fd =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FDScheme())
+                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uft, SF.FDScheme())
             Δu_fd = u_star[ii] / u_scale_fd
             u_scale_fv =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uf, SF.FVScheme())
+                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uft, SF.FVScheme())
             Δu_fv = u_star[ii] / u_scale_fv
             @test (Δu_fd - Δu_fv) ./ Δu_fd * 100 <= FT(50)
         end
     end
 end
 
-include("test_profiles.jl")
-include("test_universal_functions.jl")
+@testset "Test profiles" begin
+    include("test_profiles.jl")
+end
+@testset "Test universal functions" begin
+    include("test_universal_functions.jl")
+end

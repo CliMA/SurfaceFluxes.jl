@@ -13,11 +13,6 @@ module UniversalFunctions
 import DocStringExtensions
 const DSE = DocStringExtensions
 
-import CLIMAParameters
-const CP = CLIMAParameters
-const APS = CP.AbstractParameterSet
-const CPUF = CP.SurfaceFluxes.UniversalFunctions
-
 const FTypes = Union{Real, AbstractArray}
 
 abstract type AbstractUniversalFunction{FT <: FTypes} end
@@ -34,6 +29,9 @@ These mirrored subtypes are needed due to several constraints:
 =#
 abstract type AbstractUniversalFunctionType end
 const AUFT = AbstractUniversalFunctionType
+
+abstract type AbstractUniversalFunctionParameters{FT <: Real} end
+const AUFP = AbstractUniversalFunctionParameters
 
 Base.eltype(uf::AbstractUniversalFunction{FT}) where {FT} = FT
 
@@ -76,12 +74,12 @@ function Psi end
 ##### Forwarding methods for free parameters
 #####
 
-Pr_0(uf::AUF) = Pr_0(uf.param_set, uf)
-a_m(uf::AUF) = a_m(uf.param_set, uf)
-a_h(uf::AUF) = a_h(uf.param_set, uf)
-b_m(uf::AUF) = b_m(uf.param_set, uf)
-b_h(uf::AUF) = b_h(uf.param_set, uf)
-c_h(uf::AUF) = c_h(uf.param_set, uf)
+Pr_0(uf::AUF) = uf.params.Pr_0
+a_m(uf::AUF) = uf.params.a_m
+a_h(uf::AUF) = uf.params.a_h
+b_m(uf::AUF) = uf.params.b_m
+b_h(uf::AUF) = uf.params.b_h
+c_h(uf::AUF) = uf.params.c_h
 
 π_group(uf::AUF, ::HeatTransport) = Pr_0(uf)
 π_group(::AUF, ::MomentumTransport) = 1
@@ -89,6 +87,12 @@ c_h(uf::AUF) = c_h(uf.param_set, uf)
 #####
 ##### Businger
 #####
+
+Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+end
 
 """
     Businger
@@ -112,20 +116,14 @@ c_h(uf::AUF) = c_h(uf.param_set, uf)
 
 $(DSE.FIELDS)
 """
-struct Businger{FT, PS} <: AbstractUniversalFunction{FT}
+struct Businger{FT, PS <: BusingerParams} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
-    "Parameter set"
-    param_set::PS
+    params::PS
 end
 
 struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
-
-# CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Businger) = CPUF.Pr_0_Businger(param_set)
-a_m(param_set::APS, ::Businger) = CPUF.a_m_Businger(param_set)
-a_h(param_set::APS, ::Businger) = CPUF.a_h_Businger(param_set)
 
 f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
 
@@ -234,6 +232,14 @@ end
 ##### Gryanik
 #####
 
+Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT
+end
+
 """
     Gryanik <: AbstractUniversalFunction{FT}
 
@@ -251,22 +257,14 @@ end
 
 $(DSE.FIELDS)
 """
-struct Gryanik{FT, PS} <: AbstractUniversalFunction{FT}
+struct Gryanik{FT, PS <: GryanikParams} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
-    "Parameter set"
-    param_set::PS
+    params::PS
 end
 
 struct GryanikType <: AbstractUniversalFunctionType end
 Gryanik() = GryanikType()
-
-# CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Gryanik) = CPUF.Pr_0_Gryanik(param_set)
-a_m(param_set::APS, ::Gryanik) = CPUF.a_m_Gryanik(param_set)
-a_h(param_set::APS, ::Gryanik) = CPUF.a_h_Gryanik(param_set)
-b_m(param_set::APS, ::Gryanik) = CPUF.b_m_Gryanik(param_set)
-b_h(param_set::APS, ::Gryanik) = CPUF.b_h_Gryanik(param_set)
 
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     FT = eltype(uf)
@@ -325,6 +323,15 @@ end
 ##### Grachev
 #####
 
+Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT
+    c_h::FT
+end
+
 """
     Grachev <: AbstractUniversalFunction{FT}
 
@@ -342,23 +349,14 @@ Equations in reference:
 
 $(DSE.FIELDS)
 """
-struct Grachev{FT, PS} <: AbstractUniversalFunction{FT}
+struct Grachev{FT, PS <: GrachevParams} <: AbstractUniversalFunction{FT}
     "Monin-Obhukov Length"
     L::FT
-    "Parameter set"
-    param_set::PS
+    params::PS
 end
 
 struct GrachevType <: AbstractUniversalFunctionType end
 Grachev() = GrachevType()
-
-# CLIMAParameters wrapper
-Pr_0(param_set::APS, ::Grachev) = CPUF.Pr_0_Grachev(param_set)
-a_m(param_set::APS, ::Grachev) = CPUF.a_m_Grachev(param_set)
-a_h(param_set::APS, ::Grachev) = CPUF.a_h_Grachev(param_set)
-b_m(param_set::APS, ::Grachev) = CPUF.b_m_Grachev(param_set)
-b_h(param_set::APS, ::Grachev) = CPUF.b_h_Grachev(param_set)
-c_h(param_set::APS, ::Grachev) = CPUF.c_h_Grachev(param_set)
 
 function phi(uf::Grachev, ζ, tt::MomentumTransport)
     if 0 < ζ
@@ -435,8 +433,12 @@ function psi(uf::Grachev, ζ, tt::HeatTransport)
     end
 end
 
-universal_func(::BusingerType, L_MO::FT, param_set::PS) where {FT, PS} = Businger{FT, PS}(L_MO, param_set)
-universal_func(::GryanikType, L_MO::FT, param_set::PS) where {FT, PS} = Gryanik{FT, PS}(L_MO, param_set)
-universal_func(::GrachevType, L_MO::FT, param_set::PS) where {FT, PS} = Grachev{FT, PS}(L_MO, param_set)
+universal_func(::BusingerType, L_MO::Real, params::BusingerParams) = Businger(L_MO, params)
+universal_func(::GryanikType, L_MO::Real, params::GryanikParams) = Gryanik(L_MO, params)
+universal_func(::GrachevType, L_MO::Real, params::GrachevParams) = Grachev(L_MO, params)
+
+universal_func_type(::Type{T}) where {T <: BusingerParams} = BusingerType()
+universal_func_type(::Type{T}) where {T <: GryanikParams} = GryanikType()
+universal_func_type(::Type{T}) where {T <: GrachevParams} = GrachevType()
 
 end # module
