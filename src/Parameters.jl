@@ -9,6 +9,8 @@ const UF = UniversalFunctions
 abstract type AbstractSurfaceFluxesParameters end
 const ASFP = AbstractSurfaceFluxesParameters
 
+Base.broadcastable(ps::ASFP) = Ref(ps)
+
 Base.@kwdef struct SurfaceFluxesParameters{FT, AUFPS <: UF.AbstractUniversalFunctionParameters{FT}, TP} <:
                    AbstractSurfaceFluxesParameters
     von_karman_const::FT
