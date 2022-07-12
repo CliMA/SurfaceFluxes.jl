@@ -75,6 +75,7 @@ struct SurfaceFluxConditions{FT <: Real}
     ustar::FT
     Cd::FT
     Ch::FT
+    evaporation::FT
 end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
@@ -86,6 +87,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Friction velocity u⋆   = ", sfc.ustar)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
+    println(io, "evaporation            = ", sfc.evaporation)
     println(io, "-----------------------")
 end
 
@@ -296,7 +298,8 @@ function surface_conditions(
     lhf = latent_heat_flux(param_set, Ch, sc, scheme)
     buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
-    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch)
+    E = evaporation(param_set, sc, Ch)
+    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)
 end
 
 """
@@ -562,10 +565,13 @@ function heat_exchange_coefficient(
     Δθ = TD.dry_pottemp(thermo_params, ts_in(sc)) - TD.dry_pottemp(thermo_params, ts_sfc(sc))
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     θstar = Δθ * compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme)
-    if Δθ ≈ FT(0) || windspeed(sc) ≈ FT(0)
-        Ch = FT(0)
+    ρ_in = TD.air_density(thermo_params, ts_in(sc))
+    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
+    Δρ = ρ_in - ρ_sfc
+    Ch = if Δθ ≈ FT(0) || windspeed(sc) ≈ FT(0) || Δρ ≈ FT(0)
+        FT(0)
     else
-        Ch = ustar * θstar / windspeed(sc) / Δθ
+        ustar * θstar / windspeed(sc) / Δθ
     end
     return Ch
 end
@@ -623,11 +629,11 @@ function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficient
     ΔT = T_in - T_sfc
     hd_sfc = cp_d * (T_sfc - T_0) + R_d * T_0
     ΔΦ = grav * Δz(sc)
-    E = evaporation(sc, param_set, Ch)
+    E = evaporation(param_set, sc, Ch)
     return -ρ_sfc * Ch * windspeed(sc) * (cp_m * ΔT + ΔΦ) - (hd_sfc) * E
 end
 
-function evaporation(sc::Union{ValuesOnly, Coefficients}, param_set, Ch)
+function evaporation(param_set, sc::AbstractSurfaceConditions, Ch)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc)
@@ -675,7 +681,7 @@ function latent_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
     hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
     Φ_sfc = grav * z_sfc(sc)
-    E = evaporation(sc, param_set, Ch)
+    E = evaporation(param_set, sc, Ch)
     lhf = (hv_sfc + Φ_sfc) * E
     return lhf
 end
