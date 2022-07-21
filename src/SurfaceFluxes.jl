@@ -311,7 +311,7 @@ end
         uft,
         scheme;
         tol::RootSolvers.AbstractTolerance =
-             RootSolvers.SolutionTolerance(max(1e-2, sqrt(eps))),
+             RootSolvers.SolutionTolerance(max(1e-1, sqrt(eps))),
         maxiter::Int = 100
     )
 
@@ -356,7 +356,7 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-2), sqrt(eps(FT)))),
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
     maxiter::Int = 100,
 ) where {FT}
 
