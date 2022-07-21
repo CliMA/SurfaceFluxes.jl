@@ -260,8 +260,8 @@ end
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
         tol::RootSolvers.AbstractTolerance =
-            RootSolvers.SolutionTolerance(max(FT(1e-2), sqrt(eps(FT)))),
-        maxiter::Int = 100,
+            RootSolvers.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+        maxiter::Int = 10,
     ) where {FT}
 
 The main user facing function of the module.
@@ -285,8 +285,8 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-2), sqrt(eps(FT)))),
-    maxiter::Int = 100,
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+    maxiter::Int = 10,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
     # Compute output variables for SurfaceFluxConditions
@@ -311,8 +311,8 @@ end
         uft,
         scheme;
         tol::RootSolvers.AbstractTolerance =
-             RootSolvers.SolutionTolerance(max(1e-2, sqrt(eps))),
-        maxiter::Int = 100
+             RootSolvers.SolutionTolerance(max(1e-1, sqrt(eps))),
+        maxiter::Int = 10
     )
 
 Compute and return the Monin-Obukhov lengthscale (LMO).
@@ -345,9 +345,9 @@ obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
 function non_zero_lmo(L_MO::FT) where {FT}
     if L_MO == FT(0)
-        return L_MO + eps(FT)
+        return L_MO + sqrt(eps(FT))
     else
-        return L_MO + sign(L_MO) * eps(FT)
+        return L_MO + sign(L_MO) * sqrt(eps(FT))
     end
 end
 
@@ -356,8 +356,8 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-2), sqrt(eps(FT)))),
-    maxiter::Int = 100,
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+    maxiter::Int = 10,
 ) where {FT}
 
     function root_l_mo(x_lmo)
