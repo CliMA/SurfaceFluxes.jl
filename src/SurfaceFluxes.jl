@@ -345,9 +345,9 @@ obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
 function non_zero_lmo(L_MO::FT) where {FT}
     if L_MO == FT(0)
-        return L_MO + eps(FT)
+        return L_MO + FT(1e-4) #eps(FT)
     else
-        return L_MO + sign(L_MO) * eps(FT)
+        return L_MO + sign(L_MO) * FT(1e-4) #eps(FT)
     end
 end
 
