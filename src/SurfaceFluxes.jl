@@ -341,7 +341,16 @@ Iterations are not needed to determine LMO.
 """
 function obukhov_length end
 
-obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
+# obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
+
+function obukhov_length(sfc::SurfaceFluxConditions) where {FT}
+        L_MO = if sfc.L_MO == FT(0)
+            sfc.L_MO + eps(FT)
+        else
+            sfc.L_MO + sign(sfc.L_MO)*eps(FT)
+        end
+    return L_MO
+end
 
 function obukhov_length(
     param_set,
@@ -798,6 +807,5 @@ function recover_profile(
     ΔX = X_in - X_sfc
     return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ * ΔX + X_sfc
 end
-
 
 end # SurfaceFluxes module
