@@ -343,6 +343,14 @@ function obukhov_length end
 
 obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
+function non_zero_lmo(L_MO::FT) where {FT}
+    if L_MO == FT(0)
+        return L_MO + eps(FT)
+    else
+        return L_MO + sign(L_MO) * eps(FT)
+    end
+end
+
 function obukhov_length(
     param_set,
     sc::AbstractSurfaceConditions{FT},
@@ -376,7 +384,7 @@ function obukhov_length(
             L_MO = sol.root
         end
     end
-    return L_MO
+    return non_zero_lmo(L_MO)
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}

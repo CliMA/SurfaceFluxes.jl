@@ -87,6 +87,62 @@ device(::T) where {T <: Array} = CPU()
     end
 end
 
+@testset "Near-zero Obukhov length" begin
+    FloatTypes = (Float32, Float64)
+    for FT in FloatTypes
+        sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
+            FT,
+            SurfaceFluxes.UniversalFunctions.BusingerParams{FT},
+            Thermodynamics.Parameters.ThermodynamicsParameters{FT},
+        }(
+            0.4f0,
+            SurfaceFluxes.UniversalFunctions.BusingerParams{FT}(0.74f0, 4.7f0, 4.7f0),
+            Thermodynamics.Parameters.ThermodynamicsParameters{FT}(
+                273.16f0,
+                100000.0f0,
+                1859.0f0,
+                4181.0f0,
+                2100.0f0,
+                2.5008f6,
+                2.8344f6,
+                611.657f0,
+                273.16f0,
+                273.15f0,
+                150.0f0,
+                1000.0f0,
+                298.15f0,
+                6864.8f0,
+                10513.6f0,
+                0.2857143f0,
+                8.31446f0,
+                0.02897f0,
+                0.01801528f0,
+                290.0f0,
+                220.0f0,
+                9.80616f0,
+                233.0f0,
+                1.0f0,
+            ),
+        )
+
+        ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
+        ts_sfc_test = Thermodynamics.PhaseEquil{FT}(1.2176297f0, 102852.51f0, 45087.812f0, 0.013232904f0, 291.96683f0)
+        sc = SF.ValuesOnly{FT}(;
+            state_in = SF.InteriorValues(FT(250), (FT(0), FT(0)), ts_int_test),
+            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
+            z0m = FT(1e-5),
+            z0b = FT(1e-5),
+        )
+
+        sfc_output = SF.surface_conditions(sf_params, sc)
+        @test SF.obukhov_length(sfc_output) > FT(0)
+        @test sign(SF.non_zero_lmo(1.0)) == 1
+        @test sign(SF.non_zero_lmo(-1.0)) == -1
+        @test sign(SF.non_zero_lmo(-0.0)) == 1
+        @test sign(SF.non_zero_lmo(0.0)) == 1
+    end
+end
+
 @testset "Test profiles" begin
     include("test_profiles.jl")
 end
