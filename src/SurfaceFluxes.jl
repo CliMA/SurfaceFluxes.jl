@@ -269,7 +269,8 @@ It computes the surface conditions
 based on the Monin-Obukhov similarity functions. Requires
 information about thermodynamic parameters (`param_set`)
 the surface state `sc`, the universal function type and
-the discretisation `scheme`.
+the discretisation `scheme`. Default tolerance for 
+Monin-Obukhov length is absolute (i.e. has units [m]).
 
 Result struct of type SurfaceFluxConditions{FT} contains:
   - L_MO:   Monin-Obukhov lengthscale
@@ -478,7 +479,7 @@ compute_bstar(param_set, L_MO, sc::Fluxes, uft, scheme) =
     -compute_buoyancy_flux(param_set, sc, scheme) / compute_ustar(param_set, L_MO, sc, uft, scheme)
 
 
-#=
+"""
     compute_ustar(
         param_set::AbstractParameterSet,
         L_MO,
@@ -504,7 +505,7 @@ Compute given the exchange coefficients.
 
 ## `sc::ValuesOnly`
 Compute given the Monin-Obukhov lengthscale.
-=#
+"""
 function compute_ustar end
 
 compute_ustar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) = sc.ustar
