@@ -379,6 +379,9 @@ function obukhov_length(
             KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
             KA.@print(", u_in = ", u_in(sc))
             KA.@print(", u_sfc = ", u_sfc(sc))
+            KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
+            KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
+            KA.@print(", Δz = ", Δz(sc))
             error("Unconverged Surface Fluxes.")
         else
             # KA.@print("Warning: Unconverged Surface Fluxes. Returning neutral condition solution \n")
@@ -454,12 +457,12 @@ function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::
     thermo_params = SFP.thermodynamics_params(param_set)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     grav::FT = SFP.grav(param_set)
-    ρ_in = TD.air_density(thermo_params, ts_in(sc))
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_star =
+        compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (DSEᵥ_in - DSEᵥ_sfc)
 
-    ρ_star = compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (ρ_in - ρ_sfc)
-
-    return -grav / ρ_in * ρ_star
+    return -grav * DSEᵥ_star / DSEᵥ_in
 end
 
 """
@@ -531,15 +534,16 @@ function momentum_exchange_coefficient(
     uft::UF.AUFT,
     scheme,
 )
+    FT = eltype(L_MO)
     thermo_params = SFP.thermodynamics_params(param_set)
     κ = SFP.von_karman_const(param_set)
+    grav::FT = SFP.grav(param_set)
     transport = UF.MomentumTransport()
-    FT = eltype(L_MO)
-    ρ_in = TD.air_density(thermo_params, ts_in(sc))
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    Δρ = ρ_in - ρ_sfc
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    if Δρ ≈ FT(0)
+    if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
         Cd = ustar^2 / windspeed(sc)^2
@@ -569,18 +573,22 @@ function heat_exchange_coefficient(
     uft,
     scheme,
 )
-    thermo_params = SFP.thermodynamics_params(param_set)
     FT = eltype(L_MO)
-    Δθ = TD.dry_pottemp(thermo_params, ts_in(sc)) - TD.dry_pottemp(thermo_params, ts_sfc(sc))
+    thermo_params = SFP.thermodynamics_params(param_set)
+    transport = UF.HeatTransport()
+    κ = SFP.von_karman_const(param_set)
+    grav::FT = SFP.grav(param_set)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    θstar = Δθ * compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme)
-    ρ_in = TD.air_density(thermo_params, ts_in(sc))
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    Δρ = ρ_in - ρ_sfc
-    Ch = if Δθ ≈ FT(0) || windspeed(sc) ≈ FT(0) || Δρ ≈ FT(0)
-        FT(0)
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
+    z0_b = z0(sc, UF.HeatTransport())
+    z0_m = z0(sc, UF.MomentumTransport())
+    Ch = if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
+        Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
-        ustar * θstar / windspeed(sc) / Δθ
+        ustar * ϕ_heat / windspeed(sc)
     end
     return Ch
 end
