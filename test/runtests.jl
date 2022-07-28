@@ -87,48 +87,51 @@ device(::T) where {T <: Array} = CPU()
     end
 end
 
-@testset "Near-zero Obukhov length" begin
-    FloatTypes = (Float32, Float64)
-    for FT in FloatTypes
-        sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
-            FT,
-            SurfaceFluxes.UniversalFunctions.BusingerParams{FT},
-            Thermodynamics.Parameters.ThermodynamicsParameters{FT},
-        }(
-            0.4f0,
-            SurfaceFluxes.UniversalFunctions.BusingerParams{FT}(0.74f0, 4.7f0, 4.7f0),
-            Thermodynamics.Parameters.ThermodynamicsParameters{FT}(
-                273.16f0,
-                100000.0f0,
-                1859.0f0,
-                4181.0f0,
-                2100.0f0,
-                2.5008f6,
-                2.8344f6,
-                611.657f0,
-                273.16f0,
-                273.15f0,
-                150.0f0,
-                1000.0f0,
-                298.15f0,
-                6864.8f0,
-                10513.6f0,
-                0.2857143f0,
-                8.31446f0,
-                0.02897f0,
-                0.01801528f0,
-                290.0f0,
-                220.0f0,
-                9.80616f0,
-                233.0f0,
-                1.0f0,
-            ),
-        )
+# Parameter set generated in ClimaAtmos GCM run
+const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
+    FT,
+    SurfaceFluxes.UniversalFunctions.BusingerParams{FT},
+    Thermodynamics.Parameters.ThermodynamicsParameters{FT},
+}(
+    0.4f0,
+    SurfaceFluxes.UniversalFunctions.BusingerParams{FT}(0.74f0, 4.7f0, 4.7f0),
+    Thermodynamics.Parameters.ThermodynamicsParameters{FT}(
+        273.16f0,
+        100000.0f0,
+        1859.0f0,
+        4181.0f0,
+        2100.0f0,
+        2.5008f6,
+        2.8344f6,
+        611.657f0,
+        273.16f0,
+        273.15f0,
+        150.0f0,
+        1000.0f0,
+        298.15f0,
+        6864.8f0,
+        10513.6f0,
+        0.2857143f0,
+        8.31446f0,
+        0.02897f0,
+        0.01801528f0,
+        290.0f0,
+        220.0f0,
+        9.80616f0,
+        233.0f0,
+        1.0f0,
+    ),
+)
 
+@testset "Near-zero Obukhov length (Floating Point Consistency)" begin
+    FloatTypes = (Float32, Float64)
+    z_levels = [0.01,0.1,1,5,10,20,40,80,160,320,640] # [m] level of first interior grid point
+    for (i,FT) in enumerate(FloatTypes)
+      for (jj,z_int) in enumerate(z_levels)
         ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
         ts_sfc_test = Thermodynamics.PhaseEquil{FT}(1.2176297f0, 102852.51f0, 45087.812f0, 0.013232904f0, 291.96683f0)
         sc = SF.ValuesOnly{FT}(;
-            state_in = SF.InteriorValues(FT(250), (FT(0), FT(0)), ts_int_test),
+            state_in = SF.InteriorValues(FT(z_int), (FT(0), FT(0)), ts_int_test),
             state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
@@ -141,6 +144,31 @@ end
         @test sign(SF.non_zero_lmo(-0.0)) == 1
         @test sign(SF.non_zero_lmo(0.0)) == 1
     end
+  end
+end
+
+@testset "Identical thermodynamic states (Floating Point Consistency)" begin
+    FloatTypes = (Float32, Float64)
+    z_levels = [0.01,0.1,1,5,10,20,40,80,160,320,640] # [m] level of first interior grid point
+    sol_mat = zeros(2,length(z_levels))
+    for (ii,FT) in enumerate(FloatTypes)
+      for (jj,z_int) in enumerate(z_levels)
+        # Test case with identical interior and surface states
+        ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
+        ts_sfc_test = ts_int_test
+        sc = SF.ValuesOnly{FT}(;
+            state_in = SF.InteriorValues(FT(z_int), (FT(0), FT(0)), ts_int_test),
+            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
+            z0m = FT(1e-5),
+            z0b = FT(1e-5),
+        )
+        sfc_output = SF.surface_conditions(sf_params, sc)
+        sol_mat[ii,jj] = sfc_output.L_MO
+      end
+    end
+    rdiff_sol = (sol_mat[1,:] - sol_mat[2,:]) ./ sol_mat[2,:]
+    @test maximum(rdiff_sol) <= FT(0.1)
+    
 end
 
 @testset "Test profiles" begin
