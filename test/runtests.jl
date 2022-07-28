@@ -166,7 +166,7 @@ end
                 z0m = FT(z0m),
                 z0b = FT(z0b),
             )
-            sfc_output = SF.surface_conditions(sf_params, sc; maxiter=100)
+            sfc_output = SF.surface_conditions(sf_params, sc; maxiter=10)
             sol_mat[ii,jj,kk,ll] = sfc_output.L_MO
             @show z0m, z0b, sfc_output.L_MO;
           end

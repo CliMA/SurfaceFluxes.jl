@@ -379,6 +379,9 @@ function obukhov_length(
             KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
             KA.@print(", u_in = ", u_in(sc))
             KA.@print(", u_sfc = ", u_sfc(sc))
+            KA.@print(", z0_m = ", z0(sc, uft.MomentumTransport()))
+            KA.@print(", z0_b = ", z0(sc, uft.HeatTransport()))
+            KA.@print(", Δz = ", Δz(sc))
             error("Unconverged Surface Fluxes.")
         else
             # KA.@print("Warning: Unconverged Surface Fluxes. Returning neutral condition solution \n")
