@@ -553,7 +553,7 @@ function momentum_exchange_coefficient(
     DSEᵥ_in = compute_DSEᵥ(param_set, sc, ts_in(sc), z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    if isapprox(ΔDSEᵥ, FT(0); atol=FT(1e-3), rtol=0)
+    if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
         Cd = ustar^2 / windspeed(sc)^2
@@ -587,7 +587,6 @@ function heat_exchange_coefficient(
     FT = eltype(L_MO)
     transport = UF.HeatTransport()
     κ = SFP.von_karman_const(param_set)
-
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     DSEᵥ_sfc = compute_DSEᵥ(param_set, sc, ts_sfc(sc), z_sfc(sc))
     DSEᵥ_in = compute_DSEᵥ(param_set, sc, ts_in(sc), z_in(sc))
@@ -595,7 +594,7 @@ function heat_exchange_coefficient(
     ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
-    Ch = if isapprox(ΔDSEᵥ, FT(0); atol=FT(1e-3), rtol=0)
+    Ch = if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
         ustar * ϕ_heat / windspeed(sc)
