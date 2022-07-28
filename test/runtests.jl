@@ -150,25 +150,31 @@ end
 @testset "Identical thermodynamic states (Floating Point Consistency)" begin
     FloatTypes = (Float32, Float64)
     z_levels = [0.01,0.1,1,5,10,20,40,80,160,320,640] # [m] level of first interior grid point
-    sol_mat = zeros(2,length(z_levels))
+    z0_m = [1e-6,1e-5,1e-4,1e-3] # roughness length [momentum]
+    z0_b = [1e-6,1e-5,1e-4,1e-3] # roughness length [heat] 
+    sol_mat = zeros(2,length(z_levels), length(z0_m), length(z0_b))
     for (ii,FT) in enumerate(FloatTypes)
       for (jj,z_int) in enumerate(z_levels)
-        # Test case with identical interior and surface states
-        ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
-        ts_sfc_test = ts_int_test
-        sc = SF.ValuesOnly{FT}(;
-            state_in = SF.InteriorValues(FT(z_int), (FT(0), FT(0)), ts_int_test),
-            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-            z0m = FT(1e-5),
-            z0b = FT(1e-5),
-        )
-        sfc_output = SF.surface_conditions(sf_params, sc)
-        sol_mat[ii,jj] = sfc_output.L_MO
+        for (kk, z0m) in enumerate(z0_m)
+          for (ll, z0b) in enumerate(z0_b)
+            # Test case with identical interior and surface states
+            ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
+            ts_sfc_test = ts_int_test
+            sc = SF.ValuesOnly{FT}(;
+                state_in = SF.InteriorValues(FT(z_int), (FT(0), FT(0)), ts_int_test),
+                state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
+                z0m = FT(z0m),
+                z0b = FT(z0b),
+            )
+            sfc_output = SF.surface_conditions(sf_params, sc; maxiter=100)
+            sol_mat[ii,jj,kk,ll] = sfc_output.L_MO
+            @show z0m, z0b, sfc_output.L_MO;
+          end
+        end
       end
     end
-    rdiff_sol = (sol_mat[1,:] - sol_mat[2,:]) ./ sol_mat[2,:]
+    rdiff_sol = (sol_mat[1,:,:,:] - sol_mat[2,:,:,:]) ./ sol_mat[2,:,:,:]
     @test maximum(rdiff_sol) <= FT(0.1)
-    
 end
 
 @testset "Test profiles" begin

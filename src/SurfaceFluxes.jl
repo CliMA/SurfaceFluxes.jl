@@ -586,6 +586,7 @@ function heat_exchange_coefficient(
     thermo_params = SFP.thermodynamics_params(param_set)
     FT = eltype(L_MO)
     transport = UF.HeatTransport()
+    κ = SFP.von_karman_const(param_set)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     DSEᵥ_sfc = compute_DSEᵥ(param_set, sc, ts_sfc(sc), z_sfc(sc))
     DSEᵥ_in = compute_DSEᵥ(param_set, sc, ts_in(sc), z_in(sc))
