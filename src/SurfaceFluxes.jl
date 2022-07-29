@@ -344,11 +344,11 @@ function obukhov_length end
 
 obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
-function non_zero_lmo(L_MO::FT) where {FT}
-    if L_MO == FT(0)
-        return L_MO + sqrt(eps(FT))
+function non_zero(value::FT) where {FT}
+    if abs(value) < eps(FT)
+        return value + sqrt(eps(FT))
     else
-        return L_MO + sign(L_MO) * sqrt(eps(FT))
+        return value
     end
 end
 
@@ -388,7 +388,7 @@ function obukhov_length(
             L_MO = sol.root
         end
     end
-    return non_zero_lmo(L_MO)
+    return non_zero(L_MO)
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -423,7 +423,7 @@ length equation with buoyancy star.
 function local_lmo(param_set, x_lmo, sc::ValuesOnly, uft::UF.AUFT, scheme)
     κ = SFP.von_karman_const(param_set)
     u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
-    return (windspeed(sc) * u_scale)^2 / κ / compute_bstar(param_set, x_lmo, sc, uft, scheme)
+    return (windspeed(sc) * u_scale)^2 / κ / non_zero(compute_bstar(param_set, x_lmo, sc, uft, scheme))
 end
 
 """
