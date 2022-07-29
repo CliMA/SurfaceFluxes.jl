@@ -140,10 +140,10 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
 
             sfc_output = SF.surface_conditions(sf_params, sc)
             @test SF.obukhov_length(sfc_output) > FT(0)
-            @test sign(SF.non_zero_lmo(1.0)) == 1
-            @test sign(SF.non_zero_lmo(-1.0)) == -1
-            @test sign(SF.non_zero_lmo(-0.0)) == 1
-            @test sign(SF.non_zero_lmo(0.0)) == 1
+            @test sign(SF.non_zero(1.0)) == 1
+            @test sign(SF.non_zero(-1.0)) == -1
+            @test sign(SF.non_zero(-0.0)) == 1
+            @test sign(SF.non_zero(0.0)) == 1
         end
     end
 end
