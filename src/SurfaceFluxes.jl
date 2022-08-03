@@ -76,6 +76,7 @@ struct SurfaceFluxConditions{FT <: Real}
     Cd::FT
     Ch::FT
     evaporation::FT
+    is_converged::Bool
 end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
@@ -88,6 +89,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "evaporation            = ", sfc.evaporation)
+    println(io, "is_converged           = ", sfc.is_converged)
     println(io, "-----------------------")
 end
 
@@ -291,7 +293,7 @@ function surface_conditions(
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
     # Compute output variables for SurfaceFluxConditions
-    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, maxiter)
+    L_MO, is_converged = obukhov_length(param_set, sc, uft, scheme; tol, maxiter)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -300,7 +302,7 @@ function surface_conditions(
     buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
-    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)
+    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E, is_converged)
 end
 
 """
@@ -368,6 +370,7 @@ function obukhov_length(
     sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), RS.CompactSolution(), tol, maxiter)
     if sol.converged
         L_MO = sol.root
+        is_converged = true
     else
         thermo_params = SFP.thermodynamics_params(param_set)
         if error_on_non_convergence()
@@ -386,13 +389,14 @@ function obukhov_length(
         else
             # KA.@print("Warning: Unconverged Surface Fluxes. Returning neutral condition solution \n")
             L_MO = sol.root
+            is_converged = false
         end
     end
-    return non_zero(L_MO)
+    return non_zero(L_MO), is_converged
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
-    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme)
+    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme), true
 end
 
 function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -400,7 +404,7 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux
+    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux, true
 end
 
 """
@@ -543,7 +547,7 @@ function momentum_exchange_coefficient(
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
+    if isapprox(ΔDSEᵥ, FT(0); rtol = FT(0.2))
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
         Cd = ustar^2 / windspeed(sc)^2

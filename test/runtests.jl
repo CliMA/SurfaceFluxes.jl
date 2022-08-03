@@ -184,3 +184,6 @@ end
 @testset "Test universal functions" begin
     include("test_universal_functions.jl")
 end
+@testset "Test convergence" begin
+    include("test_convergence.jl")
+end
