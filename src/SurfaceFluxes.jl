@@ -462,7 +462,7 @@ function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::
     DSEᵥ_star =
         compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (DSEᵥ_in - DSEᵥ_sfc)
 
-    return -grav * DSEᵥ_star / DSEᵥ_in
+    return grav * DSEᵥ_star / DSEᵥ_in
 end
 
 """
