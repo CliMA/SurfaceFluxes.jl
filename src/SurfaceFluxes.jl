@@ -45,12 +45,6 @@ abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
 struct FDScheme <: SolverScheme end
 
-abstract type BoundaryLayerStability end
-struct StableBoundaryLayer <: BoundaryLayerStability end
-struct UnstableBoundaryLayer <: BoundaryLayerStability end
-struct NeutralBoundaryLayer <: BoundaryLayerStability end
-
-
 # Allow users to skip error on non-convergence
 # by importing:
 # ```julia
@@ -82,7 +76,6 @@ struct SurfaceFluxConditions{FT <: Real}
     Cd::FT
     Ch::FT
     evaporation::FT
-    is_converged::Bool
 end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
@@ -95,7 +88,6 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "evaporation            = ", sfc.evaporation)
-    println(io, "is_converged           = ", sfc.is_converged)
     println(io, "-----------------------")
 end
 
@@ -269,6 +261,7 @@ end
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
         tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
         maxiter::Int = 10,
+        soltype::RS.SolutionType = RS.CompactSolution(),
     ) where {FT}
 
 The main user facing function of the module.
@@ -278,6 +271,7 @@ information about thermodynamic parameters (`param_set`)
 the surface state `sc`, the universal function type and
 the discretisation `scheme`. Default tolerance for 
 Monin-Obukhov length is absolute (i.e. has units [m]).
+Returns the RootSolvers `CompactSolution` by default.
 
 Result struct of type SurfaceFluxConditions{FT} contains:
   - L_MO:   Monin-Obukhov lengthscale
@@ -295,10 +289,10 @@ function surface_conditions(
     scheme::SolverScheme = FVScheme();
     tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
     maxiter::Int = 10,
-    soltype = RS.CompactSolution(),
+    soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    L_MO, is_converged = obukhov_length(param_set, sc, uft, scheme; tol, maxiter, soltype)
+    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, maxiter, soltype)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -307,7 +301,7 @@ function surface_conditions(
     buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
-    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E, is_converged)
+    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)
 end
 
 """
@@ -320,6 +314,7 @@ end
         scheme;
         tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
         maxiter::Int = 10
+        soltype::RS.SolutionType = RS.CompactSolution(),
     )
 
 Compute and return the Monin-Obukhov lengthscale (LMO).
@@ -383,48 +378,46 @@ function obukhov_length(
 
     function solve_lmo(ΔDSEᵥ)
         if abs(ΔDSEᵥ) <= tol_neutral
+            # Return ζ->0 in the neutral boundary layer case
             L_MO = z_in(sc) / tol_neutral
             sol = nothing
-            is_converged = true
         else
+            # Return the iterated solution for Monin-Obukhov length in non-neutral boundary layer case
             sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
             L_MO = sol.root
-            is_converged = sol.converged
         end
-        return sol, L_MO, is_converged
+        return sol, L_MO
     end
-    sol, L_MO, is_converged = solve_lmo(ΔDSEᵥ)
+    sol, L_MO = solve_lmo(ΔDSEᵥ)
     if sol != nothing && !sol.converged
-        KA.@print("-----------------------------------------\n")
-        KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-        KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-        KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-        KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-        KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-        KA.@print(", u_in = ", u_in(sc))
-        KA.@print(", u_sfc = ", u_sfc(sc))
-        KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
-        KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
-        KA.@print(", Δz = ", Δz(sc))
-        KA.@print(", ΔDSE = ", ΔDSE)
         if error_on_non_convergence()
+            KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
+            KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+            KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+            KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+            KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+            KA.@print(", u_in = ", u_in(sc))
+            KA.@print(", u_sfc = ", u_sfc(sc))
+            KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
+            KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
+            KA.@print(", Δz = ", Δz(sc))
+            KA.@print(", ΔDSE = ", ΔDSE)
+            if soltype isa CompactSolution
+                KA.@print(", sol.root = ", sol.root)
+            else
+                KA.@print(", sol.root_history = ", sol.root_history)
+                KA.@print(", sol.err_history = ", sol.err_history)
+            end
             error("Unconverged Surface Fluxes.")
         else
-            KA.@print("Warning: Unconverged Surface Fluxes. Returning iteration history.")
-            if soltype isa CompactSolution
-                @show sol.root
-            else
-                @show sol.err_history
-                @show sol.root_history
-                KA.@print("-----------------------------------------\n")
-            end
+            KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
         end
     end
-    return non_zero(L_MO), is_converged
+    return non_zero(L_MO)
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
-    return (-sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme), true)
+    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme)
 end
 
 function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -432,7 +425,7 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return (-ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux, true)
+    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux
 end
 
 """
