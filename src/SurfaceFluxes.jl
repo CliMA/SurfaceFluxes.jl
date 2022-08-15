@@ -45,6 +45,12 @@ abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
 struct FDScheme <: SolverScheme end
 
+abstract type BoundaryLayerStability end
+struct StableBoundaryLayer <: BoundaryLayerStability end
+struct UnstableBoundaryLayer <: BoundaryLayerStability end
+struct NeutralBoundaryLayer <: BoundaryLayerStability end
+
+
 # Allow users to skip error on non-convergence
 # by importing:
 # ```julia
@@ -76,6 +82,7 @@ struct SurfaceFluxConditions{FT <: Real}
     Cd::FT
     Ch::FT
     evaporation::FT
+    is_converged::Bool
 end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
@@ -88,6 +95,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "evaporation            = ", sfc.evaporation)
+    println(io, "is_converged           = ", sfc.is_converged)
     println(io, "-----------------------")
 end
 
@@ -141,7 +149,7 @@ Base.@kwdef struct Fluxes{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
     lhf::FT
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(100)
+    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
 end
 
@@ -219,7 +227,7 @@ Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, V
     state_sfc::VS
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(100)
+    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
 end
 
@@ -259,8 +267,7 @@ end
         param_set::CLIMAParameters.AbstractParameterSet,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RootSolvers.AbstractTolerance =
-            RootSolvers.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
         maxiter::Int = 10,
     ) where {FT}
 
@@ -286,12 +293,12 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
     maxiter::Int = 10,
+    soltype = RS.CompactSolution(),
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    # Compute output variables for SurfaceFluxConditions
-    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, maxiter)
+    L_MO, is_converged = obukhov_length(param_set, sc, uft, scheme; tol, maxiter, soltype)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -300,7 +307,7 @@ function surface_conditions(
     buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
-    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)
+    return SurfaceFluxConditions{FT}(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E, is_converged)
 end
 
 """
@@ -311,8 +318,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RootSolvers.AbstractTolerance =
-             RootSolvers.SolutionTolerance(max(1e-1, sqrt(eps))),
+        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
         maxiter::Int = 10
     )
 
@@ -357,42 +363,68 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(max(FT(1e-1), sqrt(eps(FT)))),
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
     maxiter::Int = 10,
+    soltype = RS.CompactSolution(),
 ) where {FT}
 
     function root_l_mo(x_lmo)
-        root = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
-        return root
+        residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
+        return residual
     end
-    sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), RS.CompactSolution(), tol, maxiter)
-    if sol.converged
-        L_MO = sol.root
-    else
-        thermo_params = SFP.thermodynamics_params(param_set)
+
+    thermo_params = SFP.thermodynamics_params(param_set)
+    grav = SFP.grav(param_set)
+    cp_d = SFP.cp_d(param_set)
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    tol_neutral = FT(cp_d / 10)
+
+    function solve_lmo(ΔDSEᵥ)
+        if abs(ΔDSEᵥ) <= tol_neutral
+            L_MO = z_in(sc) / tol_neutral
+            sol = nothing
+            is_converged = true
+        else
+            sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
+            L_MO = sol.root
+            is_converged = sol.converged
+        end
+        return sol, L_MO, is_converged
+    end
+    sol, L_MO, is_converged = solve_lmo(ΔDSEᵥ)
+    if sol != nothing && !sol.converged
+        KA.@print("-----------------------------------------\n")
+        KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
+        KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+        KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+        KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+        KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+        KA.@print(", u_in = ", u_in(sc))
+        KA.@print(", u_sfc = ", u_sfc(sc))
+        KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
+        KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
+        KA.@print(", Δz = ", Δz(sc))
+        KA.@print(", ΔDSE = ", ΔDSE)
         if error_on_non_convergence()
-            KA.@print("-----------------------------------------\n")
-            KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-            KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-            KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-            KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-            KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-            KA.@print(", u_in = ", u_in(sc))
-            KA.@print(", u_sfc = ", u_sfc(sc))
-            KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
-            KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
-            KA.@print(", Δz = ", Δz(sc))
             error("Unconverged Surface Fluxes.")
         else
-            # KA.@print("Warning: Unconverged Surface Fluxes. Returning neutral condition solution \n")
-            L_MO = sol.root
+            KA.@print("Warning: Unconverged Surface Fluxes. Returning iteration history.")
+            if soltype isa CompactSolution
+                @show sol.root
+            else
+                @show sol.err_history
+                @show sol.root_history
+                KA.@print("-----------------------------------------\n")
+            end
         end
     end
-    return non_zero(L_MO)
+    return non_zero(L_MO), is_converged
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
-    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme)
+    return (-sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme), true)
 end
 
 function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -400,7 +432,7 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux
+    return (-ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux, true)
 end
 
 """
@@ -432,11 +464,9 @@ end
 Returns the buoyancy flux when the surface fluxes are known.
 """
 function compute_buoyancy_flux(param_set, shf::FT, lhf::FT, ts_in, ts_sfc, scheme) where {FT}
-
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
     ε_vd = SFP.molmass_ratio(param_set)
-
     cp_m = TD.cp_m(thermo_params, ts_in)
     L_v = TD.latent_heat_vapor(thermo_params, ts_in)
     ρ_sfc = TD.air_density(thermo_params, ts_sfc)
@@ -461,8 +491,7 @@ function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     DSEᵥ_star =
         compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (DSEᵥ_in - DSEᵥ_sfc)
-
-    return -grav * DSEᵥ_star / DSEᵥ_in
+    return grav * DSEᵥ_star / DSEᵥ_in
 end
 
 """
@@ -542,8 +571,10 @@ function momentum_exchange_coefficient(
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    cp_d::FT = SFP.cp_d(param_set)
+    tol_neutral = FT(cp_d / 10)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
+    if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
         Cd = ustar^2 / windspeed(sc)^2
@@ -578,6 +609,8 @@ function heat_exchange_coefficient(
     transport = UF.HeatTransport()
     κ = SFP.von_karman_const(param_set)
     grav::FT = SFP.grav(param_set)
+    cp_d::FT = SFP.cp_d(param_set)
+    tol_neutral = FT(cp_d / 10)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
@@ -585,7 +618,7 @@ function heat_exchange_coefficient(
     ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
-    Ch = if isapprox(ΔDSEᵥ, FT(0); atol = FT(1e-3), rtol = 0)
+    Ch = if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
         ustar * ϕ_heat / windspeed(sc)

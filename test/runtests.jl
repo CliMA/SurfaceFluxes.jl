@@ -138,8 +138,8 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
                 z0b = FT(1e-5),
             )
 
-            sfc_output = SF.surface_conditions(sf_params, sc)
-            @test SF.obukhov_length(sfc_output) > FT(0)
+            sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
+            @test abs(SF.obukhov_length(sfc_output)) > FT(0)
             @test sign(SF.non_zero(1.0)) == 1
             @test sign(SF.non_zero(-1.0)) == -1
             @test sign(SF.non_zero(-0.0)) == 1
@@ -168,19 +168,23 @@ end
                         z0m = FT(z0m),
                         z0b = FT(z0b),
                     )
-                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 10)
+                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
                     sol_mat[ii, jj, kk, ll] = sfc_output.L_MO
                 end
             end
         end
     end
-    rdiff_sol = (sol_mat[1, :, :, :] - sol_mat[2, :, :, :]) ./ sol_mat[2, :, :, :]
-    @test maximum(rdiff_sol) <= FT(0.15)
+    rdiff_sol = (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[1, :, :, :]
+    @test maximum(rdiff_sol) <= sqrt(eps(FT))
 end
 
 @testset "Test profiles" begin
     include("test_profiles.jl")
 end
 @testset "Test universal functions" begin
+    include("test_universal_functions.jl")
+end
+@testset "Test generated thermodynamic states" begin
+    include("test_convergence.jl")
     include("test_universal_functions.jl")
 end
