@@ -21,17 +21,16 @@ uft = SFP.universal_func_type(param_set)
 
 const TD = Thermodynamics
 
-# TODO: add GPU tests back in, similar to Thermodynamics
-# if get(ARGS, 1, "Array") == "CuArray"
-#     using CUDA
-#     import CUDAKernels: CUDADevice
-#     ArrayType = CUDA.CuArray
-#     CUDA.allowscalar(false)
-#     device(::T) where {T <: CuArray} = CUDADevice()
-# else
+ if get(ARGS, 1, "Array") == "CuArray"
+     using CUDA
+     import CUDAKernels: CUDADevice
+     ArrayType = CUDA.CuArray
+     CUDA.allowscalar(false)
+     device(::T) where {T <: CuArray} = CUDADevice()
+ else
 ArrayType = Array
 device(::T) where {T <: Array} = CPU()
-# end
+ end
 
 @show ArrayType
 

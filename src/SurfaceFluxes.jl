@@ -412,11 +412,11 @@ function obukhov_length(
         else
             KA.@print("Warning: Unconverged Surface Fluxes. Returning iteration history.")
             if soltype isa CompactSolution
-                @show sol.root
+              KA.@print("L_MO= ", sol.root)
             else
-                @show sol.err_history
-                @show sol.root_history
-                KA.@print("-----------------------------------------\n")
+              KA.@print("Error = ", sol.err_history)
+              KA.@print("Solution = ", sol.root_history)
+              KA.@print("-----------------------------------------\n")
             end
         end
     end
