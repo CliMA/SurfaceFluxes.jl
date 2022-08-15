@@ -23,7 +23,7 @@ const CP = CLIMAParameters
 const SFP = SF.Parameters
 const APS = CP.AbstractParameterSet
 const TP = Thermodynamics.TemperatureProfiles
-import Thermodynamics.TestedProfiles: input_config, PhaseDryProfiles, PhaseEquilProfiles, shared_profiles
+import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
   function input_config(ArrayType; n = 10, n_RS1 = 20, n_RS2 = 20, T_surface = 290, T_min = 150)
