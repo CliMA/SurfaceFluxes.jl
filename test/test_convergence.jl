@@ -26,35 +26,35 @@ const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
-  function input_config(ArrayType; n = 10, n_RS1 = 20, n_RS2 = 20, T_surface = 290, T_min = 150)
-      n_RS = n_RS1 + n_RS2
-      z_range = ArrayType(range(0, stop = 5e2, length = n))
-      relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
-      relative_sat2 = ArrayType(range(1, stop = 1.02, length = n_RS2))
-      relative_sat = vcat(relative_sat1, relative_sat2)
-      return z_range, relative_sat, T_surface, T_min
-  end
+function input_config(ArrayType; n = 10, n_RS1 = 20, n_RS2 = 20, T_surface = 290, T_min = 150)
+    n_RS = n_RS1 + n_RS2
+    z_range = ArrayType(range(0, stop = 5e2, length = n))
+    relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
+    relative_sat2 = ArrayType(range(1, stop = 1.02, length = n_RS2))
+    relative_sat = vcat(relative_sat1, relative_sat2)
+    return z_range, relative_sat, T_surface, T_min
+end
 
 function generate_profiles(FT)
-  toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-  param_set = create_parameters(toml_dict, UF.BusingerType())
-  thermo_params = SFP.thermodynamics_params(param_set)
-  uft = SFP.universal_func_type(param_set)
-  profiles_sfc = []
-  profiles_int = []
-  profiles = TD.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT});
-  for prof in profiles
-      if prof.z == FT(0)
-          push!(profiles_sfc, prof)
-      else
-          push!(profiles_int, prof)
-      end
-  end
-  ## Properties contained in `profiles`
-  ## :z, :T, :p, :RS, :e_int, :h, :ρ, 
-  ## :θ_liq_ice, :q_tot, :q_liq, :q_ice, :q_pt, :RH, 
-  ## :e_pot, :u, :v, :w, :e_kin, :phase_type
-  return profiles_sfc, profiles_int
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    param_set = create_parameters(toml_dict, UF.BusingerType())
+    thermo_params = SFP.thermodynamics_params(param_set)
+    uft = SFP.universal_func_type(param_set)
+    profiles_sfc = []
+    profiles_int = []
+    profiles = TD.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT})
+    for prof in profiles
+        if prof.z == FT(0)
+            push!(profiles_sfc, prof)
+        else
+            push!(profiles_int, prof)
+        end
+    end
+    ## Properties contained in `profiles`
+    ## :z, :T, :p, :RS, :e_int, :h, :ρ, 
+    ## :θ_liq_ice, :q_tot, :q_liq, :q_ice, :q_pt, :RH, 
+    ## :e_pot, :u, :v, :w, :e_kin, :phase_type
+    return profiles_sfc, profiles_int
 end
 
 function check_over_dry_states(FT::DataType, profiles_int, profiles_sfc, z0_momentum, z0_thermal)
@@ -98,18 +98,18 @@ function check_over_moist_states(FT::DataType, profiles_int, profiles_sfc, z0_mo
 end
 
 @testset "Check convergence (dry thermodynamic states)" begin
-  for FT in [Float32, Float64]
-    profiles_sfc, profiles_int =  generate_profiles(FT)
-    z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
-    z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
-    check_over_dry_states(FT, profiles_int, profiles_sfc, z0_momentum, z0_thermal)
-  end
+    for FT in [Float32, Float64]
+        profiles_sfc, profiles_int = generate_profiles(FT)
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
+        check_over_dry_states(FT, profiles_int, profiles_sfc, z0_momentum, z0_thermal)
+    end
 end
 @testset "Check convergence (moist thermodynamic states)" begin
-  for FT in [Float32, Float64]
-    profiles_sfc, profiles_int =  generate_profiles(FT)
-    z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
-    z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
-    check_over_moist_states(FT, profiles_int, profiles_sfc, z0_momentum, z0_thermal)
-  end
+    for FT in [Float32, Float64]
+        profiles_sfc, profiles_int = generate_profiles(FT)
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 20))
+        check_over_moist_states(FT, profiles_int, profiles_sfc, z0_momentum, z0_thermal)
+    end
 end
