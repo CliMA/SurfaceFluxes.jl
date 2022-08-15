@@ -40,9 +40,9 @@ function generate_profiles(FT)
     param_set = create_parameters(toml_dict, UF.BusingerType())
     thermo_params = SFP.thermodynamics_params(param_set)
     uft = SFP.universal_func_type(param_set)
-    profiles = collect(TD.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT}))
-    profiles_sfc = filter(p->iszero(p.z), profiles)
-    profiles_int = filter(p->!iszero(p.z),profiles)
+    profiles = collect(Thermodynamics.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT}))
+    profiles_sfc = filter(p -> iszero(p.z), profiles)
+    profiles_int = filter(p -> !iszero(p.z), profiles)
     ## Properties contained in `profiles_<sfc, int>`
     ## :z, :T, :p, :RS, :e_int, :h, :ρ, 
     ## :θ_liq_ice, :q_tot, :q_liq, :q_ice, :q_pt, :RH, 
@@ -60,10 +60,11 @@ function check_over_dry_states(FT::DataType, profiles_int, profiles_sfc, z0_mome
                     state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
                     state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
                     sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                    @test try SF.surface_conditions(param_set, sc; maxiter = 10, soltype = RS.VerboseSolution())
-                      true
+                    @test try
+                        SF.surface_conditions(param_set, sc; maxiter = 10, soltype = RS.VerboseSolution())
+                        true
                     catch
-                      false
+                        false
                     end
                 end
             end
@@ -81,10 +82,11 @@ function check_over_moist_states(FT::DataType, profiles_int, profiles_sfc, z0_mo
                     state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
                     state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
                     sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                    @test try sfc_output = SF.surface_conditions(param_set, sc; maxiter = 10, soltype = RS.VerboseSolution())
-                      true
+                    @test try
+                        sfc_output = SF.surface_conditions(param_set, sc; maxiter = 10, soltype = RS.VerboseSolution())
+                        true
                     catch
-                      false
+                        false
                     end
                 end
             end
