@@ -186,5 +186,4 @@ end
 end
 @testset "Test generated thermodynamic states" begin
     include("test_convergence.jl")
-    include("test_universal_functions.jl")
 end
