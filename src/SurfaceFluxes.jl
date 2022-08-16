@@ -401,7 +401,7 @@ function obukhov_length(
             KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
             KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
             KA.@print(", Δz = ", Δz(sc))
-            KA.@print(", ΔDSE = ", ΔDSE)
+            KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
             if soltype isa CompactSolution
                 KA.@print(", sol.root = ", sol.root)
             else
