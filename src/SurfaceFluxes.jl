@@ -360,13 +360,8 @@ function obukhov_length(
     scheme;
     tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
     maxiter::Int = 10,
-    soltype = RS.CompactSolution(),
+    soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
-
-    function root_l_mo(x_lmo)
-        residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
-        return residual
-    end
 
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
@@ -376,43 +371,47 @@ function obukhov_length(
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     tol_neutral = FT(cp_d / 10)
 
-    function solve_lmo(ΔDSEᵥ)
-        if abs(ΔDSEᵥ) <= tol_neutral
-            # Return ζ->0 in the neutral boundary layer case
-            L_MO = z_in(sc) / tol_neutral
-            sol = nothing
-        else
-            # Return the iterated solution for Monin-Obukhov length in non-neutral boundary layer case
-            sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
-            L_MO = sol.root
+    if abs(ΔDSEᵥ) <= tol_neutral
+        # Large L_MO -> virtual dry static energy suggests neutral boundary layer
+        # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
+        return L_MO = FT(Inf)
+    else
+        # Boundary layer is non-neutral, we need to iterate to determine the true solution.
+        function root_l_mo(x_lmo)
+            residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
+            return residual
         end
-        return sol, L_MO
-    end
-    sol, L_MO = solve_lmo(ΔDSEᵥ)
-    if sol != nothing && !sol.converged
-        if error_on_non_convergence()
-            KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-            KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-            KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-            KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-            KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-            KA.@print(", u_in = ", u_in(sc))
-            KA.@print(", u_sfc = ", u_sfc(sc))
-            KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
-            KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
-            KA.@print(", Δz = ", Δz(sc))
-            KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
-            if soltype isa CompactSolution
-                KA.@print(", sol.root = ", sol.root)
+        # Return the iterated solution for Monin-Obukhov length in non-neutral boundary layer case
+        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
+        L_MO = sol.root
+        if !sol.converged
+            if error_on_non_convergence()
+                KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
+                KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+                KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+                KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+                KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+                KA.@print(", u_in = ", u_in(sc))
+                KA.@print(", u_sfc = ", u_sfc(sc))
+                KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
+                KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
+                KA.@print(", Δz = ", Δz(sc))
+                KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
+                if soltype isa RS.CompactSolution
+                    KA.@print(", sol.root = ", sol.root)
+                else
+                    KA.@print(", sol.root_history = ", sol.root_history)
+                    KA.@print(", sol.err_history = ", sol.err_history)
+                end
+                error("Unconverged Surface Fluxes.")
             else
-                KA.@print(", sol.root_history = ", sol.root_history)
-                KA.@print(", sol.err_history = ", sol.err_history)
+                KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
             end
-            error("Unconverged Surface Fluxes.")
-        else
-            KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
         end
     end
+    ## Example "non-convergence issue"
+    # solution root history (L_MO) = [-1.0, 1e5, 1e5 + ϵ, 1e5 - ϵ, 1e5 + ϵ]
+    # Here, ϵ ~ O(1e0, 1e-2)
     return non_zero(L_MO)
 end
 
@@ -566,10 +565,10 @@ function momentum_exchange_coefficient(
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     cp_d::FT = SFP.cp_d(param_set)
     tol_neutral = FT(cp_d / 10)
-    ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
+        ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
         Cd = ustar^2 / windspeed(sc)^2
     end
     return Cd
@@ -604,16 +603,16 @@ function heat_exchange_coefficient(
     grav::FT = SFP.grav(param_set)
     cp_d::FT = SFP.cp_d(param_set)
     tol_neutral = FT(cp_d / 10)
-    ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
-    ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
     Ch = if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
+        ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
+        ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
         ustar * ϕ_heat / windspeed(sc)
     end
     return Ch
