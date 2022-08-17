@@ -26,7 +26,7 @@ const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
-function input_config(ArrayType; n = 20, n_RS1 = 20, n_RS2 = 20, T_surface = 290, T_min = 150)
+function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
     z_range = ArrayType(range(0, stop = 5e2, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
@@ -60,7 +60,7 @@ function check_over_dry_states(
     z0_thermal,
     maxiter,
 ) where {FT}
-    counter = [0, 0, 0]
+    counter = [0, 0, 0] # St, Unst, Neutral
     @inbounds for (ii, pint) in enumerate(profiles_int)
         @inbounds for (jj, psfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
@@ -78,7 +78,11 @@ function check_over_dry_states(
                             DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
                             DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
                             ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                            ΔDSEᵥ > FT(0) ? counter[1] += 1 : counter[2] += 1
+                            if abs(ΔDSEᵥ) <= FT(SFP.cp_d(param_set) / 10) 
+                              counter[3] += 1
+                            else
+                              sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
+                            end
                             @test try
                                 sfcc =
                                     SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
@@ -92,7 +96,7 @@ function check_over_dry_states(
             end
         end
     end
-    @info counter
+    @info "(Dry $FT) Stable BL: $(counter[1]), Unstable BL: $(counter[2]), Neutral BL: $(counter[3])"
 end
 
 function check_over_moist_states(
@@ -105,7 +109,7 @@ function check_over_moist_states(
     z0_thermal,
     maxiter,
 )
-    counter = [0, 0, 0] # UST, ST, N
+    counter = [0, 0, 0] # St, Unst, Neutral
     @inbounds for (ii, pint) in enumerate(profiles_int)
         @inbounds for (jj, psfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
@@ -123,7 +127,11 @@ function check_over_moist_states(
                             DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
                             DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
                             ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                            ΔDSEᵥ > FT(0) ? counter[1] += 1 : counter[2] += 1
+                            if abs(ΔDSEᵥ) <= FT(SFP.cp_d(param_set) / 10) 
+                              counter[3] += 1
+                            else
+                              sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
+                            end
                             @test try
                                 sfcc =
                                     SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
@@ -137,7 +145,7 @@ function check_over_moist_states(
             end
         end
     end
-    @info counter
+    @info "(Moist $FT) Stable BL: $(counter[1]), Unstable BL: $(counter[2]), Neutral BL: $(counter[3])"
 end
 
 @testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
@@ -146,7 +154,7 @@ end
         scheme = [SF.FVScheme(), SF.FDScheme()]
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 200
+        maxiter = 10
         check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
@@ -156,7 +164,7 @@ end
         scheme = [SF.FVScheme(), SF.FDScheme()]
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 200
+        maxiter = 10
         check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
