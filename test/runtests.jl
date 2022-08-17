@@ -124,7 +124,7 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
 
 @testset "Near-zero Obukhov length (Floating Point Consistency)" begin
     FloatTypes = (Float32, Float64)
-    z_levels = [0.01, 0.1, 1, 5, 10, 20, 40, 80, 160, 320, 640] # [m] level of first interior grid point
+    z_levels = [1, 5, 10, 20, 40, 80, 160, 320, 640] # [m] level of first interior grid point
     for (i, FT) in enumerate(FloatTypes)
         for (jj, z_int) in enumerate(z_levels)
             ts_int_test = Thermodynamics.PhaseEquil{FT}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
@@ -149,7 +149,7 @@ end
 
 @testset "Identical thermodynamic states (Floating Point Consistency)" begin
     FloatTypes = (Float32, Float64)
-    z_levels = [0.1, 1, 5, 10, 20, 40, 80, 160, 320, 640] # [m] level of first interior grid point
+    z_levels = [1, 5, 10, 20, 40, 80, 160, 320, 640] # [m] level of first interior grid point
     z0_m = [1e-5, 1e-3] # roughness length [momentum]
     z0_b = [1e-5, 1e-3] # roughness length [heat] 
     sol_mat = zeros(2, length(z_levels), length(z0_m), length(z0_b))

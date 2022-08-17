@@ -362,7 +362,6 @@ function obukhov_length(
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
-
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
@@ -370,11 +369,10 @@ function obukhov_length(
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     tol_neutral = FT(cp_d / 10)
-
     if abs(ΔDSEᵥ) <= tol_neutral
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
-        return L_MO = FT(Inf)
+        return L_MO = FT(Inf * sign(ΔDSEᵥ))
     else
         # Boundary layer is non-neutral, we need to iterate to determine the true solution.
         function root_l_mo(x_lmo)
@@ -409,9 +407,6 @@ function obukhov_length(
             end
         end
     end
-    ## Example "non-convergence issue"
-    # solution root history (L_MO) = [-1.0, 1e5, 1e5 + ϵ, 1e5 - ϵ, 1e5 + ϵ]
-    # Here, ϵ ~ O(1e0, 1e-2)
     return non_zero(L_MO)
 end
 
@@ -608,12 +603,12 @@ function heat_exchange_coefficient(
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
-    Ch = if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
+    if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
         ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
         ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-        ustar * ϕ_heat / windspeed(sc)
+        Ch = ustar * ϕ_heat / windspeed(sc)
     end
     return Ch
 end

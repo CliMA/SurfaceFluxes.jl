@@ -26,7 +26,7 @@ const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
-function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
+function input_config(ArrayType; n = 3, n_RS1 = 3, n_RS2 = 3, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
     z_range = ArrayType(range(0, stop = 5e2, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
@@ -60,32 +60,39 @@ function check_over_dry_states(
     z0_thermal,
     maxiter,
 ) where {FT}
+    counter = [0, 0, 0]
     @inbounds for (ii, pint) in enumerate(profiles_int)
         @inbounds for (jj, psfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
                 @inbounds for (ll, z0b) in enumerate(z0_thermal)
                     @inbounds for sch in scheme
-                        thermo_params = SFP.thermodynamics_params(param_set)
-                        # Unstable Boundary Layers
-                        ts_sfc_test = Thermodynamics.PhaseDry{FT}(psfc.e_int, psfc.ρ)
-                        ts_int_test = Thermodynamics.PhaseDry{FT}(pint.e_int, pint.ρ)
-                        state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
-                        state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-                        sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                        DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
-                        DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
-                        ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                        @test try
-                            sfcc = SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
-                            true
-                        catch
-                            false
+                        if z0m / z0b >= FT(1e2) || z0b / z0m >= FT(1e2)
+                            nothing
+                        else
+                            thermo_params = SFP.thermodynamics_params(param_set)
+                            ts_sfc_test = Thermodynamics.PhaseDry{FT}(psfc.e_int, psfc.ρ)
+                            ts_int_test = Thermodynamics.PhaseDry{FT}(pint.e_int, pint.ρ)
+                            state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
+                            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
+                            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+                            DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
+                            DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
+                            ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
+                            ΔDSEᵥ > FT(0) ? counter[1] += 1 : counter[2] += 1
+                            @test try
+                                sfcc =
+                                    SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
+                                true
+                            catch
+                                false
+                            end
                         end
                     end
                 end
             end
         end
     end
+    @info counter
 end
 
 function check_over_moist_states(
@@ -98,41 +105,48 @@ function check_over_moist_states(
     z0_thermal,
     maxiter,
 )
+    counter = [0, 0, 0] # UST, ST, N
     @inbounds for (ii, pint) in enumerate(profiles_int)
         @inbounds for (jj, psfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
                 @inbounds for (ll, z0b) in enumerate(z0_thermal)
                     @inbounds for sch in scheme
-                        # Unstable Boundary Layers
-                        thermo_params = SFP.thermodynamics_params(param_set)
-                        ts_sfc_test = Thermodynamics.PhaseEquil{FT}(psfc.ρ, psfc.p, psfc.e_int, psfc.q_tot, psfc.T)
-                        ts_int_test = Thermodynamics.PhaseEquil{FT}(pint.ρ, pint.p, pint.e_int, pint.q_tot, pint.T)
-                        state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
-                        state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-                        sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                        DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
-                        DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
-                        ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                        @test try
-                            sfcc = SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
-                            true
-                        catch
-                            false
+                        if z0m / z0b >= FT(1e2) || z0b / z0m >= FT(1e2)
+                            nothing
+                        else
+                            thermo_params = SFP.thermodynamics_params(param_set)
+                            ts_sfc_test = Thermodynamics.PhaseEquil{FT}(psfc.ρ, psfc.p, psfc.e_int, psfc.q_tot, psfc.T)
+                            ts_int_test = Thermodynamics.PhaseEquil{FT}(pint.ρ, pint.p, pint.e_int, pint.q_tot, pint.T)
+                            state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
+                            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
+                            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+                            DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
+                            DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
+                            ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
+                            ΔDSEᵥ > FT(0) ? counter[1] += 1 : counter[2] += 1
+                            @test try
+                                sfcc =
+                                    SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
+                                true
+                            catch
+                                false
+                            end
                         end
                     end
                 end
             end
         end
     end
+    @info counter
 end
 
 @testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
     for FT in [Float32, Float64]
         profiles_sfc, profiles_int = generate_profiles(FT)
         scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 10))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 10))
-        maxiter = 30
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+        maxiter = 200
         check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
@@ -142,7 +156,7 @@ end
         scheme = [SF.FVScheme(), SF.FDScheme()]
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-2, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-2, length = 10))
-        maxiter = 30
+        maxiter = 200
         check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
