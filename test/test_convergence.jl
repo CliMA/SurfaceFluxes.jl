@@ -26,7 +26,7 @@ const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
-function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
+function input_config(ArrayType; n = 4, n_RS1 = 4, n_RS2 = 4, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
     z_range = ArrayType(range(0, stop = 5e2, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
@@ -152,19 +152,19 @@ end
     for FT in [Float32, Float64]
         profiles_sfc, profiles_int = generate_profiles(FT)
         scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 10
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
+        maxiter = 40
         check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
-@testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
-    for FT in [Float32, Float64]
-        profiles_sfc, profiles_int = generate_profiles(FT)
-        scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 10
-        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
-    end
-end
+#@testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
+#    for FT in [Float32, Float64]
+#        profiles_sfc, profiles_int = generate_profiles(FT)
+#        scheme = [SF.FVScheme(), SF.FDScheme()]
+#        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
+#        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
+#        maxiter = 10
+#        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+#    end
+#end

@@ -369,15 +369,15 @@ function obukhov_length(
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     tol_neutral = FT(cp_d / 10)
-    function root_l_mo(x_lmo)
-      residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
-      return residual
-    end
     if abs(ΔDSEᵥ) <= tol_neutral # Neutral Layer
       # Large L_MO -> virtual dry static energy suggests neutral boundary layer
       # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
       return L_MO = FT(Inf * sign(ΔDSEᵥ))
-    elseif ΔDSEᵥ <= -tol_neutral # Unstable Layer
+    elseif ΔDSEᵥ < -tol_neutral # Unstable Layer
+      function root_l_mo(x_lmo)
+        residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
+        return residual
+      end
       sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
       L_MO = sol.root
       is_converged = sol.converged
@@ -405,21 +405,25 @@ function obukhov_length(
               KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
           end
       end
-    elseif ΔDSEᵥ >= tol_neutral # Stable Layer
+      return non_zero(L_MO)
+    elseif ΔDSEᵥ > tol_neutral # Stable Layer
       # Quantities known from flow dynamics
-      ΔΘ = virtual_potential_temperature(ts_in(sc)) - virtual_potential_temperature(ts_sfc(sc))
-      θᵥ = virtual_temperature(ts_sfc(sc))
-      Ri_b = grav * z_in(sc) / θᵥ * (ΔΘ)/(u_in(sc)^2)
-      # Quantities to be stored in parameters package
+      ΔΘ = TD.virtual_pottemp(thermo_params, ts_in(sc)) - TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+      θᵥ = TD.virtual_temperature(thermo_params, ts_sfc(sc))
+      Ri_n = grav * z_in(sc) * (ΔΘ) 
+      Ri_d = θᵥ * (windspeed(sc))^2
+      Ri_b = Ri_n / Ri_d
+      # Parameters (via CLIMAParameters)
       ζₐ = FT(7.25)
       γ = FT(3.62)
       ϵₘ = FT(z_in(sc)/z0(sc, UF.MomentumTransport()))
-      ϵₘ = FT(z_in(sc)/z0(sc, UF.HeatTransport()))
+      ϵₕ = FT(z_in(sc)/z0(sc, UF.HeatTransport()))
       C = (log(ϵₘ))^2/(log(ϵₕ))
       Pr₀ = FT(1)
       aₘ = FT(5)
       aₕ = FT(5)
       bₘ = FT(0.3)
+      bₕ = FT(0.4)
       # Functions unique to GLGS universal function interpretation (0 ≤ ζ ≤ 100)
       ψₘ(ζ) = FT(-3aₘ/bₘ*((1+bₘ*ζ)^(1/3)-1))
       ψₕ(ζ) = FT(-Pr₀*aₕ/bₕ*log(1+bₕ*ζ))
@@ -435,10 +439,21 @@ function obukhov_length(
       κ = SFP.von_karman_const(param_set)
       Cd = κ^2 / (log(ϵₘ)^2) * fₘ(ζₛ)
       Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * fₕ(ζₛ)
-      O = SF.Coefficients(sc.state_in, state_sfc, Cd, Ch, sc.z0m, sc.z0b)
-      L_MO = obukhov_length(param_set, O, uft, scheme; tol, maxiter, soltype)
+      SCₜ = Coefficients(;state_in = sc.state_in, 
+                        state_sfc = sc.state_sfc, 
+                        Cd, 
+                        Ch, 
+                        z0m = sc.z0m, 
+                        z0b = sc.z0b,
+                        gustiness = FT(1))
+      L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
+      lhf = latent_heat_flux(param_set, Ch, sc, scheme)
+      shf = sensible_heat_flux(param_set, Ch, sc, scheme)
+      ustar = sqrt(Cd) * windspeed(sc)
+      buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
+      @show ΔDSEᵥ, L_MO, ζₛ, lhf, shf, ustar, buoyancy_flux
+      return non_zero(L_MO)
     end
-    return non_zero(L_MO)
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -450,7 +465,7 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux
+    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / non_zero(buoyancy_flux)
 end
 
 """
