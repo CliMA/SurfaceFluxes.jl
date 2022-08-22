@@ -382,14 +382,45 @@ function obukhov_length(
     tol_neutral = FT(cp_d / 10)
 
     function solve_lmo(ΔDSEᵥ)
-        if abs(ΔDSEᵥ) <= tol_neutral
+        if abs(ΔDSEᵥ) <= tol_neutral # Neutral Layer
             L_MO = z_in(sc) / tol_neutral
             sol = nothing
             is_converged = true
-        else
+        elseif ΔDSEᵥ <= -tol_neutral # Unstable Layer
             sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
             L_MO = sol.root
             is_converged = sol.converged
+        elseif ΔDSEᵥ >= tol_neutral # Stable Layer
+          # Quantities known from flow dynamics
+          ΔΘ = virtual_potential_temperature(ts_in(sc)) - virtual_potential_temperature(ts_sfc(sc))
+          θᵥ = virtual_temperature(ts_sfc(sc))
+          Ri_b = grav * z_in(sc) / θᵥ * (ΔΘ)/(u_in(sc)^2)
+          # Quantities to be stored in parameters package
+          ζₐ = FT(7.25)
+          γ = FT(3.62)
+          ϵₘ = FT(3e4)
+          ϵₕ = ϵₘ / FT(0.7)
+          C = FT(1)
+          Pr₀ = FT(1)
+          aₘ = FT(5)
+          aₕ = FT(5)
+          bₘ = FT(0.3)
+          # Functions unique to GLGS universal function interpretation (0 ≤ ζ ≤ 100)
+          ψₘ(ζ) = FT(-3aₘ/bₘ*((1+bₘ*ζ)^(1/3)-1))
+          ψₕ(ζ) = FT(-Pr₀*aₕ/bₕ*log(1+bₕ*ζ))
+          # Stability Functions 
+          fₘ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-2) 
+          fₕ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-1)*(1-ψₕ(ζ)/Pr₀/log(ϵₕ))^(-1)
+          A₁ = (log(ϵₘ)-ψₘ(ζₐ))^(2*(γ-1))/(ζₐ^(γ-1) * (log(ϵₕ)-ψₕ(ζₐ))^(γ-1))
+          A₂ = ((log(ϵₘ)-ψₘ(ζₐ))^2/(log(ϵₕ)-ψₕ(ζₐ))-C)
+          A = A₁ * A₂
+          # Known solution for ζ dimensionless spatial parameter
+          ζₛ = C*Ri_b + A*Ri_b^γ
+          # Compute exchange coefficients
+          κ = SFP.von_karman_const(param_set)
+          Cd = κ^2 / (log(ϵₘ)^2) * fₘ(ζₛ)
+          Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * fₕ(ζₛ)
+          # Return Obukhov length from known coefficients
         end
         return sol, L_MO, is_converged
     end
