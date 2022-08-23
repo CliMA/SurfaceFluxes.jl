@@ -365,31 +365,31 @@ function obukhov_length(
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     tol_neutral = FT(cp_d / 10)
+    function root_l_mo(x_lmo)
+      residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
+      return residual
+    end
     if abs(ΔDSEᵥ) <= tol_neutral # Neutral Layer
       # Large L_MO -> virtual dry static energy suggests neutral boundary layer
       # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
       return L_MO = FT(Inf * sign(ΔDSEᵥ))
     elseif ΔDSEᵥ < -tol_neutral # Unstable Layer
-      function root_l_mo(x_lmo)
-        residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
-        return residual
-      end
+      @show "iterating"
       sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
       L_MO = sol.root
-      is_converged = sol.converged
       if !sol.converged
           if error_on_non_convergence()
-              KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-              KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-              KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-              KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-              KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-              KA.@print(", u_in = ", u_in(sc))
-              KA.@print(", u_sfc = ", u_sfc(sc))
+             # KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
+             # KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+             # KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+             # KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+             # KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+             # KA.@print(", u_in = ", u_in(sc))
+             # KA.@print(", u_sfc = ", u_sfc(sc))
               KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
               KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
               KA.@print(", Δz = ", Δz(sc))
@@ -453,7 +453,7 @@ function obukhov_length(
       buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
       @show ΔDSEᵥ, L_MO, ζₛ, lhf, shf, ustar, buoyancy_flux
       return non_zero(L_MO)
-    end
+   end
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}

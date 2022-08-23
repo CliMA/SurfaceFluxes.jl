@@ -152,19 +152,19 @@ end
     for FT in [Float32, Float64]
         profiles_sfc, profiles_int = generate_profiles(FT)
         scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 3))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 3))
         maxiter = 40
         check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
     end
 end
-#@testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
-#    for FT in [Float32, Float64]
-#        profiles_sfc, profiles_int = generate_profiles(FT)
-#        scheme = [SF.FVScheme(), SF.FDScheme()]
-#        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
-#        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 4))
-#        maxiter = 10
-#        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
-#    end
-#end
+@testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
+    for FT in [Float32, Float64]
+        profiles_sfc, profiles_int = generate_profiles(FT)
+        scheme = [SF.FVScheme(), SF.FDScheme()]
+        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 5))
+        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 5))
+        maxiter = 10
+        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+    end
+end
