@@ -155,7 +155,8 @@ end
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         maxiter = 10
-        check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+        t = @elapsed check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+        @show t
     end
 end
 @testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
@@ -165,6 +166,7 @@ end
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         maxiter = 10
-        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+        t = @elapsed check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+        @show t
     end
 end
