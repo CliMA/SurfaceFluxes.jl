@@ -378,7 +378,6 @@ function obukhov_length(
       # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
       return L_MO = FT(Inf * sign(ΔDSEᵥ))
     elseif ΔDSEᵥ < -tol_neutral # Unstable Layer
-      @show "iterating"
       sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
       L_MO = sol.root
       if !sol.converged
@@ -407,11 +406,17 @@ function obukhov_length(
       end
       return non_zero(L_MO)
     elseif ΔDSEᵥ > tol_neutral # Stable Layer
+      ###
+      ### Analytical Solution (Gryanik et al. (2020), 
+      ### DOI: 10.1029/2021MS002590)
+      ###
       # Quantities known from flow dynamics
       ΔΘ = TD.virtual_pottemp(thermo_params, ts_in(sc)) - TD.virtual_pottemp(thermo_params, ts_sfc(sc))
       θᵥ = TD.virtual_temperature(thermo_params, ts_sfc(sc))
-      Ri_n = grav * z_in(sc) * (ΔΘ) 
-      Ri_d = θᵥ * (windspeed(sc))^2
+      #Ri_n = grav * z_in(sc) * (ΔΘ) 
+      Ri_n = DSEᵥ_in - DSEᵥ_sfc
+      #Ri_d = θᵥ * (windspeed(sc))^2
+      Ri_d = DSEᵥ_sfc * (windspeed(sc))^2
       Ri_b = Ri_n / Ri_d
       # Parameters (via CLIMAParameters)
       ζₐ = FT(7.25)
@@ -434,7 +439,7 @@ function obukhov_length(
       A₂ = ((log(ϵₘ)-ψₘ(ζₐ))^2/(log(ϵₕ)-ψₕ(ζₐ))-C)
       A = A₁ * A₂
       # Known solution for ζ dimensionless spatial parameter
-      ζₛ = C*Ri_b + A*Ri_b^γ
+      ζₛ = FT(C)*FT(Ri_b) + FT(A)*FT(Ri_b^γ)
       # Compute exchange coefficients
       κ = SFP.von_karman_const(param_set)
       Cd = κ^2 / (log(ϵₘ)^2) * fₘ(ζₛ)
@@ -451,7 +456,11 @@ function obukhov_length(
       shf = sensible_heat_flux(param_set, Ch, sc, scheme)
       ustar = sqrt(Cd) * windspeed(sc)
       buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-      @show ΔDSEᵥ, L_MO, ζₛ, lhf, shf, ustar, buoyancy_flux
+      #@show Ri_b, γ, z_in(sc), ΔDSEᵥ, Cd, Ch, shf, lhf, ustar, buoyancy_flux
+      ###
+      ### Analytical Solution (Gryanik et al. (2020), 
+      ### DOI: 10.1029/2021MS002590)
+      ###
       return non_zero(L_MO)
    end
 end
