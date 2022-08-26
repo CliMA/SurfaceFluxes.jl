@@ -372,7 +372,7 @@ function obukhov_length(
     if abs(ΔDSEᵥ) <= tol_neutral
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
-        return L_MO = FT(Inf * sign(ΔDSEᵥ))
+        return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
         # Boundary layer is non-neutral, we need to iterate to determine the true solution.
         function root_l_mo(x_lmo)
@@ -411,7 +411,7 @@ function obukhov_length(
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
-    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / compute_buoyancy_flux(param_set, sc, scheme)
+    return -sc.ustar^3 / FT(SFP.von_karman_const(param_set)) / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
 end
 
 function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -419,7 +419,7 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / buoyancy_flux
+    return -ustar^3 / FT(SFP.von_karman_const(param_set)) / non_zero(buoyancy_flux)
 end
 
 """
@@ -430,7 +430,7 @@ Helper function for the iterative solver with the Monin-Obukhov length equation 
 function local_lmo(param_set, x_lmo, sc::Fluxes, uft::UF.AUFT, scheme)
     κ = SFP.von_karman_const(param_set)
     u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
-    return -(windspeed(sc) * u_scale)^3 / κ / compute_buoyancy_flux(param_set, sc, scheme)
+    return -(windspeed(sc) * u_scale)^3 / κ / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
 end
 
 """
