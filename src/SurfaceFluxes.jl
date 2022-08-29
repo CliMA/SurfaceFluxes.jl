@@ -377,9 +377,10 @@ function obukhov_length(
       # Large L_MO -> virtual dry static energy suggests neutral boundary layer
       # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
       return L_MO = FT(Inf * sign(ΔDSEᵥ))
-    elseif ΔDSEᵥ < -tol_neutral # Unstable Layer
+    else
       sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
       L_MO = sol.root
+      return non_zero(L_MO)
       if !sol.converged
           if error_on_non_convergence()
               KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
@@ -402,66 +403,66 @@ function obukhov_length(
               error("Unconverged Surface Fluxes.")
           else
               KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
+              return non_zero(L_MO)
           end
       end
-      return non_zero(L_MO)
-    elseif ΔDSEᵥ > tol_neutral # Stable Layer
-      ###
-      ### Analytical Solution (Gryanik et al. (2020), 
-      ### DOI: 10.1029/2021MS002590)
-      ###
-      # Quantities known from flow dynamics
-      ΔΘ = TD.virtual_pottemp(thermo_params, ts_in(sc)) - TD.virtual_pottemp(thermo_params, ts_sfc(sc))
-      θᵥ = TD.virtual_temperature(thermo_params, ts_sfc(sc))
-      #Ri_n = grav * z_in(sc) * (ΔΘ) 
-      Ri_n = DSEᵥ_in - DSEᵥ_sfc
-      #Ri_d = θᵥ * (windspeed(sc))^2
-      Ri_d = DSEᵥ_sfc * (windspeed(sc))^2
-      Ri_b = Ri_n / Ri_d
-      # Parameters (via CLIMAParameters)
-      ζₐ = FT(7.25)
-      γ = FT(3.62)
-      ϵₘ = FT(z_in(sc)/z0(sc, UF.MomentumTransport()))
-      ϵₕ = FT(z_in(sc)/z0(sc, UF.HeatTransport()))
-      C = (log(ϵₘ))^2/(log(ϵₕ))
-      Pr₀ = FT(1)
-      aₘ = FT(5)
-      aₕ = FT(5)
-      bₘ = FT(0.3)
-      bₕ = FT(0.4)
-      # Functions unique to GLGS universal function interpretation (0 ≤ ζ ≤ 100)
-      ψₘ(ζ) = FT(-3aₘ/bₘ*((1+bₘ*ζ)^(1/3)-1))
-      ψₕ(ζ) = FT(-Pr₀*aₕ/bₕ*log(1+bₕ*ζ))
-      # Stability Functions 
-      fₘ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-2) 
-      fₕ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-1)*(1-ψₕ(ζ)/Pr₀/log(ϵₕ))^(-1)
-      A₁ = (log(ϵₘ)-ψₘ(ζₐ))^(2*(γ-1))/(ζₐ^(γ-1) * (log(ϵₕ)-ψₕ(ζₐ))^(γ-1))
-      A₂ = ((log(ϵₘ)-ψₘ(ζₐ))^2/(log(ϵₕ)-ψₕ(ζₐ))-C)
-      A = A₁ * A₂
-      # Known solution for ζ dimensionless spatial parameter
-      ζₛ = FT(C)*FT(Ri_b) + FT(A)*FT(Ri_b^γ)
-      # Compute exchange coefficients
-      κ = SFP.von_karman_const(param_set)
-      Cd = κ^2 / (log(ϵₘ)^2) * fₘ(ζₛ)
-      Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * fₕ(ζₛ)
-      SCₜ = Coefficients(;state_in = sc.state_in, 
-                        state_sfc = sc.state_sfc, 
-                        Cd, 
-                        Ch, 
-                        z0m = sc.z0m, 
-                        z0b = sc.z0b,
-                        gustiness = FT(1))
-      L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
-      lhf = latent_heat_flux(param_set, Ch, sc, scheme)
-      shf = sensible_heat_flux(param_set, Ch, sc, scheme)
-      ustar = sqrt(Cd) * windspeed(sc)
-      buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
-      #@show Ri_b, γ, z_in(sc), ΔDSEᵥ, Cd, Ch, shf, lhf, ustar, buoyancy_flux
-      ###
-      ### Analytical Solution (Gryanik et al. (2020), 
-      ### DOI: 10.1029/2021MS002590)
-      ###
-      return non_zero(L_MO)
+  #  elseif ΔDSEᵥ > tol_neutral # Stable Layer
+  #    ###
+  #    ### Analytical Solution by Gryanik et al. (2020)
+  #    ### DOI: 10.1029/2021MS002590
+  #    ### TODO: Fix calculation in stable regime
+  #    ΔΘ = TD.virtual_pottemp(thermo_params, ts_in(sc)) - TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+  #    θᵥ = TD.virtual_temperature(thermo_params, ts_sfc(sc))
+  #    #Ri_n = grav * z_in(sc) * (ΔΘ) 
+  #    Ri_n = grav * z_in(sc) * ΔDSEᵥ
+  #    #Ri_d = θᵥ * (windspeed(sc))^2
+  #    Ri_d = DSEᵥ_sfc * (windspeed(sc))^2
+  #    Ri_b = Ri_n / Ri_d
+  #    #Ri_b = Ri_b <= FT(0) ? -Ri_b : Ri_b # FIXME Hack
+  #    # Parameters (via CLIMAParameters)
+  #    ζₐ = FT(7.25)
+  #    γ = FT(3.62)
+  #    ϵₘ = FT(z_in(sc)/z0(sc, UF.MomentumTransport()))
+  #    ϵₕ = FT(z_in(sc)/z0(sc, UF.HeatTransport()))
+  #    C = (log(ϵₘ))^2/(log(ϵₕ))
+  #    Pr₀ = FT(1)
+  #    aₘ = FT(5)
+  #    aₕ = FT(5)
+  #    bₘ = FT(0.3)
+  #    bₕ = FT(0.4)
+  #    # Functions unique to GLGS universal function interpretation (0 ≤ ζ ≤ 100)
+  #    ψₘ(ζ) = FT(-3aₘ/bₘ*((1+bₘ*ζ)^(1/3)-1))
+  #    ψₕ(ζ) = FT(-Pr₀*aₕ/bₕ*log(1+bₕ*ζ))
+  #    # Stability Functions 
+  #    fₘ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-2) 
+  #    fₕ(ζ) = (1-ψₘ(ζ)/log(ϵₘ))^(-1)*(1-ψₕ(ζ)/Pr₀/log(ϵₕ))^(-1)
+  #    A₁ = (log(ϵₘ)-ψₘ(ζₐ))^(2*(γ-1))/(ζₐ^(γ-1) * (log(ϵₕ)-ψₕ(ζₐ))^(γ-1))
+  #    A₂ = ((log(ϵₘ)-ψₘ(ζₐ))^2/(log(ϵₕ)-ψₕ(ζₐ))-C)
+  #    A = A₁ * A₂
+  #    # Known solution for ζ dimensionless spatial parameter
+  #    ζₛ = FT(C)*FT(Ri_b) + FT(A)*FT(Ri_b^γ)
+  #    # Compute exchange coefficients
+  #    κ = SFP.von_karman_const(param_set)
+  #    Cd = κ^2 / (log(ϵₘ)^2) * fₘ(ζₛ)
+  #    Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * fₕ(ζₛ)
+  #    SCₜ = Coefficients(;state_in = sc.state_in, 
+  #                      state_sfc = sc.state_sfc, 
+  #                      Cd, 
+  #                      Ch, 
+  #                      z0m = sc.z0m, 
+  #                      z0b = sc.z0b,
+  #                      gustiness = FT(1))
+  #    L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
+  #    lhf = latent_heat_flux(param_set, Ch, sc, scheme)
+  #    shf = sensible_heat_flux(param_set, Ch, sc, scheme)
+  #    ustar = sqrt(Cd) * windspeed(sc)
+  #    buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
+  #    #@show Ri_b, γ, z_in(sc), ΔDSEᵥ, Cd, Ch, shf, lhf, ustar, buoyancy_flux
+  #    ###
+  #    ### Analytical Solution (Gryanik et al. (2020), 
+  #    ### DOI: 10.1029/2021MS002590)
+  #    ###
+  #    return non_zero(L_MO)
    end
 end
 

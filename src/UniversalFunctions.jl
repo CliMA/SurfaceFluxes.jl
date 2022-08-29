@@ -318,6 +318,55 @@ function psi(uf::Gryanik, ζ, tt::HeatTransport)
     end
 end
 
+function Psi(uf::Gryanik, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    if abs(ζ) < eps(FT)
+        # Psi_m in Eq. A13
+        if ζ >= 0
+            _a_m = FT(a_m(uf))
+            _b_m = FT(b_m(uf))
+            return -FT(9)*_a_m*((_b_m*ζ+FT(1))^(FT(4/3))-1)/ζ/FT(4)/_b_m^FT(2) - FT(1)
+        else
+            return -FT(15) * ζ / FT(8)
+        end
+    else
+        if ζ < 0
+            f_m = f_momentum(uf, ζ)
+            log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
+            π_term = FT(π) / 2
+            tan_term = 2 * atan(f_m)
+            cubic_term = (1 - f_m^3) / (12 * ζ)
+            return log_term - tan_term + π_term - 1 + cubic_term
+        else
+            _a_m = FT(a_m(uf))
+            _b_m = FT(b_m(uf))
+            return -FT(9)*_a_m*((_b_m*ζ+FT(1))^(FT(4/3))-1)/ζ/FT(4)/_b_m^FT(2) - FT(1)
+        end
+    end
+end
+
+function Psi(uf::Gryanik, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    _a_h = FT(a_h(uf))
+    _b_h = FT(b_h(uf))
+    Pr0 = FT(Pr_0(uf))
+    if abs(ζ) < eps(typeof(uf.L))
+        # Psi_h in Eq. A14
+        if ζ >= 0
+            return -_a_h/_b_h/ζ*Pr0 * ((1/_b_h + ζ)*log(_b_h*ζ + 1) - ζ)
+        else
+            return -9 * ζ / 4
+        end
+    else
+        if ζ >= 0
+            return -_a_h/_b_h/ζ*Pr0 * ((1/_b_h + ζ)*log(_b_h*ζ + 1) - ζ)
+        else
+            f_h = f_heat(uf, ζ)
+            log_term = 2 * log((1 + f_h) / 2)
+            return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+        end
+    end
+end
 
 #####
 ##### Grachev
