@@ -1,25 +1,26 @@
+using Test
+
 import SurfaceFluxes
-SurfaceFluxes.error_on_non_convergence() = true
-using Random
-const rseed = MersenneTwister(0)
 const SF = SurfaceFluxes
+SurfaceFluxes.error_on_non_convergence() = true
+
 import SurfaceFluxes.UniversalFunctions as UF
+
+import CLIMAParameters
+const CP = CLIMAParameters
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+
 using Statistics
 using StaticArrays
 using Thermodynamics
 using Thermodynamics.TemperatureProfiles
 using Thermodynamics.TestedProfiles
 Thermodynamics.print_warning() = false
-using UnPack
 
 using RootSolvers
 const RS = RootSolvers
 
-import CLIMAParameters as CP
-const SFP = SF.Parameters
-const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
 function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
@@ -30,9 +31,9 @@ function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290
     return z_range, relative_sat, T_surface, T_min
 end
 
-function generate_profiles(FT)
+function generate_profiles(FT; uf_type = UF.BusingerType())
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    param_set = create_parameters(toml_dict, UF.BusingerType())
+    param_set = create_parameters(toml_dict, uf_type)
     thermo_params = SFP.thermodynamics_params(param_set)
     uft = SFP.universal_func_type(param_set)
     profiles = collect(Thermodynamics.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT}))
@@ -103,6 +104,7 @@ function check_over_moist_states(
     z0_momentum,
     z0_thermal,
     maxiter,
+    gryanik_noniterative::Bool,
 )
     counter = [0, 0, 0] # St, Unst, Neutral
     @inbounds for (ii, pint) in enumerate(profiles_int)
@@ -128,8 +130,14 @@ function check_over_moist_states(
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
                             @test try
-                                sfcc =
-                                    SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
+                                sfcc = SF.surface_conditions(
+                                    param_set,
+                                    sc,
+                                    sch;
+                                    maxiter,
+                                    soltype = RS.VerboseSolution(),
+                                    noniterative_stable_sol = gryanik_noniterative,
+                                )
                                 true
                             catch
                                 false
@@ -144,22 +152,49 @@ function check_over_moist_states(
 end
 
 @testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
-    for FT in [Float32, Float64]
-        profiles_sfc, profiles_int = generate_profiles(FT)
-        scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 10
-        check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+    for uf_type in [UF.BusingerType(), UF.GryanikType(), UF.GrachevType()]
+        for FT in [Float32, Float64]
+            profiles_sfc, profiles_int = generate_profiles(FT)
+            scheme = [SF.FVScheme(), SF.FDScheme()]
+            z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+            z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+            maxiter = 10
+            check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+        end
     end
 end
+
 @testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
-    for FT in [Float32, Float64]
-        profiles_sfc, profiles_int = generate_profiles(FT)
-        scheme = [SF.FVScheme(), SF.FDScheme()]
-        z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-        maxiter = 10
-        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+    for uf_type in [UF.BusingerType(), UF.GryanikType(), UF.GrachevType()]
+        @info "Testing $(uf_type)"
+        for FT in [Float32, Float64]
+            profiles_sfc, profiles_int = generate_profiles(FT; uf_type)
+            scheme = [SF.FVScheme(), SF.FDScheme()]
+            z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+            z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
+            maxiter = 10
+            check_over_moist_states(
+                param_set,
+                FT,
+                profiles_int,
+                profiles_sfc,
+                scheme,
+                z0_momentum,
+                z0_thermal,
+                maxiter,
+                false,
+            )
+            check_over_moist_states(
+                param_set,
+                FT,
+                profiles_int,
+                profiles_sfc,
+                scheme,
+                z0_momentum,
+                z0_thermal,
+                maxiter,
+                true,
+            )
+        end
     end
 end

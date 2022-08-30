@@ -6,7 +6,7 @@ import Thermodynamics as TD
 function create_uf_parameters(toml_dict, ::UF.GryanikType)
     FT = CP.float_type(toml_dict)
 
-    aliases = ["Pr_0_Gryanik", "a_m_Gryanik", "a_h_Gryanik", "b_m_Gryanik", "b_h_Gryanik"]
+    aliases = ["Pr_0_Gryanik", "a_m_Gryanik", "a_h_Gryanik", "b_m_Gryanik", "b_h_Gryanik", "ζ_a_Gryanik", "γ_Gryanik"]
 
     pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
@@ -17,24 +17,41 @@ function create_uf_parameters(toml_dict, ::UF.GryanikType)
         a_h = pairs.a_h_Gryanik,
         b_m = pairs.b_m_Gryanik,
         b_h = pairs.b_h_Gryanik,
+        ζ_a = pairs.ζ_a_Gryanik,
+        γ = pairs.γ_Gryanik,
     )
     return UF.GryanikParams{FT}(; pairs...)
 end
 
 function create_uf_parameters(toml_dict, ::UF.BusingerType)
     FT = CP.float_type(toml_dict)
-    aliases = ["Pr_0_Businger", "a_m_Businger", "a_h_Businger"]
+    aliases = ["Pr_0_Businger", "a_m_Businger", "a_h_Businger", "ζ_a_Businger", "γ_Businger"]
 
     pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
-    pairs = (; Pr_0 = pairs.Pr_0_Businger, a_m = pairs.a_m_Businger, a_h = pairs.a_h_Businger)
+    pairs = (;
+        Pr_0 = pairs.Pr_0_Businger,
+        a_m = pairs.a_m_Businger,
+        a_h = pairs.a_h_Businger,
+        ζ_a = pairs.ζ_a_Businger,
+        γ = pairs.γ_Businger,
+    )
     return UF.BusingerParams{FT}(; pairs...)
 end
 
 function create_uf_parameters(toml_dict, ::UF.GrachevType)
     FT = CP.float_type(toml_dict)
-    aliases = ["Pr_0_Grachev", "a_m_Grachev", "a_h_Grachev", "b_m_Grachev", "b_h_Grachev", "c_h_Grachev"]
+    aliases = [
+        "Pr_0_Grachev",
+        "a_m_Grachev",
+        "a_h_Grachev",
+        "b_m_Grachev",
+        "b_h_Grachev",
+        "c_h_Grachev",
+        "ζ_a_Grachev",
+        "γ_Grachev",
+    ]
 
     pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
@@ -46,6 +63,8 @@ function create_uf_parameters(toml_dict, ::UF.GrachevType)
         b_m = pairs.b_m_Grachev,
         b_h = pairs.b_h_Grachev,
         c_h = pairs.c_h_Grachev,
+        ζ_a = pairs.ζ_a_Grachev,
+        γ = pairs.γ_Grachev,
     )
     return UF.GrachevParams{FT}(; pairs...)
 end
