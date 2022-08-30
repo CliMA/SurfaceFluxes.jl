@@ -266,6 +266,9 @@ end
 struct GryanikType <: AbstractUniversalFunctionType end
 Gryanik() = GryanikType()
 
+f_momentum(uf::Gryanik, ζ) = sqrt(sqrt(1 - 15 * ζ))
+f_heat(uf::Gryanik, ζ) = sqrt(1 - 9 * ζ)
+
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     FT = eltype(uf)
     if 0 < ζ
@@ -273,8 +276,8 @@ function phi(uf::Gryanik, ζ, tt::MomentumTransport)
         _b_m = FT(b_m(uf))
         return 1 + (_a_m * ζ) / (1 + _b_m * ζ)^(FT(2 / 3))
     else
-        _a_m = FT(a_m(uf))
-        return _a_m * ζ + 1
+        f_m = f_momentum(uf, ζ)
+        return 1 / f_m
     end
 end
 
@@ -286,9 +289,8 @@ function phi(uf::Gryanik, ζ, tt::HeatTransport)
         _b_h = FT(b_h(uf))
         return _Pr_0 * (1 + (_a_h * ζ) / (1 + _b_h * ζ))
     else
-        _a_h = FT(a_h(uf))
-        _π_group = FT(π_group(uf, tt))
-        return _a_h * ζ / _π_group + 1
+        f_h = f_heat(uf, ζ)
+        return 1 / f_h
     end
 end
 
@@ -299,8 +301,9 @@ function psi(uf::Gryanik, ζ, tt::MomentumTransport)
         _b_m = FT(b_m(uf))
         return -3 * (_a_m / _b_m) * ((1 + _b_m * ζ)^(FT(1 / 3)) - 1)
     else
-        _a_m = FT(a_m(uf))
-        return -_a_m * ζ
+        f_m = f_momentum(uf, ζ)
+        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
+        return log_term - 2 * atan(f_m) + FT(π) / 2
     end
 end
 
@@ -312,9 +315,8 @@ function psi(uf::Gryanik, ζ, tt::HeatTransport)
         _b_h = FT(b_h(uf))
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
-        _a_h = FT(a_h(uf))
-        _π_group = FT(π_group(uf, tt))
-        return -_a_h * ζ / _π_group
+        f_h = f_heat(uf, ζ)
+        return 2 * log((1 + f_h) / 2)
     end
 end
 
@@ -325,9 +327,11 @@ function Psi(uf::Gryanik, ζ, tt::MomentumTransport)
         if ζ >= 0
             _a_m = FT(a_m(uf))
             _b_m = FT(b_m(uf))
+            # TODO apply limits
             return -FT(9)*_a_m*((_b_m*ζ+FT(1))^(FT(4/3))-1)/ζ/FT(4)/_b_m^FT(2) - FT(1)
         else
-            return -FT(15) * ζ / FT(8)
+            # TODO apply limits
+            return -FT(9)*_a_m*((_b_m*ζ+FT(1))^(FT(4/3))-1)/ζ/FT(4)/_b_m^FT(2) - FT(1)
         end
     else
         if ζ < 0
@@ -352,10 +356,11 @@ function Psi(uf::Gryanik, ζ, tt::HeatTransport)
     Pr0 = FT(Pr_0(uf))
     if abs(ζ) < eps(typeof(uf.L))
         # Psi_h in Eq. A14
+        # TODO Apply limits
         if ζ >= 0
             return -_a_h/_b_h/ζ*Pr0 * ((1/_b_h + ζ)*log(_b_h*ζ + 1) - ζ)
         else
-            return -9 * ζ / 4
+            return -_a_h/_b_h/ζ*Pr0 * ((1/_b_h + ζ)*log(_b_h*ζ + 1) - ζ)
         end
     else
         if ζ >= 0
