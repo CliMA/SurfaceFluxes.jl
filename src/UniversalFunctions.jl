@@ -187,10 +187,6 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
             return -FT(15) * ζ / FT(8)
         end
     else
-        # Note that "1-f^3" in is a typo, it is
-        # supposed to be "1-f_m^3". This was
-        # confirmed by communication with the
-        # author.
         if ζ < 0
             f_m = f_momentum(uf, ζ)
             log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
