@@ -259,7 +259,7 @@ end
         param_set::CLIMAParameters.AbstractParameterSet,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
     ) where {FT}
@@ -287,7 +287,7 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
@@ -312,7 +312,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
     )
@@ -358,7 +358,7 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(z_in(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
@@ -395,6 +395,8 @@ function obukhov_length(
                 KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
                 KA.@print(", Δz = ", Δz(sc))
                 KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
+                KA.@print(", ts_in = ", ts_in(sc))
+                KA.@print(", ts_sfc = ", ts_sfc(sc))
                 if soltype isa RS.CompactSolution
                     KA.@print(", sol.root = ", sol.root)
                 else
