@@ -16,7 +16,6 @@ using RootSolvers
 const RS = RootSolvers
 
 using CLIMAParameters
-using CLIMAParameters: AbstractParameterSet
 using CLIMAParameters.Planet
 const CPP = CLIMAParameters.Planet
 const CP = CLIMAParameters
