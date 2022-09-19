@@ -104,7 +104,7 @@ function check_over_moist_states(
     z0_momentum,
     z0_thermal,
     maxiter,
-    gryanik_noniterative::Bool
+    gryanik_noniterative::Bool,
 )
     counter = [0, 0, 0] # St, Unst, Neutral
     @inbounds for (ii, pint) in enumerate(profiles_int)
@@ -130,11 +130,14 @@ function check_over_moist_states(
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
                             @test try
-                                sfcc =
-                                    SF.surface_conditions(param_set, sc, sch; 
-                                                          maxiter, 
-                                                          soltype = RS.VerboseSolution(),
-                                                          noniterative_stable_sol = gryanik_noniterative)
+                                sfcc = SF.surface_conditions(
+                                    param_set,
+                                    sc,
+                                    sch;
+                                    maxiter,
+                                    soltype = RS.VerboseSolution(),
+                                    noniterative_stable_sol = gryanik_noniterative,
+                                )
                                 true
                             catch
                                 false
@@ -165,7 +168,27 @@ end
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         maxiter = 10
-        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter, false)
-        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter, true)
+        check_over_moist_states(
+            param_set,
+            FT,
+            profiles_int,
+            profiles_sfc,
+            scheme,
+            z0_momentum,
+            z0_thermal,
+            maxiter,
+            false,
+        )
+        check_over_moist_states(
+            param_set,
+            FT,
+            profiles_int,
+            profiles_sfc,
+            scheme,
+            z0_momentum,
+            z0_thermal,
+            maxiter,
+            true,
+        )
     end
 end
