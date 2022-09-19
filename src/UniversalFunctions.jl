@@ -333,7 +333,7 @@ function Psi(uf::Gryanik, ζ, tt::MomentumTransport)
     if abs(ζ) < eps(FT)
         # Psi_m in Eq. A13
         if ζ >= 0
-            # TODO apply limits
+            # TODO: Add limit given default parameter combination a_m, b_m
             return -FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2) - FT(1)
         else
             return -FT(15) * ζ / FT(8)
@@ -361,13 +361,13 @@ function Psi(uf::Gryanik, ζ, tt::HeatTransport)
         # Psi_h in Eq. A14
         # TODO Apply limits
         if ζ >= 0
-            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log(_b_h * ζ + 1) - ζ)
+            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
         else
             return -9 * ζ / 4
         end
     else
         if ζ >= 0
-            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log(_b_h * ζ + 1) - ζ)
+            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
         else
             f_h = f_heat(uf, ζ)
             log_term = 2 * log((1 + f_h) / 2)
