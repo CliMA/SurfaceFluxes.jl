@@ -368,7 +368,7 @@ function obukhov_length(
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
-    tol_neutral = FT(cp_d / 10)
+    tol_neutral = FT(cp_d / 100)
     if abs(ΔDSEᵥ) <= tol_neutral
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
