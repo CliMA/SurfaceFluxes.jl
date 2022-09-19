@@ -377,7 +377,7 @@ function obukhov_length(
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     if ΔDSEᵥ >= FT(0) && noniterative_stable_sol == true # Stable Layer
         ### Analytical Solution 
-        ### Gryanik et al. (2020)
+        ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
         Ri_b = (grav * z_in(sc) * ΔDSEᵥ) / (DSEᵥ_sfc * (windspeed(sc))^2)
         @assert Ri_b >= FT(0)
