@@ -1,29 +1,26 @@
+using Test
+
 import SurfaceFluxes
-SurfaceFluxes.error_on_non_convergence() = true
-using Random
-const rseed = MersenneTwister(0)
 const SF = SurfaceFluxes
+SurfaceFluxes.error_on_non_convergence() = true
+
 import SurfaceFluxes.UniversalFunctions as UF
+
+import CLIMAParameters
+const CP = CLIMAParameters
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+
 using Statistics
 using StaticArrays
 using Thermodynamics
 using Thermodynamics.TemperatureProfiles
 using Thermodynamics.TestedProfiles
 Thermodynamics.print_warning() = false
-using UnPack
 
 using RootSolvers
 const RS = RootSolvers
 
-using CLIMAParameters
-using CLIMAParameters.Planet
-const CPP = CLIMAParameters.Planet
-const CP = CLIMAParameters
-const SFP = SF.Parameters
-const APS = CP.AbstractParameterSet
-const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
 function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
@@ -107,7 +104,7 @@ function check_over_moist_states(
     z0_momentum,
     z0_thermal,
     maxiter,
-    gryanik_noniterative::Bool,
+    gryanik_noniterative::Bool
 )
     counter = [0, 0, 0] # St, Unst, Neutral
     @inbounds for (ii, pint) in enumerate(profiles_int)
@@ -133,14 +130,11 @@ function check_over_moist_states(
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
                             @test try
-                                sfcc = SF.surface_conditions(
-                                    param_set,
-                                    sc,
-                                    sch;
-                                    maxiter,
-                                    soltype = RS.VerboseSolution(),
-                                    noniterative_stable_sol = gryanik_noniterative,
-                                )
+                                sfcc =
+                                    SF.surface_conditions(param_set, sc, sch; 
+                                                          maxiter, 
+                                                          soltype = RS.VerboseSolution(),
+                                                          noniterative_stable_sol = gryanik_noniterative)
                                 true
                             catch
                                 false
@@ -171,31 +165,7 @@ end
         z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
         maxiter = 10
-        @testset "Check convergence (iterative procedure for stable bl)" begin
-            check_over_moist_states(
-                param_set,
-                FT,
-                profiles_int,
-                profiles_sfc,
-                scheme,
-                z0_momentum,
-                z0_thermal,
-                maxiter,
-                false,
-            )
-        end
-        @testset "Check convergence (noniterative procedure for stable bl)" begin
-            check_over_moist_states(
-                param_set,
-                FT,
-                profiles_int,
-                profiles_sfc,
-                scheme,
-                z0_momentum,
-                z0_thermal,
-                maxiter,
-                true,
-            )
-        end
+        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter, false)
+        check_over_moist_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter, true)
     end
 end
