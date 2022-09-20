@@ -256,7 +256,7 @@ end
 
 """
     surface_conditions(
-        param_set::CLIMAParameters.AbstractParameterSet,
+        param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
         tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
@@ -308,7 +308,7 @@ end
     obukhov_length(sfc::SurfaceFluxConditions)
 
     obukhov_length( # internal method
-        param_set::AbstractParameterSet,
+        param_set::AbstractSurfaceFluxesParameters,
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
@@ -502,7 +502,7 @@ compute_bstar(param_set, L_MO, sc::Fluxes, uft, scheme) =
 
 """
     compute_ustar(
-        param_set::AbstractParameterSet,
+        param_set::AbstractSurfaceFluxesParameters,
         L_MO,
         sc::AbstractSufaceCondition,
         uft,

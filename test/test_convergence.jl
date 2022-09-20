@@ -15,13 +15,8 @@ using UnPack
 using RootSolvers
 const RS = RootSolvers
 
-using CLIMAParameters
-using CLIMAParameters: AbstractParameterSet
-using CLIMAParameters.Planet
-const CPP = CLIMAParameters.Planet
-const CP = CLIMAParameters
+import CLIMAParameters as CP
 const SFP = SF.Parameters
-const APS = CP.AbstractParameterSet
 const TP = Thermodynamics.TemperatureProfiles
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
