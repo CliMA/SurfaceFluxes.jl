@@ -21,7 +21,6 @@ thermo_params = SFP.thermodynamics_params(param_set)
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
     @__DIR__,
-    isempty(get(ENV, "CI", "")),
     "PyCLES_output",
     AW.ArtifactFile[
     AW.ArtifactFile(url = "https://caltech.box.com/shared/static/johlutwhohvr66wn38cdo7a6rluvz708.nc", filename = "Rico.nc",),
