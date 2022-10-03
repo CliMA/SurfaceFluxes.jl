@@ -416,7 +416,7 @@ function obukhov_length(
     elseif tol_neutral >= abs(ΔDSEᵥ) # Neutral Layer
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
-        return L_MO = FT(Inf * sign(ΔDSEᵥ))
+        return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
         function root_l_mo(x_lmo)
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
