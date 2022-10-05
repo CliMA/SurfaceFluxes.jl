@@ -38,5 +38,7 @@ a_m(ps::SurfaceFluxesParameters) = a_m(uf_params(ps))
 a_h(ps::SurfaceFluxesParameters) = a_h(uf_params(ps))
 b_m(ps::SurfaceFluxesParameters) = b_m(uf_params(ps))
 b_h(ps::SurfaceFluxesParameters) = b_h(uf_params(ps))
+ζ_a(ps::SurfaceFluxesParameters) = ζ_a(uf_params(ps))
+γ(ps::SurfaceFluxesParameters) = γ(uf_params(ps))
 
 end

@@ -94,7 +94,7 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
     Thermodynamics.Parameters.ThermodynamicsParameters{FT},
 }(
     0.4f0,
-    SurfaceFluxes.UniversalFunctions.BusingerParams{FT}(0.74f0, 4.7f0, 4.7f0),
+    SurfaceFluxes.UniversalFunctions.BusingerParams{FT}(0.74f0, 4.7f0, 4.7f0, 2.5f0, 4.45f0),
     Thermodynamics.Parameters.ThermodynamicsParameters{FT}(
         273.16f0,
         100000.0f0,
@@ -175,7 +175,7 @@ end
         end
     end
     rdiff_sol = (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[1, :, :, :]
-    @test all(x -> x <= sqrt(eps(FT)), rdiff_sol)
+    @test all(x -> x <= sqrt(eps(FT)), abs.(rdiff_sol))
 end
 
 @testset "Test profiles" begin

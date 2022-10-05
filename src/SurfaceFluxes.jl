@@ -260,6 +260,7 @@ end
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
         tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+        tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
     ) where {FT}
@@ -288,14 +289,16 @@ function surface_conditions(
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
     tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+    tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
+    noniterative_stable_sol::Bool = false,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, maxiter, soltype)
+    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
-    Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
+    Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
+    Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
     shf = sensible_heat_flux(param_set, Ch, sc, scheme)
     lhf = latent_heat_flux(param_set, Ch, sc, scheme)
     buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
@@ -313,6 +316,7 @@ end
         uft,
         scheme;
         tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+        tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
     )
@@ -359,33 +363,71 @@ function obukhov_length(
     uft::UF.AUFT,
     scheme;
     tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+    tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
+    noniterative_stable_sol::Bool = false,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
+    ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
-    tol_neutral = FT(cp_d / 100)
-    if abs(ΔDSEᵥ) <= tol_neutral
+    if ΔDSEᵥ >= FT(0) && noniterative_stable_sol == true # Stable Layer
+        ### Analytical Solution 
+        ### Gryanik et al. (2021)
+        ### DOI: 10.1029/2021MS002590)
+        Ri_b = (grav * z_in(sc) * ΔDSEᵥ) / (DSEᵥ_sfc * (windspeed(sc))^2)
+        @assert Ri_b >= FT(0)
+        ϵₘ = FT(Δz(sc) / z0(sc, UF.MomentumTransport()))
+        ϵₕ = FT(Δz(sc) / z0(sc, UF.HeatTransport()))
+        C = (log(ϵₘ))^2 / (log(ϵₕ))
+        ζₐ = ufparams.ζ_a
+        ufₐ = UF.universal_func(uft, Δz(sc) / ζₐ, SFP.uf_params(param_set))
+        γ = ufparams.γ
+        Pr₀ = UF.Pr_0(ufₐ)
+        ψ_ma = UF.psi(ufₐ, ζₐ, UF.MomentumTransport())
+        ψ_ha = UF.psi(ufₐ, ζₐ, UF.HeatTransport())
+        A =
+            (log(ϵₘ) - ψ_ma)^(2 * (γ - 1)) / (ζₐ^(γ - 1) * (log(ϵₕ) - ψ_ha)^(γ - 1)) *
+            ((log(ϵₘ) - ψ_ma)^2 / (log(ϵₕ) - ψ_ha) - C)
+        ζₛ = FT(C) * FT(Ri_b) + FT(A) * FT(Ri_b^γ)
+        ufₛ = UF.universal_func(uft, Δz(sc) / ζₛ, SFP.uf_params(param_set))
+        ψₘ = UF.psi(ufₛ, ζₛ, UF.MomentumTransport())
+        ψₕ = UF.psi(ufₛ, ζₛ, UF.HeatTransport())
+        # Compute exchange coefficients
+        κ = SFP.von_karman_const(param_set)
+        Cd = κ^2 / (log(ϵₘ)^2) * (1 - ψₘ / log(ϵₘ))^(-2)
+        Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * (1 - ψₘ / log(ϵₘ))^(-1) * (1 - ψₕ / Pr₀ / log(ϵₕ))^(-1)
+        SCₜ = Coefficients(;
+            state_in = sc.state_in,
+            state_sfc = sc.state_sfc,
+            Cd,
+            Ch,
+            z0m = sc.z0m,
+            z0b = sc.z0b,
+            gustiness = FT(1),
+        )
+        # Compute Monin-Obukhov Length
+        L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
+        return non_zero(L_MO)
+    elseif tol_neutral >= abs(ΔDSEᵥ) # Neutral Layer
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
         return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
-        # Boundary layer is non-neutral, we need to iterate to determine the true solution.
         function root_l_mo(x_lmo)
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
             return residual
         end
-        # Return the iterated solution for Monin-Obukhov length in non-neutral boundary layer case
         sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
                 KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-                KA.@print(", T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+                KA.@print(" T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
                 KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
                 KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
                 KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
@@ -395,8 +437,11 @@ function obukhov_length(
                 KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
                 KA.@print(", Δz = ", Δz(sc))
                 KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
-                KA.@print(", ts_in = ", ts_in(sc))
-                KA.@print(", ts_sfc = ", ts_sfc(sc))
+                KA.@print("\n")
+                KA.@print("ts_in(sc) = ", ts_in(sc))
+                KA.@print("\n")
+                KA.@print("ts_sfc(sc) = ", ts_sfc(sc))
+                KA.@print("\n")
                 if soltype isa RS.CompactSolution
                     KA.@print(", sol.root = ", sol.root)
                 else
@@ -408,8 +453,8 @@ function obukhov_length(
                 KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
             end
         end
+        return non_zero(L_MO)
     end
-    return non_zero(L_MO)
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity{FT}, uft::UF.AUFT, scheme; kwargs...) where {FT}
@@ -551,6 +596,7 @@ function momentum_exchange_coefficient(
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     uft::UF.AUFT,
     scheme,
+    tol_neutral,
 )
     FT = eltype(L_MO)
     thermo_params = SFP.thermodynamics_params(param_set)
@@ -561,7 +607,6 @@ function momentum_exchange_coefficient(
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     cp_d::FT = SFP.cp_d(param_set)
-    tol_neutral = FT(cp_d / 10)
     if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
@@ -572,16 +617,16 @@ function momentum_exchange_coefficient(
 end
 
 """
-    momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
+    momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
 
 Return Cd, the momentum exchange coefficient.
 """
-function momentum_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme)
+function momentum_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme, tol_neutral)
     return sc.Cd
 end
 
 """
-    heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
+    heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
 
 Compute and return Ch, the heat exchange coefficient given the
 Monin-Obukhov lengthscale.
@@ -592,6 +637,7 @@ function heat_exchange_coefficient(
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     uft,
     scheme,
+    tol_neutral,
 )
     FT = eltype(L_MO)
     thermo_params = SFP.thermodynamics_params(param_set)
@@ -599,7 +645,6 @@ function heat_exchange_coefficient(
     κ = SFP.von_karman_const(param_set)
     grav::FT = SFP.grav(param_set)
     cp_d::FT = SFP.cp_d(param_set)
-    tol_neutral = FT(cp_d / 10)
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
@@ -621,7 +666,7 @@ end
 Return Ch, the heat exchange coefficient given the
 Monin-Obukhov lengthscale.
 """
-function heat_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme)
+function heat_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme, tol_neutral)
     return sc.Ch
 end
 
@@ -837,6 +882,5 @@ function recover_profile(
     ΔX = X_in - X_sfc
     return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ * ΔX + X_sfc
 end
-
 
 end # SurfaceFluxes module
