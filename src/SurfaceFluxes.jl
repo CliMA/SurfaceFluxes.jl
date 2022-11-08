@@ -401,18 +401,19 @@ function obukhov_length(
         κ = SFP.von_karman_const(param_set)
         Cd = κ^2 / (log(ϵₘ)^2) * (1 - ψₘ / log(ϵₘ))^(-2)
         Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * (1 - ψₘ / log(ϵₘ))^(-1) * (1 - ψₕ / Pr₀ / log(ϵₕ))^(-1)
-        SCₜ = Coefficients(;
-            state_in = sc.state_in,
-            state_sfc = sc.state_sfc,
-            Cd,
-            Ch,
-            z0m = sc.z0m,
-            z0b = sc.z0b,
-            gustiness = FT(1),
-        )
-        # Compute Monin-Obukhov Length
-        L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
-        return non_zero(L_MO)
+        @show ΔDSEᵥ, tol_neutral, Cd, Ch
+       # SCₜ = Coefficients(;
+       #     sc.state_in,
+       #     sc.state_sfc,
+       #     Cd = Cd,
+       #     Ch = Ch,
+       #     z0m = sc.z0m,
+       #     z0b = sc.z0b,
+       #     gustiness = FT(1),
+       # )
+       # # Compute Monin-Obukhov Length
+       # L_MO = obukhov_length(param_set, SCₜ, uft, scheme; tol, maxiter, soltype)
+         return non_zero(Δz(sc) ./ ζₛ)
     elseif tol_neutral >= abs(ΔDSEᵥ) # Neutral Layer
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
@@ -622,6 +623,7 @@ end
 Return Cd, the momentum exchange coefficient.
 """
 function momentum_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme, tol_neutral)
+    @show "Inside Coeff MEC calculation"
     return sc.Cd
 end
 
