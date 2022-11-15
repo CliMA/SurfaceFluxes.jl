@@ -141,7 +141,7 @@ Base.@kwdef struct Fluxes{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
     lhf::FT
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
+    L_MO_init::FT = FT(1)
     gustiness::FT = FT(1)
 end
 
@@ -219,7 +219,7 @@ Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, V
     state_sfc::VS
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
+    L_MO_init::FT = FT(1)
     gustiness::FT = FT(1)
 end
 
@@ -375,6 +375,8 @@ function obukhov_length(
     DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    Ri_b = (grav * z_in(sc) * ΔDSEᵥ) / (DSEᵥ_sfc * (windspeed(sc))^2)
+    @show Ri_b
     if ΔDSEᵥ >= FT(0) && noniterative_stable_sol == true # Stable Layer
         ### Analytical Solution 
         ### Gryanik et al. (2021)
@@ -418,11 +420,12 @@ function obukhov_length(
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
         return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
+        @show ΔDSEᵥ
         function root_l_mo(x_lmo)
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
             return residual
         end
-        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
+        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sign(ΔDSEᵥ) * sc.L_MO_init), soltype, tol, maxiter)
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
@@ -758,7 +761,6 @@ Compute and return the latent heat flux
 function latent_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}, scheme) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     grav::FT = SFP.grav(param_set)
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     cp_v::FT = SFP.cp_v(param_set)
     Lv_0::FT = SFP.LH_v0(param_set)
     T_0::FT = SFP.T_0(param_set)
