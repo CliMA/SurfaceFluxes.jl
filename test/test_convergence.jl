@@ -22,16 +22,35 @@ const RS = RootSolvers
 
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
 
-function input_config(ArrayType; n = 10, n_RS1 = 10, n_RS2 = 10, T_surface = 290, T_min = 150)
+abstract type TestProfiles end
+struct DryProfiles <: TestProfiles end
+struct MoistEquilProfiles <: TestProfiles end
+
+function input_config(ArrayType; n = 2, n_RS1 = 2, n_RS2 = 2, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
-    z_range = ArrayType(range(0, stop = 5e2, length = n))
+    z_range = ArrayType(range(0, stop = 80, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
     relative_sat2 = ArrayType(range(1, stop = 1.02, length = n_RS2))
     relative_sat = vcat(relative_sat1, relative_sat2)
     return z_range, relative_sat, T_surface, T_min
 end
 
-function generate_profiles(FT; uf_type = UF.BusingerType())
+function generate_profiles(FT, ::DryProfiles; uf_type = UF.BusingerType())
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    param_set = create_parameters(toml_dict, uf_type)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    uft = SFP.universal_func_type(param_set)
+    profiles = collect(Thermodynamics.TestedProfiles.PhaseDryProfiles(thermo_params, Array{FT}))
+    profiles_sfc = filter(p -> iszero(p.z), profiles)
+    profiles_int = filter(p -> !iszero(p.z), profiles)
+    ## Properties contained in `profiles_<sfc, int>`
+    ## :z, :T, :p, :RS, :e_int, :h, :ρ, 
+    ## :θ_liq_ice, :q_tot, :q_liq, :q_ice, :q_pt, :RH, 
+    ## :e_pot, :u, :v, :w, :e_kin, :phase_type
+    return profiles_sfc, profiles_int, param_set
+end
+
+function generate_profiles(FT, ::MoistEquilProfiles; uf_type = UF.BusingerType())
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     param_set = create_parameters(toml_dict, uf_type)
     thermo_params = SFP.thermodynamics_params(param_set)
@@ -46,6 +65,19 @@ function generate_profiles(FT; uf_type = UF.BusingerType())
     return profiles_sfc, profiles_int, param_set
 end
 
+function compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+    DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int, prof_int.e_pot)
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc, prof_sfc.e_pot)
+    return DSEᵥ_int - DSEᵥ_sfc
+end
+
+function assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
+    FT = eltype(z0m)
+    state_in = SF.InteriorValues(prof_int.z, (prof_int.u / 10, prof_int.v / 10), ts_int)
+    state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc)
+    return SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+end
+
 function check_over_dry_states(
     param_set,
     ::Type{FT},
@@ -55,10 +87,12 @@ function check_over_dry_states(
     z0_momentum,
     z0_thermal,
     maxiter,
+    tol_neutral,
+    gryanik_noniterative::Bool,
 ) where {FT}
-    counter = [0, 0, 0] # St, Unst, Neutral
-    @inbounds for (ii, pint) in enumerate(profiles_int)
-        @inbounds for (jj, psfc) in enumerate(profiles_sfc)
+    counter = [0, 0, 0] # Stable, Unstable, Neutral
+    @inbounds for (ii, prof_int) in enumerate(profiles_int)
+        @inbounds for (jj, prof_sfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
                 @inbounds for (ll, z0b) in enumerate(z0_thermal)
                     @inbounds for sch in scheme
@@ -66,25 +100,35 @@ function check_over_dry_states(
                             nothing
                         else
                             thermo_params = SFP.thermodynamics_params(param_set)
-                            ts_sfc_test = Thermodynamics.PhaseDry{FT}(psfc.e_int, psfc.ρ)
-                            ts_int_test = Thermodynamics.PhaseDry{FT}(pint.e_int, pint.ρ)
-                            state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
-                            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-                            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                            DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
-                            DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
-                            ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                            if abs(ΔDSEᵥ) <= FT(SFP.cp_d(param_set) / 10)
+                            ts_sfc = Thermodynamics.PhaseDry{FT}(prof_sfc.e_int, prof_sfc.ρ)
+                            ts_int = Thermodynamics.PhaseDry{FT}(prof_int.e_int, prof_int.ρ)
+                            sc = assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
+                            ΔDSEᵥ = compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
-                            @test try
-                                sfcc =
-                                    SF.surface_conditions(param_set, sc, sch; maxiter, soltype = RS.VerboseSolution())
-                                true
-                            catch
-                                false
+                            sfcc = SF.surface_conditions(
+                                param_set,
+                                sc,
+                                sch;
+                                maxiter,
+                                tol_neutral,
+                                soltype = RS.VerboseSolution(),
+                                noniterative_stable_sol = gryanik_noniterative,
+                            )
+                            if abs(ΔDSEᵥ) <= tol_neutral && gryanik_noniterative == false
+                                @test isinf(sfcc.L_MO)
+                            else
+                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
+                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
+                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
+                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
+                                @test sign(
+                                    SF.compute_bstar(param_set, sfcc.L_MO, sc, SFP.universal_func_type(param_set), sch),
+                                ) == sign(ΔDSEᵥ)
+                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
                             end
                         end
                     end
@@ -92,7 +136,7 @@ function check_over_dry_states(
             end
         end
     end
-    @info "(Dry $FT) Stable BL: $(counter[1]), Unstable BL: $(counter[2]), Neutral BL: $(counter[3])"
+    return counter
 end
 
 function check_over_moist_states(
@@ -104,11 +148,12 @@ function check_over_moist_states(
     z0_momentum,
     z0_thermal,
     maxiter,
+    tol_neutral,
     gryanik_noniterative::Bool,
 )
-    counter = [0, 0, 0] # St, Unst, Neutral
-    @inbounds for (ii, pint) in enumerate(profiles_int)
-        @inbounds for (jj, psfc) in enumerate(profiles_sfc)
+    counter = [0, 0, 0] # Stable, Unstable, Neutral
+    @inbounds for (ii, prof_int) in enumerate(profiles_int)
+        @inbounds for (jj, prof_sfc) in enumerate(profiles_sfc)
             @inbounds for (kk, z0m) in enumerate(z0_momentum)
                 @inbounds for (ll, z0b) in enumerate(z0_thermal)
                     @inbounds for sch in scheme
@@ -116,31 +161,46 @@ function check_over_moist_states(
                             nothing
                         else
                             thermo_params = SFP.thermodynamics_params(param_set)
-                            ts_sfc_test = Thermodynamics.PhaseEquil{FT}(psfc.ρ, psfc.p, psfc.e_int, psfc.q_tot, psfc.T)
-                            ts_int_test = Thermodynamics.PhaseEquil{FT}(pint.ρ, pint.p, pint.e_int, pint.q_tot, pint.T)
-                            state_in = SF.InteriorValues(pint.z, (pint.u / 10, pint.v / 10), ts_int_test)
-                            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-                            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-                            DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int_test, pint.e_pot)
-                            DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc_test, psfc.e_pot)
-                            ΔDSEᵥ = DSEᵥ_int - DSEᵥ_sfc
-                            if abs(ΔDSEᵥ) <= FT(SFP.cp_d(param_set) / 10)
+                            ts_sfc = Thermodynamics.PhaseEquil{FT}(
+                                prof_sfc.ρ,
+                                prof_sfc.p,
+                                prof_sfc.e_int,
+                                prof_sfc.q_tot,
+                                prof_sfc.T,
+                            )
+                            ts_int = Thermodynamics.PhaseEquil{FT}(
+                                prof_int.ρ,
+                                prof_int.p,
+                                prof_int.e_int,
+                                prof_int.q_tot,
+                                prof_int.T,
+                            )
+                            sc = assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
+                            ΔDSEᵥ = compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
-                            @test try
-                                sfcc = SF.surface_conditions(
-                                    param_set,
-                                    sc,
-                                    sch;
-                                    maxiter,
-                                    soltype = RS.VerboseSolution(),
-                                    noniterative_stable_sol = gryanik_noniterative,
-                                )
-                                true
-                            catch
-                                false
+                            sfcc = SF.surface_conditions(
+                                param_set,
+                                sc,
+                                sch;
+                                maxiter,
+                                tol_neutral,
+                                soltype = RS.VerboseSolution(),
+                                noniterative_stable_sol = gryanik_noniterative,
+                            )
+                            if abs(ΔDSEᵥ) <= tol_neutral && gryanik_noniterative == false
+                                @test isinf(sfcc.L_MO)
+                            else
+                                @test sign.(sfcc.evaporation) == -sign(prof_int.q_tot - prof_sfc.q_tot)
+                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
+                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
+                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
+                                @test sign(
+                                    SF.compute_bstar(param_set, sfcc.L_MO, sc, SFP.universal_func_type(param_set), sch),
+                                ) == sign(ΔDSEᵥ)
                             end
                         end
                     end
@@ -148,53 +208,48 @@ function check_over_moist_states(
             end
         end
     end
-    @info "(Moist $FT) Stable BL: $(counter[1]), Unstable BL: $(counter[2]), Neutral BL: $(counter[3])"
+    return counter
 end
 
 @testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
     for uf_type in [UF.BusingerType(), UF.GryanikType(), UF.GrachevType()]
         for FT in [Float32, Float64]
-            profiles_sfc, profiles_int = generate_profiles(FT)
-            scheme = [SF.FVScheme(), SF.FDScheme()]
-            z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-            z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-            maxiter = 10
-            check_over_dry_states(param_set, FT, profiles_int, profiles_sfc, scheme, z0_momentum, z0_thermal, maxiter)
+            for profile_type in [DryProfiles(), MoistEquilProfiles()]
+                profiles_sfc, profiles_int = generate_profiles(FT, profile_type)
+                scheme = [SF.FVScheme(), SF.FDScheme()]
+                z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
+                z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
+                maxiter = 10
+                tol_neutral = FT(SFP.cp_d(param_set) / 10)
+                for iteration_option in [false, true]
+                    counter = check_over_dry_states(
+                        param_set,
+                        FT,
+                        profiles_int,
+                        profiles_sfc,
+                        scheme,
+                        z0_momentum,
+                        z0_thermal,
+                        maxiter,
+                        tol_neutral,
+                        iteration_option,
+                    )
+                    counter = check_over_moist_states(
+                        param_set,
+                        FT,
+                        profiles_int,
+                        profiles_sfc,
+                        scheme,
+                        z0_momentum,
+                        z0_thermal,
+                        maxiter,
+                        tol_neutral,
+                        iteration_option,
+                    )
+                end
+            end
         end
     end
-end
+    @info "Tested Businger/Gryanik/Grachev u.f., Float32/Float64, Dry/EquilMoist profiles, non-iterative solver on/off"
 
-@testset "Check convergence (moist thermodynamic states): Stable/Unstable" begin
-    for uf_type in [UF.BusingerType(), UF.GryanikType(), UF.GrachevType()]
-        @info "Testing $(uf_type)"
-        for FT in [Float32, Float64]
-            profiles_sfc, profiles_int = generate_profiles(FT; uf_type)
-            scheme = [SF.FVScheme(), SF.FDScheme()]
-            z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-            z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 10))
-            maxiter = 10
-            check_over_moist_states(
-                param_set,
-                FT,
-                profiles_int,
-                profiles_sfc,
-                scheme,
-                z0_momentum,
-                z0_thermal,
-                maxiter,
-                false,
-            )
-            check_over_moist_states(
-                param_set,
-                FT,
-                profiles_int,
-                profiles_sfc,
-                scheme,
-                z0_momentum,
-                z0_thermal,
-                maxiter,
-                true,
-            )
-        end
-    end
 end
