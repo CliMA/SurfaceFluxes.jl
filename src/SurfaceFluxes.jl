@@ -196,6 +196,7 @@ Base.@kwdef struct Coefficients{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI,
     z0m::FT
     z0b::FT
     gustiness::FT = FT(1)
+    beta::FT = FT(1)
 end
 
 function Coefficients{FT}(; state_in, state_sfc, kwargs...) where {FT}
@@ -221,6 +222,7 @@ Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, V
     z0b::FT
     L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
+    beta::FT = FT(1)
 end
 
 function ValuesOnly{FT}(; state_in, state_sfc, kwargs...) where {FT}
@@ -706,13 +708,6 @@ function sensible_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficient
     return -ρ_sfc * Ch * windspeed(sc) * (cp_m * ΔT + ΔΦ) - (hd_sfc) * E
 end
 
-function evaporation(param_set, sc::AbstractSurfaceConditions, Ch)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc)
-end
-
-
 """
     sensible_heat_flux(param_set, Ch, sc, scheme)
 
@@ -757,6 +752,46 @@ function latent_heat_flux(param_set, Ch::FT, sc::Union{ValuesOnly, Coefficients}
     E = evaporation(param_set, sc, Ch)
     lhf = (hv_sfc + Φ_sfc) * E
     return lhf
+end
+
+"""
+    evaporation(param_set, sc, Ch)
+
+Compute and return the evaporation. When `sc` is `Fluxes` or `FluxesAndFrictionVelocity`,
+evaporation is directly calculated from the latent heat flux.
+## Arguments
+  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
+  - sc: Container for surface conditions based on known combination
+        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
+  - Ch: Thermal exchange coefficient
+"""
+function evaporation(param_set, sc::Union{Fluxes, FluxesAndFrictionVelocity}, Ch::FT) where {FT}
+    thermo_params = SFP.thermodynamics_params(param_set)
+    grav::FT = SFP.grav(param_set)
+    cp_v::FT = SFP.cp_v(param_set)
+    Lv_0::FT = SFP.LH_v0(param_set)
+    T_0::FT = SFP.T_0(param_set)
+    T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
+    hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
+    Φ_sfc = grav * z_sfc(sc)
+    return sc.lhf / (hv_sfc + Φ_sfc)
+end
+
+"""
+    evaporation(param_set, sc, Ch)
+
+Compute and return the evaporation. When `sc` is `ValuesOnly` or `Coefficients`, a `beta` factor
+is used to represent the resistance of the surface.
+## Arguments
+  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
+  - sc: Container for surface conditions based on known combination
+        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
+  - Ch: Thermal exchange coefficient
+"""
+function evaporation(param_set, sc::Union{ValuesOnly, Coefficients}, Ch)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
+    return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc) * sc.beta
 end
 
 
