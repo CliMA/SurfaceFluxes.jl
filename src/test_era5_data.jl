@@ -53,7 +53,7 @@ data_sfc = NCDataset("era5_surface.nc","r") do ds
     e = @. saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     R = 287.1
     R_m = 461.5
-    # q_sat following ECMWF documentation (TODO Replace with CLIMAParameters)
+    # (Replace with CLIMAParameters)
     Rdry = 287.0597 
     Rvap=461.5250 
     a₁=611.21
@@ -83,41 +83,39 @@ end
 
 ustar = zeros(1440,721)
 shf = zeros(1440,721)
+lhf = zeros(1440,721)
 evaporation = zeros(1440,721)
 altitude = zeros(1440,721)
 lmo = zeros(1440,721)
 ρτxz = zeros(1440,721)
+ρτyz = zeros(1440,721)
 for (ii, ilon) in enumerate(data_sfc.λ)
   for (jj, ilat) in enumerate(data_sfc.𝜃)
     ## Example (Assuming we have data for a given location)
     ## Populate state variables from ERA5 information. 
     z_sfc = FT(data_sfc.z[ii, jj])
-    z_int = z_sfc .+ 100.0 #FT(data_int.z[ii, jj])
-    if z_int - z_sfc > FT(0)
-      z0m = FT(0.001)
-      z0b = FT(0.001)
-      ts_int = data_int.ts[ii, jj]
-      ts_sfc = data_sfc.ts[ii, jj]
-      sc = SF.ValuesOnly{FT}(;
-              state_in = SF.InteriorValues(z_int, (FT(data_int.u[ii, jj]), FT(data_int.v[ii,jj])), ts_int),
-              state_sfc = SF.SurfaceValues(z_sfc, (FT(0), FT(0)), ts_sfc),
-              z0m = z0m,
-              z0b = z0b,
-           )
-      result_fd = SF.surface_conditions(surface_params, sc, SF.FVScheme(); noniterative_stable_sol = false);
-      result_fv = SF.surface_conditions(surface_params, sc, SF.FDScheme(); noniterative_stable_sol = false);
-      ustar[ii,jj] = result_fd.ustar
-      lmo[ii,jj] = result_fd.L_MO
-      shf[ii,jj] = result_fd.shf
-      evaporation[ii,jj] = result_fd.evaporation
-      ρτxz[ii,jj] = result_fd.ρτxz
-    else
-      ustar[ii,jj] = FT(99)
-      lmo[ii,jj] = FT(-9999)
-      shf[ii,jj] = FT(999)
-      evaporation[ii,jj] = FT(0.0)
-      ρτxz[ii,jj] = result_fd.ρτxz
-    end
+    Δz_grid = FT(100)
+    z_int = z_sfc .+ Δz_grid # FT(data_int.z[ii, jj])
+    # ERA fields (local values of fsr and flsr)
+    z0m = FT(0.001)
+    z0b = FT(0.001)
+    ts_int = data_int.ts[ii, jj]
+    ts_sfc = data_sfc.ts[ii, jj]
+    sc = SF.ValuesOnly{FT}(;
+            state_in = SF.InteriorValues(z_int, (FT(data_int.u[ii, jj]), FT(data_int.v[ii,jj])), ts_int),
+            state_sfc = SF.SurfaceValues(z_sfc, (FT(0), FT(0)), ts_sfc),
+            z0m = z0m,
+            z0b = z0b,
+         )
+    result_fd = SF.surface_conditions(surface_params, sc, SF.FVScheme(); noniterative_stable_sol = false);
+    result_fv = SF.surface_conditions(surface_params, sc, SF.FDScheme(); noniterative_stable_sol = false);
+    ustar[ii,jj] = result_fd.ustar 
+    lmo[ii,jj] = result_fd.L_MO # Monin-Obukhov
+    shf[ii,jj] = result_fd.shf
+    lhf[ii,jj] = result_fd.lhf
+    evaporation[ii,jj] = result_fd.evaporation
+    ρτxz[ii,jj] = result_fd.ρτxz # Eastward turbulent shear stresses
+    ρτyz[ii,jj] = result_fd.ρτyz # Northward turbulene shear stresses
   end
 end
 
