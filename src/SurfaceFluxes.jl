@@ -894,7 +894,7 @@ function recover_profile(
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
 ) where {FT}
-    @assert isless.(Z, sc.vals_in.z)
+    @assert isless.(Z, z_in(sc))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
