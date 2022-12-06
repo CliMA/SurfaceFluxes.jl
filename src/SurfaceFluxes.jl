@@ -963,7 +963,6 @@ function recover_profile_canopy(
     end
     ℛ(X) = 1/(Z-d) * UF.phi(uf, 1-𝜙_rsl(X), transport)
     rsl_pg95, _ = quadgk(ℛ, Z-d, z_star, rtol = 1e-8) # Here we numerically integrate to evaluate the addition
-    @show rsl_pg95
     Σnum += rsl_pg95
     ### 
     return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ + X_sfc
