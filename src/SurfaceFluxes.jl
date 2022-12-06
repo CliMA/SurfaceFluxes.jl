@@ -888,9 +888,8 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
 function recover_profile(
     param_set::APS,
     sc::AbstractSurfaceConditions,
-    L_MO,
+    L_MO::FT,
     Z,
-    X_in,
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -905,8 +904,7 @@ function recover_profile(
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
-    ΔX = X_in - X_sfc
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const + X_sfc
 end
 
 
@@ -959,13 +957,13 @@ function recover_profile_canopy(
     ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
     function 𝜙_rsl(X) 
       # We can dispatch over functions of differing complexity in this instance. 
-      return 1/2 * (exp(log(2)) * (X-d)/z_star)
+      return 1/2 * (exp(log(2)) * (X)/(z_star-d))
     end
-    ℛ(X) = 1/(Z-d) * UF.phi(uf, 1-𝜙_rsl(X), transport)
+    ℛ(X) = 1/(X) * UF.phi(uf, (X) / L_MO, transport) * (1-𝜙_rsl(X))
     rsl_pg95, _ = quadgk(ℛ, Z-d, z_star, rtol = 1e-8) # Here we numerically integrate to evaluate the addition
     Σnum += rsl_pg95
     ### 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const + X_sfc
 end
 
 end # SurfaceFluxes module
