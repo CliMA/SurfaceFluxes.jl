@@ -38,6 +38,8 @@ const UF = UniversalFunctions
 include("Parameters.jl")
 import .Parameters
 
+using QuadGK
+
 const SFP = Parameters
 const APS = SFP.AbstractSurfaceFluxesParameters
 
@@ -904,7 +906,67 @@ function recover_profile(
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
     ΔX = X_in - X_sfc
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ * ΔX + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ + X_sfc
+end
+
+
+"""
+    recover_profile_canopy(param_set, sc, L_MO, z_star, d, Z, X_in, X_sfc, transport, uft, scheme)
+
+Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
+Follows Nishizawa equation (21,22) 
+Canopy modification follows Physick and Garratt (1995) equation (8,9)
+## Arguments
+  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
+  - sc: Container for surface conditions based on known combination
+        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
+  - L_MO: Monin-Obukhov length
+  - z_star: Roughness sublayer height (typically a function of the planetary boundary layer height z_star = 0.04zᵢ)
+  - d = Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
+  - Z: Z coordinate(s) (within surface layer) for which variable values are required
+  - X_in,X_sfc: For variable X, values at interior and surface nodes
+  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
+  - uft: A Universal Function type, (returned by, e.g., Businger())
+  - scheme: Discretization scheme (currently supports FD and FV)
+
+# TODO: add tests
+# TODO: Verify that all current RSL models fall into this general code pattern, then 𝜙 can be abstracted
+"""
+function recover_profile_canopy(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    L_MO::FT,
+    z_star, 
+    d, 
+    Z,
+    X_sfc,
+    transport,
+    uft::UF.AUFT,
+    scheme::Union{FVScheme, FDScheme},
+) where {FT}
+    @assert isless.(Z-d, z_in(sc))
+    @assert isless.(d, Z)
+    uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
+    von_karman_const::FT = SFP.von_karman_const(param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    num1 = log((Z-d) / z0(sc, transport))
+    num2 = -UF.psi(uf, (Z-d) / L_MO, transport)
+    num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
+    Σnum = num1 + num2 + num3
+    ### Protoype : QuadGK integration to evaluate the canopy RSL effect given by Physick and Garratt (1995)
+    ### PG95 assume the same 𝜙 function for momentum and scalar (velocity, heat, moisture etc.) variables
+    ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
+    function 𝜙_rsl(X) 
+      # We can dispatch over functions of differing complexity in this instance. 
+      return 1/2 * (exp(log(2)) * (X-d)/z_star)
+    end
+    ℛ(X) = 1/(Z-d) * UF.phi(uf, 1-𝜙_rsl(X), transport)
+    rsl_pg95, _ = quadgk(ℛ, Z-d, z_star, rtol = 1e-8) # Here we numerically integrate to evaluate the addition
+    @show rsl_pg95
+    Σnum += rsl_pg95
+    ### 
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ + X_sfc
 end
 
 end # SurfaceFluxes module
