@@ -957,7 +957,7 @@ function recover_profile_canopy(
     ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
     function 𝜙_rsl(X) 
       # We can dispatch over functions of differing complexity in this instance. 
-      return 1/2 * (exp(log(2)) * (X)/(z_star-d))
+      return 1/2 * (exp(log(2) * (X)/(z_star)))
     end
     ℛ(X) = 1/(X) * UF.phi(uf, (X) / L_MO, transport) * (1-𝜙_rsl(X))
     rsl_pg95, _ = quadgk(ℛ, Z-d, z_star, rtol = 1e-8) # Here we numerically integrate to evaluate the addition
