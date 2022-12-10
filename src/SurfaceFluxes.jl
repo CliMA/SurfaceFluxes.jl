@@ -890,6 +890,7 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     Z,
+    X_in, 
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -904,7 +905,7 @@ function recover_profile(
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const * (X_in - X_sfc) + X_sfc
 end
 
 
@@ -937,6 +938,7 @@ function recover_profile_canopy(
     z_star, 
     d, 
     Z,
+    X_in, 
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -955,15 +957,19 @@ function recover_profile_canopy(
     ### Protoype : QuadGK integration to evaluate the canopy RSL effect given by Physick and Garratt (1995)
     ### PG95 assume the same 𝜙 function for momentum and scalar (velocity, heat, moisture etc.) variables
     ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
-    function 𝜙_rsl(X) 
-      # We can dispatch over functions of differing complexity in this instance. 
-      return 1/2 * (exp(log(2) * (X)/(z_star)))
+    function ψ_analytic(z)
+      # TODO Move to ClimaParameters
+      ν = FT(0.5)
+      μ = FT(2.59) # Momentum, μₕ = 0.95
+      λ = FT(1.5)
+      return UF.phi(uf, z/L_MO * (1 + ν/(μ*z/z_star)), transport) * (1/λ) * log(1+(λ/(μ*z/z_star)))*exp(-μ*z/z_star)
     end
-    ℛ(X) = 1/(X) * UF.phi(uf, (X) / L_MO, transport) * (1-𝜙_rsl(X))
-    rsl_pg95, _ = quadgk(ℛ, Z-d, z_star, rtol = 1e-8) # Here we numerically integrate to evaluate the addition
-    Σnum += rsl_pg95
+    rsl_deridder = ψ_analytic(Z-d)
+    Σnum += rsl_deridder
     ### 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const * (X_in - X_sfc) + X_sfc
 end
+
+
 
 end # SurfaceFluxes module
