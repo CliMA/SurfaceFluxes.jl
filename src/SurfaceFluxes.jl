@@ -261,7 +261,7 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(Δz(sc) / 50), FT(1e-5)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -290,7 +290,7 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(Δz(sc) / 50), FT(1e-5)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -317,7 +317,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(Δz(sc) / 50), FT(1e-5)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -364,7 +364,7 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(Δz(sc) / 50), FT(1e-5)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
