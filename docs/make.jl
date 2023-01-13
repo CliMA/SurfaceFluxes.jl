@@ -10,6 +10,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 pages = Any[
     "Home" => "index.md",
     "References" => "References.md",
+    "Equations" => "SurfaceFluxes.md",
     "Universal Functions" => "UniversalFunctions.md"
 ]
 
