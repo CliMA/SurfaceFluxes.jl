@@ -29,8 +29,8 @@ if get(ARGS, 1, "Array") == "CuArray"
     CUDA.allowscalar(false)
     device(::T) where {T <: CuArray} = CUDADevice()
 else
-ArrayType = Array
-device(::T) where {T <: Array} = CPU()
+    ArrayType = Array
+    device(::T) where {T <: Array} = CPU()
 end
 
 @show ArrayType
