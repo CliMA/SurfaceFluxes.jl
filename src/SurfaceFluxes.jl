@@ -141,7 +141,6 @@ Base.@kwdef struct Fluxes{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
     lhf::FT
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
 end
 
@@ -220,7 +219,6 @@ Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, V
     state_sfc::VS
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
     beta::FT = FT(1)
 end
@@ -413,7 +411,8 @@ function obukhov_length(
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
             return residual
         end
-        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
+        L_MO_init = ΔDSEᵥ >= FT(0) ? FT(1) : FT(-1)
+        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(L_MO_init), soltype, tol, maxiter)
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
