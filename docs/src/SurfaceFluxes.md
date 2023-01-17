@@ -141,3 +141,82 @@ u(z) = u_{\star} \frac{F_m(z,z_{0m}, L_O)}{\kappa} + u_{sfc},
 ```
 
 with $\phi_{\star}$ and $u_{\star}$ given by (3) and (4) respectively. Here, the same choice of discretization should be used for $F_h$ and $F_m$ as used to obtain the surface conditions. 
+
+
+### Roughness Sublayer Models
+
+In the case of large obstacles, such as a forest canopy, larger turbulent motions modify the wind and scalar profiles in a roughness-sublayer (RSL), which stretches from the displacement height, $d$ (just below the canopy height, usually $d=0.75h_c$) to up to 3 times the canopy height, $h_c$. Observations show that in the RSL the classical MOST overestimates the $\phi$ functions and underestimates $u(z)$. There are several approaches suggested in the literature to parameterize the RSL effects combined with the underlying canopy:  
+
+\subsubsection{1. MOST in RSL and exponential canopy profiles}
+Evidently, MOST could be used in the RSL with the origin of the profile at $z=d$ (instead of $z=0$ as in MOST), as was suggested in \cite{WangCionco2007}. However, this would give a zero wind at $d$, which is rarely the case in real canopies: 
+```math
+\begin{equation}
+    \frac{\partial u (z)}{\partial z} = (u_{\star}/\kappa (z-d)) \Phi_M(\zeta), 
+\end{equation}
+```
+with similar form suggested for scalars, except with a much smaller roughness length, to account for the "bluff body" effect (canopy is much more efficient at absorbing momentum compared to its ability to emit/absorb heat). 
+
+For the layer within the deep canopy, $z < d$, an exponential profile is suggested for the wind profile:
+```math
+\begin{equation}
+u(z) = u_h \exp((z/h_c - 1) \alpha)
+\end{equation}
+```
+
+where $u_h = u(h_c)$, and $\alpha$ is the canopy flow index, dependent on the leaf morphology, density, element flexibility, geometry and (in some cases) the wind speed. Typically this is approximated by a constant, depending on the land use category. It is unclear how the authors avoid discontinuities at $h_c$. Note, the authors also suggest a linear interpolation-based solution around the forest edges, which is dependent on the wind direction. 
+
+Note that CLM4.5 also uses MOST, and its canopy layer ignores the direct effects of turbulence, parameterizing $u$ as $u_*$. This is suboptimal. See \cite{Bonan2018} for more details. (CLM4.5 uses a parameterisation that assumes that the wind speed within the canopy is equal to the friction velocity $u_{\star}$.)
+
+#### Modified MOST in RSL
+- [ ] TODO: Code implementation
+Following \cite{Physick1995}, we can provide extensions to the MOST to capture the flow behaviour within the roughness-sublayer whose maximum height is denoted by $z_{*}$. Equation (2) in \cite{Physick1995} corresponds to (\ref{eq:F_h_fin-diff}) in this document, and gives the velocity profiles in the surface layer following the canonical MOST. For model levels $z$ such that $d \leq z \leq z_{\star}$ (within the RSL),  \cite{Physick1995} suggest the following modification to the velocity gradient profile. The profile would be:
+
+```math 
+\begin{equation}
+    \frac{\partial u (z-d)}{\partial z} = (u_{\star}/\kappa z) \Phi_M(\zeta)\phi_M(z-d/z_{\star}-d), 
+\end{equation}
+```
+
+where $\Phi_M$ is the stability function applied in the canonical MOST theory, 
+```math
+\begin{equation}
+    \phi_M\Big(\frac{z-d}{z_{\star}-d}\Big) = 0.5\exp(\ln(2)\frac{z-d}{z_{\star}-d}),
+\end{equation}
+```
+and is estimated from flux-tower data over flat, tree-covered terrain with $z_{0}$ ranging from $0.4-0.9 ~\mathrm{m}$. The stability parameter is defined by $\zeta = (z-d)/L$ following the zero-plane displacement correction.
+
+Thus, for recovery profiles defined in \ref{eq:vel_ref_profile}, the modified expression incorporating the RSL model results in 
+```math
+\begin{equation}
+    u(z-d) = \frac{u_{\star}}{\kappa} \Big(F_{m} + \int_{z_{0}}^{z}  \Phi_M(1-\phi_M(z-d/z_{\star}-d))(z-d)^{-1} \,dz\Big) + u(z_{0}), 
+\end{equation} 
+```
+with non-zero $u(z_{0})$. This can also be expressed as 
+```math
+\begin{equation}
+    u(z-d) = \frac{u_{\star}}{\kappa} \Big(F_{m} + \int_{z}^{z_{\star}}  \Phi_M(1-\phi_M(z-d/z_{\star}-d))(z-d)^{-1} \,dz\Big). 
+\end{equation} for $z \leq z_{\star}$. 
+```
+While \cite{Physick1995} comment on the application of surface-layer functions defined by \cite{Businger1971}, we can generalise to the family of similarity functions provided provided in the SurfaceFluxes.jl package. 
+
+Note that $K_m$ is also modified by $\phi_M$ if model levels reach the RSL. 
+
+The authors assume that the deep canopy layer (between $z=0$ and $z=d$) has no storage capacity and it gives off the same fluxes it receives from the soil. They further assume that the surface layer height $h_s = 0.04 z_{i}$, where $z_{i}$ is the height of the planetary boundary layer (PBL).   
+
+#### Modified MOST in RSL and exponential canopy profiles coupled
+- [ ] TODO: Code implementation
+The works of \cite{HarmanFinnigan2008} extend the above approach to the deep canopy layer, using momentum and mass balances. Using MOST in the surface layer above RSL, and the modified MOST within the RSL allows derivation of $u_h$. This allows coupling via $u_h$ from the exponential profile in the canopy: 
+```math
+u(z) = u(h_c) \exp[-\eta(1-z/h_c)],
+```
+with the attenuation factor $\eta = h_c (c_d a / 2 l_m^2)^{1/3}$ is a function of the leaf aerodynamic drag $c_d$, leaf area density $a$, and a canopy characteristic mixing length $l_m$. $\eta$ is often estimated empirically, but it can be used in its functional form to derive a correction to the modified MOST above, so that :
+```math
+\begin{equation}
+    \phi_M\Big(\frac{z-d}{ l_m \beta}\Big) = 1-c_1\exp(-c_2\frac{z-d}{ l_m \beta}),
+\end{equation}
+```
+with $\beta = u_*/u(h_c)$ and $c_2\approx 0.5$. For $c_1$ we need to use the modified similarity functions again. 
+
+Although this extension was initially derived for dense canopies, \cite{Bonan2018} suggest a further modification to sparse canopies through the use of the plant area index (\cite{Bonan2018} Appendix 4 - equations A31-A34).
+
+The advantage of this scheme is that there are no discontinuities in the profiles and that $z^*$ is no longer a free parameter. The disadvantage is that it is quite complex and it is not obvious that it would perform better in a climate model that the original \cite{Physick1995} version with the canopy layer being approximated a simpler exponential expression (e.g., assuming a constant $\eta$) or some second-order interpolation between $h_c$ and the surface. The \cite{Physick1995} formulation  is much easier to implement in the current version of `SurfaceFluxes.jl`. 
