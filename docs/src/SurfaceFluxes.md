@@ -220,3 +220,39 @@ with $\beta = u_*/u(h_c)$ and $c_2\approx 0.5$. For $c_1$ we need to use the mod
 Although this extension was initially derived for dense canopies, \cite{Bonan2018} suggest a further modification to sparse canopies through the use of the plant area index (\cite{Bonan2018} Appendix 4 - equations A31-A34).
 
 The advantage of this scheme is that there are no discontinuities in the profiles and that $z^*$ is no longer a free parameter. The disadvantage is that it is quite complex and it is not obvious that it would perform better in a climate model that the original \cite{Physick1995} version with the canopy layer being approximated a simpler exponential expression (e.g., assuming a constant $\eta$) or some second-order interpolation between $h_c$ and the surface. The \cite{Physick1995} formulation  is much easier to implement in the current version of `SurfaceFluxes.jl`. 
+
+### Evapotranspiration 
+
+-  TODO: Implement Modifications
+
+Following Figure 7.3 in Bonan (2019a), we interpret the effect of canopies and other surface features on the sensible and latent heat fluxes as conductance networks. In the case of sensible heat fluxes $H$ and diffusive evaporative fluxes $E$, this results the following expressions (as in Bonan eq 7.5 and 7.6):
+```math
+\begin{equation}
+H = c_p (\theta_s - \theta_ref) g_{ac},
+\end{equation}
+```
+```math
+\begin{equation}
+E = \frac{q_{sat}(\theta_s)-q_{ref}}{g_{c}^{-1} + g_{ac}^{-1}},
+\end{equation}
+```
+and
+```math
+\begin{equation}
+g_{w}^{-1} = g_{c}^{-1} + g_{ac}^{-1},
+\end{equation}
+```
+where $g_{w}$ is the total conductance for evapotranspiration, $g_{c}$ represents the effect of canopies and surface wetness (with lower values for drier surfaces), and $g_{ac}$ is the aerodynamic conductance for scalars.
+
+An alternative interpretation through the use of bulk-formulae requires an adjustment of the soil wetness through a factor $\beta_{w}$. In the conductance network approach, $\beta_w = \frac{g_w}{g_{ac}}$. We may then replace the $\beta_{w}$ factor in the approach using bulk-formulae with
+```math
+\begin{equation}
+\beta_{w} = \frac{g_c}{g_{ac}+g_{c}},
+\end{equation}
+```
+with $ 0 (dry) \leq \beta \leq 1 (wet)$.
+
+
+
+
+
