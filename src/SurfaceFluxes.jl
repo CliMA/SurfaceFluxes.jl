@@ -47,6 +47,17 @@ abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
 struct FDScheme <: SolverScheme end
 
+abstract type CanopyType end
+struct NoCanopy <: CanopyType end
+struct SparseCanopy{FT} <: CanopyType
+  d::FT
+  z_star::FT
+end
+struct DenseCanopy{FT} <: CanopyType
+  d::FT
+  z_star::FT
+end
+
 # Allow users to skip error on non-convergence
 # by importing:
 # ```julia
@@ -888,6 +899,7 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
 function recover_profile(
     param_set::APS,
     sc::AbstractSurfaceConditions,
+    ca::NoCanopy,
     L_MO::FT,
     Z,
     X_in, 
@@ -931,12 +943,11 @@ Canopy modification follows Physick and Garratt (1995) equation (8,9)
 # TODO: add tests
 # TODO: Verify that all current RSL models fall into this general code pattern, then 𝜙 can be abstracted
 """
-function recover_profile_canopy(
+function recover_profile(
     param_set::APS,
     sc::AbstractSurfaceConditions,
+    ca::Union{SparseCanopy, DenseCanopy}, 
     L_MO::FT,
-    z_star, 
-    d, 
     Z,
     X_in, 
     X_sfc,
@@ -944,7 +955,10 @@ function recover_profile_canopy(
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
 ) where {FT}
+    z_star = ca.z_star
+    d = ca.d
     @assert isless.(Z-d, z_in(sc))
+    @show Z, d
     @assert isless.(d, Z)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
@@ -969,7 +983,5 @@ function recover_profile_canopy(
     ### 
     return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const * (X_in - X_sfc) + X_sfc
 end
-
-
 
 end # SurfaceFluxes module

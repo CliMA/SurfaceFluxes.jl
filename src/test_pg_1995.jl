@@ -56,23 +56,24 @@ Z = collect(range(FT(25), stop=FT(100), length=100))
 
 u_i_canopy = [];
 θ_i_canopy = [];
+
+testcanopy = SurfaceFluxes.SparseCanopy{FT}(d,z_star)
+nocanopy = SurfaceFluxes.NoCanopy()
 for (iz, z) in enumerate(Z)
-  du = SF.recover_profile_canopy(param_set, 
+  du = SF.recover_profile(param_set, 
                           sc, 
+                          testcanopy,
                           L_MO, 
-                          z_star, 
-                          d, 
                           FT(z), 
                           FT(3.7),
                           FT(0),
                           UF.MomentumTransport(), 
                           uft, 
                           SF.FDScheme())
-  dθ = SF.recover_profile_canopy(param_set, 
+  dθ = SF.recover_profile(param_set, 
                             sc, 
+                            testcanopy,
                             L_MO, 
-                            z_star, 
-                            d, 
                             FT(z), 
                             FT(298.0), 
                             θ_sfc,
@@ -88,6 +89,7 @@ u_i= [];
 for (iz, z) in enumerate(Z)
   du = SF.recover_profile(param_set, 
                           sc, 
+                          nocanopy,
                           L_MO, 
                           FT(z - d), 
                           FT(3.7),
@@ -98,6 +100,7 @@ for (iz, z) in enumerate(Z)
   push!(u_i, du)
   dθ = SF.recover_profile(param_set, 
                             sc, 
+                            nocanopy,
                             L_MO, 
                             FT(z - d), 
                             FT(298.0),
@@ -120,12 +123,27 @@ Plots.plot!(;
             grid=:off,
             legend=:outerright)
 
-Plots.plot(kΔθ / θ_star,Z, m = :sq, label="No-RSL")
-Plots.plot!(kΔθ_canopy ,Z, m = :o, label="RSL")
-Plots.plot!(;
-            xlabel = L"$\frac{\theta}{\theta_{\star}}$",
-            ylabel = L"$z$",
-            ylim=(0, 60), 
-            grid=:off,
-            legend=:outerright)
+#Plots.plot(kΔθ / θ_star,Z, m = :sq, label="No-RSL")
+#Plots.plot!(kΔθ_canopy ,Z, m = :o, label="RSL")
+#Plots.plot!(;
+#            xlabel = L"$\frac{\theta}{\theta_{\star}}$",
+#            ylabel = L"$z$",
+#            ylim=(0, 60), 
+#            grid=:off,
+#            legend=:outerright)
 
+
+tol_neutral = FT(SFP.cp_d(param_set) / 100);
+z_level = FT(5);
+ζ = collect(range(-5,stop=1, length=50));
+CD = [];
+for i in 1:length(ζ)
+  push!(CD, SF.momentum_exchange_coefficient(
+    param_set, 
+    ζ[i] * z_level,
+    sc,
+    uft,
+    SF.FDScheme(),
+    tol_neutral,
+   ))
+end
