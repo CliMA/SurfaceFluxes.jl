@@ -411,7 +411,7 @@ function obukhov_length(
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
             return residual
         end
-        L_MO_init = ΔDSEᵥ >= FT(0) ? FT(1) : FT(-1)
+        L_MO_init = FT(-1)
         sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(L_MO_init), soltype, tol, maxiter)
         L_MO = sol.root
         if !sol.converged
