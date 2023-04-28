@@ -767,11 +767,8 @@ evaporation is directly calculated from the latent heat flux.
 function evaporation(param_set, sc::Union{Fluxes, FluxesAndFrictionVelocity}, Ch::FT) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     grav::FT = SFP.grav(param_set)
-    cp_v::FT = SFP.cp_v(param_set)
-    Lv_0::FT = SFP.LH_v0(param_set)
-    T_0::FT = SFP.T_0(param_set)
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
+    hv_sfc = TD.latent_heat_vapor(thermo_params, T_sfc)
     Φ_sfc = grav * z_sfc(sc)
     return sc.lhf / (hv_sfc + Φ_sfc)
 end
