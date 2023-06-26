@@ -14,7 +14,7 @@ Here, ${\star}$ subscripts indicate a characteristic physical scale of the varia
 b = g \frac{\mathrm{DSE}_v'}{\mathrm{DSE}_v},
 \end{equation}
 ```
-with $\mathrm{DSE}_v'$ as the perturbation from a reference virtual dry static energy value, $\mathrm{DSE}$. These mean and perturbation quantities are implicit in the model and can be used to compute the relation between $b_{\star}$ and $\phi_{\star}$, where $\phi$ represents a thermoynamic scale variable. Following equations (8) and (9) in \citep{Nishizawa18a} we write the physical scale for such a variable $\phi$ as:
+with $\mathrm{DSE}_v'$ as the perturbation from a reference virtual dry static energy value, $\mathrm{DSE}$. These mean and perturbation quantities are implicit in the model and can be used to compute the relation between $b_{\star}$ and $\phi_{\star}$, where $\phi$ represents a thermoynamic scale variable. Following equations (8) and (9) in [Nishizawa2018](@cite) we write the physical scale for such a variable $\phi$ as:
 
 ```math
 \begin{equation}
@@ -30,7 +30,7 @@ u_{\star} = \frac{\kappa}{F_m(\Delta z,z_{0m}, L_O)} \Delta u.
 \end{equation}
 ```
 
-Here $\kappa = 0.4$ is the von-Karman constant, $Pr$ is the Prandtl number and $\Delta$ corresponds to the difference in values between the two input heights (i.e. $\Delta u = u(z_{in}) - u(z_{srf})$). The formulation of $F_m$ and $F_h$ is subjective to the choice of discretization as shown in \citep{Nishizawa18a}. In the typical finite-difference form: 
+Here $\kappa = 0.4$ is the von-Karman constant, $Pr$ is the Prandtl number and $\Delta$ corresponds to the difference in values between the two input heights (i.e. $\Delta u = u(z_{in}) - u(z_{srf})$). The formulation of $F_m$ and $F_h$ is subjective to the choice of discretization as shown in [Nishizawa2018](@cite). In the typical finite-difference form: 
 ```math
 \begin{equation}
 F_h^{(FD)} = \log \left(\frac{\Delta z}{z_{0b}} \right) - \psi_h \left(\frac{\Delta z}{L_O} \right) + \psi_h \left(\frac{z_{0b}}{L_O} \right),
@@ -42,7 +42,7 @@ and
 F_m^{(FD)} = \log \left(\frac{\Delta z}{z_{0m}} \right) - \psi_m \left(\frac{\Delta z}{L_O} \right) + \psi_m \left(\frac{z_{0m}}{L_O} \right).
 \end{equation}
 ```
-Subscripts $h, m$ are used to represent the equations corresponding to the exchange of heat and momentum respectively. The characteristics of tracer diffusion are assumed to be identical to those of the thermal diffusion in this system. The expressions for $\psi_m$ and $\psi_h$ are defined in appendix A in \citep{Nishizawa18a} for various universal functions. Our current approach uses the Businger universal functions by default. 
+Subscripts $h, m$ are used to represent the equations corresponding to the exchange of heat and momentum respectively. The characteristics of tracer diffusion are assumed to be identical to those of the thermal diffusion in this system. The expressions for $\psi_m$ and $\psi_h$ are defined in appendix A in [Nishizawa2018](@cite) for various universal functions. Our current approach uses the Businger universal functions by default. 
 
 The correction for the finite volume form $F_h, F_m$ are given respectively as:
 ```math
@@ -57,7 +57,7 @@ and
 F_m^{(FV)} = \log \left(\frac{\Delta z}{z_{0m}} \right) - \Psi_m \left(\frac{\Delta z}{L_O} \right) + \frac{z_{0m}}{\Delta z} \Psi_m \left(\frac{z_{0m}}{L_O} \right) + R_{z0m}\left[\Psi_m \left(\frac{z_{0m}}{L_O} \right) - 1\right],
 \end{equation}
 ```
-with $\Psi_m$ and $\Psi_h$ as the FV corrected form. Their expressions are found in appendix A in \citep{Nishizawa18a} and here as well we use the Businger universal functions formulation as a default. 
+with $\Psi_m$ and $\Psi_h$ as the FV corrected form. Their expressions are found in appendix A in [Nishizawa2018](@cite) and here as well we use the Businger universal functions formulation as a default. 
 
 Note that both $F_h$ and $F_m$ (for FV and FD) are functions of known parameters ($z_{0b}, z_{0m}, \Delta z$) and $L_O$ only. Furthermore we can compute $b_{\star}$ from the known thermodynamic states. This fact makes (1) a transcendental equation with $L_O$ as the only unknown. A numerical solver that iterate over $L_O$ can thus find the value for which the error in (1) is smaller than some desired tolerance. 
 
@@ -74,7 +74,7 @@ An alternative method common in atmospheric models, is to write $b_{\star}$ usin
 
 ```math
 \begin{equation}
-b_{\star} = (1+(\eps_{dv}-1) q_t ) \theta_{\star} +  (\eps_{dv}-1) \theta q_{t,\star},
+b_{\star} = (1+(\epsilon_{dv}-1) q_t ) \theta_{\star} +  (\epsilon_{dv}-1) \theta q_{t,\star},
 \end{equation}
 ```
 with $\theta_{\star}$ and $q_{t,\star}$ given by (3). Here separate roughness lengths can be assumed for heat and humidity but the implementation would have to change if any additional scalar is added to the air density. For these reasons we implement (10). 
@@ -148,7 +148,7 @@ with $\phi_{\star}$ and $u_{\star}$ given by (3) and (4) respectively. Here, the
 In the case of large obstacles, such as a forest canopy, larger turbulent motions modify the wind and scalar profiles in a roughness-sublayer (RSL), which stretches from the displacement height, $d$ (just below the canopy height, usually $d=0.75h_c$) to up to 3 times the canopy height, $h_c$. Observations show that in the RSL the classical MOST overestimates the $\phi$ functions and underestimates $u(z)$. There are several approaches suggested in the literature to parameterize the RSL effects combined with the underlying canopy:  
 
 \subsubsection{1. MOST in RSL and exponential canopy profiles}
-Evidently, MOST could be used in the RSL with the origin of the profile at $z=d$ (instead of $z=0$ as in MOST), as was suggested in \cite{WangCionco2007}. However, this would give a zero wind at $d$, which is rarely the case in real canopies: 
+Evidently, MOST could be used in the RSL with the origin of the profile at $z=d$ (instead of $z=0$ as in MOST), as was suggested in [Wang2007](@cite). However, this would give a zero wind at $d$, which is rarely the case in real canopies: 
 ```math
 \begin{equation}
     \frac{\partial u (z)}{\partial z} = (u_{\star}/\kappa (z-d)) \Phi_M(\zeta), 
@@ -165,11 +165,14 @@ u(z) = u_h \exp((z/h_c - 1) \alpha)
 
 where $u_h = u(h_c)$, and $\alpha$ is the canopy flow index, dependent on the leaf morphology, density, element flexibility, geometry and (in some cases) the wind speed. Typically this is approximated by a constant, depending on the land use category. It is unclear how the authors avoid discontinuities at $h_c$. Note, the authors also suggest a linear interpolation-based solution around the forest edges, which is dependent on the wind direction. 
 
-Note that CLM4.5 also uses MOST, and its canopy layer ignores the direct effects of turbulence, parameterizing $u$ as $u_*$. This is suboptimal. See \cite{Bonan2018} for more details. (CLM4.5 uses a parameterisation that assumes that the wind speed within the canopy is equal to the friction velocity $u_{\star}$.)
+Note that CLM4.5 also uses MOST, and its canopy layer ignores the direct effects of turbulence, parameterizing $u$ as $u_*$. This is suboptimal. See [Bonan2019](@cite) for more details. (CLM4.5 uses a parameterisation that assumes that the wind speed within the canopy is equal to the friction velocity $u_{\star}$.)
 
 #### Modified MOST in RSL
-- [ ] TODO: Code implementation
-Following \cite{Physick1995}, we can provide extensions to the MOST to capture the flow behaviour within the roughness-sublayer whose maximum height is denoted by $z_{*}$. Equation (2) in \cite{Physick1995} corresponds to (\ref{eq:F_h_fin-diff}) in this document, and gives the velocity profiles in the surface layer following the canonical MOST. For model levels $z$ such that $d \leq z \leq z_{\star}$ (within the RSL),  \cite{Physick1995} suggest the following modification to the velocity gradient profile. The profile would be:
+
+!!! note
+    Roughness sublayer models are not currently implemented.
+
+Following [Physick1995](@cite), we can provide extensions to the MOST to capture the flow behaviour within the roughness-sublayer whose maximum height is denoted by $z_{*}$. Equation (2) in [Physick1995](@cite) corresponds to (\ref{eq:F_h_fin-diff}) in this document, and gives the velocity profiles in the surface layer following the canonical MOST. For model levels $z$ such that $d \leq z \leq z_{\star}$ (within the RSL),  [Physick1995](@cite) suggest the following modification to the velocity gradient profile. The profile would be:
 
 ```math 
 \begin{equation}
@@ -197,15 +200,15 @@ with non-zero $u(z_{0})$. This can also be expressed as
     u(z-d) = \frac{u_{\star}}{\kappa} \Big(F_{m} + \int_{z}^{z_{\star}}  \Phi_M(1-\phi_M(z-d/z_{\star}-d))(z-d)^{-1} \,dz\Big). 
 \end{equation} for $z \leq z_{\star}$. 
 ```
-While \cite{Physick1995} comment on the application of surface-layer functions defined by \cite{Businger1971}, we can generalise to the family of similarity functions provided provided in the SurfaceFluxes.jl package. 
+While [Physick1995](@cite) comment on the application of surface-layer functions defined by [Businger1971](@cite), we can generalise to the family of similarity functions provided provided in the SurfaceFluxes.jl package.
 
-Note that $K_m$ is also modified by $\phi_M$ if model levels reach the RSL. 
+Note that $K_m$ is also modified by $\phi_M$ if model levels reach the RSL.
 
-The authors assume that the deep canopy layer (between $z=0$ and $z=d$) has no storage capacity and it gives off the same fluxes it receives from the soil. They further assume that the surface layer height $h_s = 0.04 z_{i}$, where $z_{i}$ is the height of the planetary boundary layer (PBL).   
+The authors assume that the deep canopy layer (between $z=0$ and $z=d$) has no storage capacity and it gives off the same fluxes it receives from the soil. They further assume that the surface layer height $h_s = 0.04 z_{i}$, where $z_{i}$ is the height of the planetary boundary layer (PBL).
 
 #### Modified MOST in RSL and exponential canopy profiles coupled
 - [ ] TODO: Code implementation
-The works of \cite{HarmanFinnigan2008} extend the above approach to the deep canopy layer, using momentum and mass balances. Using MOST in the surface layer above RSL, and the modified MOST within the RSL allows derivation of $u_h$. This allows coupling via $u_h$ from the exponential profile in the canopy: 
+The works of [Harman2007](@cite) extend the above approach to the deep canopy layer, using momentum and mass balances. Using MOST in the surface layer above RSL, and the modified MOST within the RSL allows derivation of $u_h$. This allows coupling via $u_h$ from the exponential profile in the canopy: 
 ```math
 u(z) = u(h_c) \exp[-\eta(1-z/h_c)],
 ```
@@ -217,18 +220,19 @@ with the attenuation factor $\eta = h_c (c_d a / 2 l_m^2)^{1/3}$ is a function o
 ```
 with $\beta = u_*/u(h_c)$ and $c_2\approx 0.5$. For $c_1$ we need to use the modified similarity functions again. 
 
-Although this extension was initially derived for dense canopies, \cite{Bonan2018} suggest a further modification to sparse canopies through the use of the plant area index (\cite{Bonan2018} Appendix 4 - equations A31-A34).
+Although this extension was initially derived for dense canopies, [Bonan2019](@cite) suggest a further modification to sparse canopies through the use of the plant area index ([Bonan2019](@cite) Appendix 4 - equations A31-A34).
 
-The advantage of this scheme is that there are no discontinuities in the profiles and that $z^*$ is no longer a free parameter. The disadvantage is that it is quite complex and it is not obvious that it would perform better in a climate model that the original \cite{Physick1995} version with the canopy layer being approximated a simpler exponential expression (e.g., assuming a constant $\eta$) or some second-order interpolation between $h_c$ and the surface. The \cite{Physick1995} formulation  is much easier to implement in the current version of `SurfaceFluxes.jl`. 
+The advantage of this scheme is that there are no discontinuities in the profiles and that $z^*$ is no longer a free parameter. The disadvantage is that it is quite complex and it is not obvious that it would perform better in a climate model that the original [Physick1995](@cite) version with the canopy layer being approximated a simpler exponential expression (e.g., assuming a constant $\eta$) or some second-order interpolation between $h_c$ and the surface. The [Physick1995](@cite) formulation  is much easier to implement in the current version of `SurfaceFluxes.jl`.
 
-### Evapotranspiration 
+### Evapotranspiration
 
--  TODO: Implement Modifications
+!!! note
+    This feature has not yet been implemented in the code. 
 
-Following Figure 7.3 in Bonan (2019a), we interpret the effect of canopies and other surface features on the sensible and latent heat fluxes as conductance networks. In the case of sensible heat fluxes $H$ and diffusive evaporative fluxes $E$, this results the following expressions (as in Bonan eq 7.5 and 7.6):
+Following Figure 7.3 in Bonan (2019a), we interpret the effect of canopies and other surface features on the sensible and latent heat fluxes as conductance networks. In the case of sensible heat fluxes $H$ and diffusive evaporative fluxes $E$, this results in the following expressions (as in Bonan eq 7.5 and 7.6):
 ```math
 \begin{equation}
-H = c_p (\theta_s - \theta_ref) g_{ac},
+H = c_p (\theta_s - \theta_{ref}) g_{ac},
 \end{equation}
 ```
 ```math
