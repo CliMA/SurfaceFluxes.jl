@@ -3,6 +3,26 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
 
+function create_uf_parameters(toml_dict, ::UF.ChengType)
+    FT = CP.float_type(toml_dict)
+
+    aliases = ["Pr_0_Cheng", "a_m_Cheng", "a_h_Cheng", "b_m_Cheng", "b_h_Cheng", "ζ_a_Cheng", "γ_Cheng"]
+
+    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = (; pairs...) # convert to NamedTuple
+
+    pairs = (;
+        Pr_0 = pairs.Pr_0_Cheng,
+        a_m = pairs.a_m_Cheng,
+        a_h = pairs.a_h_Cheng,
+        b_m = pairs.b_m_Cheng,
+        b_h = pairs.b_h_Cheng,
+        ζ_a = pairs.ζ_a_Cheng,
+        γ = pairs.γ_Cheng,
+    )
+    return UF.ChengParams{FT}(; pairs...)
+end
+
 function create_uf_parameters(toml_dict, ::UF.HoltslagType)
     FT = CP.float_type(toml_dict)
 
