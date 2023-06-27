@@ -17,7 +17,7 @@ import Plots
 
 L = FT(10);
 
-ufts = (UF.GryanikType(), UF.BusingerType(), UF.GrachevType(), UF.HoltslagType())
+ufts = (UF.GryanikType(), UF.BusingerType(), UF.GrachevType(), UF.ChengType(), UF.HoltslagType())
 
 universal_functions(uft) = UF.universal_func(uft, L, create_uf_parameters(toml_dict, uft))
 
