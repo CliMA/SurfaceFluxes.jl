@@ -3,6 +3,42 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
 
+function create_uf_parameters(toml_dict, ::UF.HoltslagType)
+    FT = CP.float_type(toml_dict)
+
+    aliases = [
+        "Pr_0_Holtslag",
+        "a_m_Holtslag",
+        "a_h_Holtslag",
+        "b_m_Holtslag",
+        "b_h_Holtslag",
+        "c_m_Holtslag",
+        "c_h_Holtslag",
+        "d_m_Holtslag",
+        "d_h_Holtslag",
+        "ζ_a_Holtslag",
+        "γ_Holtslag",
+    ]
+
+    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = (; pairs...) # convert to NamedTuple
+
+    pairs = (;
+        Pr_0 = pairs.Pr_0_Holtslag,
+        a_m = pairs.a_m_Holtslag,
+        a_h = pairs.a_h_Holtslag,
+        b_m = pairs.b_m_Holtslag,
+        b_h = pairs.b_h_Holtslag,
+        c_m = pairs.c_m_Holtslag,
+        c_h = pairs.c_h_Holtslag,
+        d_m = pairs.d_m_Holtslag,
+        d_h = pairs.d_h_Holtslag,
+        ζ_a = pairs.ζ_a_Holtslag,
+        γ = pairs.γ_Holtslag,
+    )
+    return UF.HoltslagParams{FT}(; pairs...)
+end
+
 function create_uf_parameters(toml_dict, ::UF.GryanikType)
     FT = CP.float_type(toml_dict)
 

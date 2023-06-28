@@ -23,7 +23,7 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = FT(-2):FT(0.01):FT(200)
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType())
+            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.HoltslagType())
                 uf = universal_functions(uft, L)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
@@ -38,7 +38,7 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType())
+            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.HoltslagType())
                 uf = universal_functions(uft, L)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
@@ -53,11 +53,12 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            uft = UF.BusingerType()
-            uf = universal_functions(uft, L)
-            for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                Ψ = UF.Psi.(uf, ζ, transport)
-                @test eltype(Ψ) == FT
+            for uft in (UF.GryanikType(), UF.BusingerType(), UF.HoltslagType())
+                uf = universal_functions(uft, L)
+                for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                    Ψ = UF.Psi.(uf, ζ, transport)
+                    @test eltype(Ψ) == FT
+                end
             end
         end
     end
