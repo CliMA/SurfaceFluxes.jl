@@ -50,12 +50,12 @@ struct FDScheme <: SolverScheme end
 abstract type CanopyType end
 struct NoCanopy <: CanopyType end
 struct SparseCanopy{FT} <: CanopyType
-  d::FT
-  z_star::FT
+    d::FT
+    z_star::FT
 end
 struct DenseCanopy{FT} <: CanopyType
-  d::FT
-  z_star::FT
+    d::FT
+    z_star::FT
 end
 
 # Allow users to skip error on non-convergence
@@ -902,7 +902,7 @@ function recover_profile(
     ca::NoCanopy,
     L_MO::FT,
     Z,
-    X_in, 
+    X_in,
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -917,7 +917,8 @@ function recover_profile(
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const * (X_in - X_sfc) + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const *
+           (X_in - X_sfc) + X_sfc
 end
 
 
@@ -925,8 +926,8 @@ end
     recover_profile_canopy(param_set, sc, L_MO, z_star, d, Z, X_in, X_sfc, transport, uft, scheme)
 
 Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
-Follows Nishizawa equation (21,22) 
-Canopy modification follows Physick and Garratt (1995) equation (8,9)
+Follows Nishizawa equation (21, 22) 
+Canopy modification follows Physick and Garratt (1995) equation (8, 9)
 ## Arguments
   - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
   - sc: Container for surface conditions based on known combination
@@ -935,7 +936,7 @@ Canopy modification follows Physick and Garratt (1995) equation (8,9)
   - z_star: Roughness sublayer height (typically a function of the planetary boundary layer height z_star = 0.04zᵢ)
   - d = Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in,X_sfc: For variable X, values at interior and surface nodes
+  - X_in, X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -946,10 +947,10 @@ Canopy modification follows Physick and Garratt (1995) equation (8,9)
 function recover_profile(
     param_set::APS,
     sc::AbstractSurfaceConditions,
-    ca::Union{SparseCanopy, DenseCanopy}, 
+    ca::Union{SparseCanopy, DenseCanopy},
     L_MO::FT,
     Z,
-    X_in, 
+    X_in,
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -957,31 +958,55 @@ function recover_profile(
 ) where {FT}
     z_star = ca.z_star
     d = ca.d
-    @assert isless.(Z-d, z_in(sc))
+    @assert isless.(Z - d, z_in(sc))
     @show Z, d
     @assert isless.(d, Z)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
-    num1 = log((Z-d) / z0(sc, transport))
-    num2 = -UF.psi(uf, (Z-d) / L_MO, transport)
+    num1 = log((Z - d) / z0(sc, transport))
+    num2 = -UF.psi(uf, (Z - d) / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
     ### Protoype : QuadGK integration to evaluate the canopy RSL effect given by Physick and Garratt (1995)
     ### PG95 assume the same 𝜙 function for momentum and scalar (velocity, heat, moisture etc.) variables
     ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
-    function ψ_analytic(z)
-      # TODO Move to ClimaParameters
-      ν = FT(0.5)
-      μ = FT(2.59) # Momentum, μₕ = 0.95
-      λ = FT(1.5)
-      return UF.phi(uf, z/L_MO * (1 + ν/(μ*z/z_star)), transport) * (1/λ) * log(1+(λ/(μ*z/z_star)))*exp(-μ*z/z_star)
+
+    ## De Ridder (2010) approximation (deprecated)
+    # function ψ_analytic(z)
+    #   # TODO Move to ClimaParameters
+    #   # De Ridder Eq. 22
+    #   ν = FT(0.5)
+    #   μ = FT(2.59) # Momentum, μₕ = 0.95
+    #   λ = FT(1.5)
+    #   return UF.phi(uf, z/L_MO * (1 + ν/(μ*z/z_star)), transport) * (1/λ) * log(1+(λ/(μ*z/z_star)))*exp(-μ*z/z_star)
+    # end
+    # rsl_deridder = ψ_analytic(Z-d)
+    # Σnum += rsl_deridder
+
+    # Physick 1995 RSL Formulation 
+    function ψ_RSL_term(z)
+        if (z < d || z > z_star)
+            return 0
+        end
+
+        function integrand(x)
+            ϕ = UF.phi(uf, (x - d) / L_MO, transport)
+
+            # Physick1995 Eq. 18
+            ϕ_italic = FT(0.5) * exp(log(2) * (x - d) / (z_star - d))
+            return ϕ * (1 - ϕ_italic) / (x - d)
+        end
+
+        integral, error = quadgk(integrand, z, z_star)
+        return integral
     end
-    rsl_deridder = ψ_analytic(Z-d)
-    Σnum += rsl_deridder
+    rsl_physick = ψ_RSL_term(Z)
+    Σnum += rsl_physick
     ### 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const * (X_in - X_sfc) + X_sfc
+    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const *
+           (X_in - X_sfc) + X_sfc
 end
 
 end # SurfaceFluxes module
