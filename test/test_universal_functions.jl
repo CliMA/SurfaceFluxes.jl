@@ -86,4 +86,18 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
 
     end
 
+    # Test for Gryanik2021 Eq. 2 & 3; ensures Ψ(0) = 0 
+    @testset "Vanishes at Zero" begin
+        FT = Float32
+        for L in (-FT(10), FT(10))
+            for uft in (UF.GryanikType(), UF.GrachevType())
+                for transport in (UF.HeatTransport(), UF.MomentumTransport())
+                    uf = universal_functions(uft, L)
+                    Ψ_0 = UF.psi(uf, FT(0), transport)
+                    @test isapprox(Ψ_0, FT(0))
+                end
+            end
+        end
+    end
+
 end
