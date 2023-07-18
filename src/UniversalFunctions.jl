@@ -129,9 +129,9 @@ end
 struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
 
-f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
+f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - FT(a_h(uf)) * ζ))
 
-f_heat(uf::Businger, ζ) = sqrt(1 - 9 * ζ)
+f_heat(uf::Businger, ζ) = sqrt(1 - FT(a_h(uf)) * ζ)
 
 function phi(uf::Businger, ζ, ::MomentumTransport)
     if ζ < 0
