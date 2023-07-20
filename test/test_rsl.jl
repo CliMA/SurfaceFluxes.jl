@@ -85,7 +85,7 @@ Saves profiles of variable X given values of Z coordinates. Follows Nishizawa eq
 function save_profile( 
     param_set::SF.APS,
     sc::SF.AbstractSurfaceConditions,
-    ca::SF.CanopyType,
+    ca::Union{SF.NoCanopy, SF.SparseCanopy, SF.DenseCanopy},
     L_MOs :: Array{FT, 1},
     Z :: Array{FT,1},
     X_in,
