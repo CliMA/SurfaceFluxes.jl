@@ -104,37 +104,20 @@ function save_profile(
 )
     Plots.plot()
     for L_MO in L_MOs
-        x_i = [];
-        for (iz, z) in enumerate(Z)
-            if typeof(ca) == SF.NoCanopy
-                dx = SF.recover_profile(
-                    param_set,
-                    sc,
-                    ca,
-                    L_MO,
-                    FT(z - d),
-                    X_in,
-                    X_sfc,
-                    transport,
-                    uft,
-                    scheme
-                )
-            else
-                dx = SF.recover_profile(
-                    param_set,
-                    sc,
-                    ca,
-                    L_MO,
-                    FT(z),
-                    X_in,
-                    X_sfc,
-                    transport,
-                    uft,
-                    scheme
-                )
-            end
-        
-            push!(x_i, dx)
+        x_i = map(Z) do z
+            Zi = typeof(ca) == SF.NoCanopy ? FT(z - d) : FT(z)
+            dx = SF.recover_profile(
+                param_set,
+                sc,
+                ca,
+                L_MO,
+                Zi,
+                X_in,
+                X_sfc,
+                transport,
+                uft,
+                scheme
+            )
         end
     
         Δx = κ*(x_i .- X_sfc) ./x_star
