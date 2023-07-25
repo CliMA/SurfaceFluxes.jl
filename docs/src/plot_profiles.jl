@@ -1,7 +1,7 @@
 using Plots
 using LaTeXStrings
 
-import SurfaceFluxes 
+import SurfaceFluxes
 const SF = SurfaceFluxes
 SurfaceFluxes.error_on_non_convergence() = true
 
@@ -66,73 +66,59 @@ rsc = SF.surface_conditions(param_set, sc, SF.FDScheme())
 Z = collect(range(FT(19.1), stop = FT(100), length = 250))
 
 """
-save_profile(param_set, sc, ca, L_MOs, Z, X_in, X_sfc, transport, uft, scheme, x_star)
+save_profile(param_set, sc, ca, L_MOs, Z, X_in, X_sfc, transport, uft, scheme, x_star, d)
 
 Saves profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
+
 ## Arguments
   - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
   - sc: Container for surface conditions based on known combination
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - ca: Canopy type 
-  - L_MOs: Monin-Obukhov length(s) 
+  - L_MOs: Monin-Obukhov length(s)
+  - ca: Canopy Type (e.g. NoCanopy, SparseCanopy, DenseCanopy)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in,X_sfc: For variable X, values at interior and surface nodes
+  - X_in, X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
   - x_star: characteristic scale for variable x
+  - d: Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
+
 """
-function save_profile( 
+function save_profile(
     param_set::SF.APS,
     sc::SF.AbstractSurfaceConditions,
     ca::Union{SF.NoCanopy, SF.SparseCanopy, SF.DenseCanopy},
-    L_MOs :: Array{FT, 1},
-    Z :: Array{FT,1},
-    X_in,
-    X_sfc,
+    L_MOs::Array{FT, 1},
+    Z::Array{FT, 1},
+    X_in::FT,
+    X_sfc::FT,
     transport,
     uft::UF.AUFT,
     scheme::Union{SF.FVScheme, SF.FDScheme},
-    x_star;
-    xlims = nothing, 
-    ylims = nothing, 
-    xlabel = L"$\frac{u}{u_{\star}}$", 
-    ylabel = L"$z$", 
-    fig_prefix = "", 
-    xaxis = :identity, 
-    yaxis = :identity
+    x_star::FT,
+    d::FT;
+    xlims = nothing,
+    ylims = nothing,
+    xlabel = L"$\frac{u}{u_{\star}}$",
+    ylabel = L"$z$",
+    fig_prefix = "",
+    xaxis = :identity,
+    yaxis = :identity,
 )
     Plots.plot()
     for L_MO in L_MOs
         x_i = map(Z) do z
             Zi = typeof(ca) == SF.NoCanopy ? FT(z - d) : FT(z)
-            dx = SF.recover_profile(
-                param_set,
-                sc,
-                ca,
-                L_MO,
-                Zi,
-                X_in,
-                X_sfc,
-                transport,
-                uft,
-                scheme
-            )
+            dx = SF.recover_profile(param_set, sc, ca, L_MO, Zi, X_in, X_sfc, transport, uft, scheme)
         end
-    
-        Δx = κ*(x_i .- X_sfc) ./x_star
+
+        Δx = κ * (x_i .- X_sfc) ./ x_star
 
         Plots.plot!(Δx, Z, label = L"L_{MO} = %$L_MO")
-        Plots.plot!(;
-            xlabel,
-            ylabel,
-            ylims, 
-            xlims,
-            grid = :off,
-            legend = :outerright,
-        )
+        Plots.plot!(; xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright)
 
-        Plots.savefig("$(fig_prefix)_profile.svg")                
+        Plots.savefig("$(fig_prefix)_profile.svg")
     end
 end
 
@@ -156,8 +142,9 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
-    u_star_unstable;
-    xlims = (0, 4), 
+    u_star_unstable,
+    d;
+    xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4a_canopy",
 )
@@ -174,8 +161,9 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
-    u_star_unstable;
-    xlims = (0, 4), 
+    u_star_unstable,
+    d;
+    xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4a",
 )
@@ -192,11 +180,12 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
-    θ_star_unstable;
-    xlims = (0, 4), 
+    θ_star_unstable,
+    d;
+    xlims = (-8, 0),
     ylims = (15, 50),
     xlabel = L"$\frac{\theta}{\theta_{\star}}$",
-    fig_prefix = "Fig6.4b_canopy"
+    fig_prefix = "Fig6.4b_canopy",
 )
 
 # Bonan2019 Fig. 6.4b (No Canopy)
@@ -211,11 +200,12 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
-    θ_star_unstable;
-    xlims = (0, 4), 
+    θ_star_unstable,
+    d;
+    xlims = (-8, 0),
     ylims = (15, 50),
     xlabel = L"$\frac{\theta}{\theta_{\star}}$",
-    fig_prefix = "Fig6.4b"
+    fig_prefix = "Fig6.4b",
 )
 
 # Bonan2019 Fig. 6.4c (With Canopy)
@@ -230,8 +220,9 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
-    u_star_stable;
-    xlims = (0, 4), 
+    u_star_stable,
+    d;
+    xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4c_canopy",
 )
@@ -248,8 +239,9 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
-    u_star_stable;
-    xlims = (0, 4), 
+    u_star_stable,
+    d;
+    xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4c",
 )
@@ -266,11 +258,12 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
-    θ_star_stable;
-    xlims = (0, 4), 
+    θ_star_stable,
+    d;
+    xlims = (0, 2),
     ylims = (15, 50),
     xlabel = L"$\frac{\theta}{\theta_{\star}}$",
-    fig_prefix = "Fig6.4d_canopy"
+    fig_prefix = "Fig6.4d_canopy",
 )
 
 # Bonan2019 Fig. 6.4d (No Canopy)
@@ -285,11 +278,12 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
-    θ_star_stable;
-    xlims = (0, 4), 
+    θ_star_stable,
+    d;
+    xlims = (0, 2),
     ylims = (15, 50),
     xlabel = L"$\frac{\theta}{\theta_{\star}}$",
-    fig_prefix = "Fig6.4d"
+    fig_prefix = "Fig6.4d",
 )
 
 
