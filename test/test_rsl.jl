@@ -1,7 +1,7 @@
 using Plots
 using LaTeXStrings
 
-import SurfaceFluxes 
+import SurfaceFluxes
 const SF = SurfaceFluxes
 SurfaceFluxes.error_on_non_convergence() = true
 
