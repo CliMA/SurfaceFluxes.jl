@@ -10,7 +10,8 @@ bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 pages = Any[
     "Home" => "index.md",
     "References" => "References.md",
-    "Universal Functions" => "UniversalFunctions.md"
+    "Universal Functions" => "UniversalFunctions.md",
+    "Sample Profiles" => "SampleProfiles.md"
 ]
 
 mathengine = MathJax(Dict(
