@@ -47,6 +47,18 @@ abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
 struct FDScheme <: SolverScheme end
 
+
+"""
+    CanopyType
+ 
+Input container for Roughness Sublayer Canopy 
+
+# Fields
+   - z_star: Roughness sublayer height (typically a function of the planetary boundary layer height z_star = 0.04zᵢ)
+   - d: Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
+
+$(DSE.FIELDS)
+"""
 abstract type CanopyType end
 struct NoCanopy <: CanopyType end
 struct SparseCanopy{FT} <: CanopyType
@@ -880,7 +892,7 @@ function compute_physical_scale_coeff(
 end
 
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme)
+    recover_profile(param_set, ca, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme)
 
 Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
 ## Arguments
@@ -888,8 +900,9 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
   - sc: Container for surface conditions based on known combination
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
+  - ca: Canopy Type (e.g. NoCanopy, SparseCanopy, DenseCanopy)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in,X_sfc: For variable X, values at interior and surface nodes
+  - X_in, X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -923,7 +936,7 @@ end
 
 
 """
-    recover_profile_canopy(param_set, sc, L_MO, z_star, d, Z, X_in, X_sfc, transport, uft, scheme)
+    recover_profile(param_set, sc, ca, L_MO, Z, X_in, X_sfc, transport, uft, scheme) 
 
 Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
 Follows Nishizawa equation (21, 22) 
@@ -933,8 +946,7 @@ Canopy modification follows Physick and Garratt (1995) equation (8, 9)
   - sc: Container for surface conditions based on known combination
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
-  - z_star: Roughness sublayer height (typically a function of the planetary boundary layer height z_star = 0.04zᵢ)
-  - d = Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
+  - ca: Canopy Type (e.g. NoCanopy, SparseCanopy, DenseCanopy)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
   - X_in, X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
