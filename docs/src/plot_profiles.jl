@@ -46,7 +46,7 @@ u_star_unstable = FT(0.4)
 θ_star_stable = FT(0.06)
 θ_star_unstable = FT(-0.5)
 
-κ = 0.4
+κ = SFP.von_karman_const(param_set)
 
 # For these measured values, see Chapter 6.6 page 89 of Bonan (2019)
 z_measured = FT[21, 29, 21];
@@ -88,16 +88,16 @@ Saves profiles of variable X given values of Z coordinates. Follows Nishizawa eq
 function save_profile(
     param_set::SF.APS,
     sc::SF.AbstractSurfaceConditions,
-    ca::Union{SF.NoCanopy, SF.SparseCanopy, SF.DenseCanopy},
     L_MOs::Array{FT, 1},
     Z::Array{FT, 1},
-    X_in::FT,
-    X_sfc::FT,
+    X_in,
+    X_sfc,
     transport,
     uft::UF.AUFT,
     scheme::Union{SF.FVScheme, SF.FDScheme},
-    x_star::FT,
-    d::FT;
+    rsl::SF.AbstractRoughnessSublayerType,
+    x_star,
+    d;
     xlims = nothing,
     ylims = nothing,
     xlabel = L"$\frac{u}{u_{\star}}$",
@@ -109,8 +109,8 @@ function save_profile(
     Plots.plot()
     for L_MO in L_MOs
         x_i = map(Z) do z
-            Zi = typeof(ca) == SF.NoCanopy ? FT(z - d) : FT(z)
-            dx = SF.recover_profile(param_set, sc, ca, L_MO, Zi, X_in, X_sfc, transport, uft, scheme)
+            Zi = typeof(rsl) == SF.NoRSL ? FT(z - d) : FT(z)
+            dx = SF.recover_profile(param_set, sc, L_MO, Zi, X_in, X_sfc, transport, uft, scheme, rsl)
         end
 
         Δx = κ * (x_i .- X_sfc) ./ x_star
@@ -127,14 +127,16 @@ end
 # Save profile for unstable and stable L_MO set
 Stable_L_MOs = FT[30, 50, 1000]
 Unstable_L_MOs = FT[-10, -50, -1000]
+
 testcanopy = SurfaceFluxes.SparseCanopy{FT}(d, z_star)
-nocanopy = SurfaceFluxes.NoCanopy()
+PhysickRSL = SurfaceFluxes.PhysickRSL(testcanopy)
+NoRSL = SurfaceFluxes.NoRSL()
+
 
 # Bonan2019 Fig. 6.4a (With Canopy)
 save_profile(
     param_set,
     sc,
-    testcanopy,
     Unstable_L_MOs,
     Z,
     FT(3.7),
@@ -142,6 +144,7 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
+    PhysickRSL,
     u_star_unstable,
     d;
     xlims = (0, 4),
@@ -153,7 +156,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    nocanopy,
     Unstable_L_MOs,
     Z,
     FT(3.7),
@@ -161,6 +163,7 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
+    NoRSL,
     u_star_unstable,
     d;
     xlims = (0, 4),
@@ -172,7 +175,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    testcanopy,
     Unstable_L_MOs,
     Z,
     FT(298.0),
@@ -180,6 +182,7 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
+    PhysickRSL,
     θ_star_unstable,
     d;
     xlims = (-8, 0),
@@ -192,7 +195,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    nocanopy,
     Unstable_L_MOs,
     Z,
     FT(298.0),
@@ -200,6 +202,7 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
+    NoRSL,
     θ_star_unstable,
     d;
     xlims = (-8, 0),
@@ -212,7 +215,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    testcanopy,
     Stable_L_MOs,
     Z,
     FT(3.7),
@@ -220,6 +222,7 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
+    PhysickRSL,
     u_star_stable,
     d;
     xlims = (0, 4),
@@ -231,7 +234,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    nocanopy,
     Stable_L_MOs,
     Z,
     FT(3.7),
@@ -239,6 +241,7 @@ save_profile(
     UF.MomentumTransport(),
     uft,
     SF.FDScheme(),
+    NoRSL,
     u_star_stable,
     d;
     xlims = (0, 4),
@@ -250,7 +253,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    testcanopy,
     Stable_L_MOs,
     Z,
     FT(298.0),
@@ -258,6 +260,7 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
+    PhysickRSL,
     θ_star_stable,
     d;
     xlims = (0, 2),
@@ -270,7 +273,6 @@ save_profile(
 save_profile(
     param_set,
     sc,
-    nocanopy,
     Stable_L_MOs,
     Z,
     FT(298.0),
@@ -278,6 +280,7 @@ save_profile(
     UF.HeatTransport(),
     uft,
     SF.FDScheme(),
+    NoRSL,
     θ_star_stable,
     d;
     xlims = (0, 2),
@@ -285,7 +288,6 @@ save_profile(
     xlabel = L"$\frac{\theta}{\theta_{\star}}$",
     fig_prefix = "Fig6.4d",
 )
-
 
 # tol_neutral = FT(SFP.cp_d(param_set) / 100);
 # z_level = FT(5);
