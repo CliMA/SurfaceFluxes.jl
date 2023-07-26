@@ -1,6 +1,6 @@
 # Sample Vertical Profiles of Wind Speed and Temperature
 
-SurfaceFluxes.jl provides profile recovery functions for the roughness sublayer. Here, we use these functions to reproduce vertical profiles of wind speed and temperature for different conditions of atmospheric stability, reproducing Bonan 2019 Figure 6.4 with and without canopy correction.
+SurfaceFluxes.jl provides profile recovery functions for the roughness sublayer using the Physick and Garratt (1995) formulation. Here, we use these functions to reproduce vertical profiles of wind speed and temperature for different conditions of atmospheric stability, reproducing Bonan 2019 Figure 6.4 with and without canopy correction.
 
 ```@example
 include("plot_profiles.jl")
