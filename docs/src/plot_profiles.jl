@@ -1,5 +1,4 @@
 using Plots
-using LaTeXStrings
 
 import SurfaceFluxes
 const SF = SurfaceFluxes
@@ -75,12 +74,12 @@ Saves profiles of variable X given values of Z coordinates. Follows Nishizawa eq
   - sc: Container for surface conditions based on known combination
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MOs: Monin-Obukhov length(s)
-  - ca: Canopy Type (e.g. NoCanopy, SparseCanopy, DenseCanopy)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
   - X_in, X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
+  - rsl : Roughness Sublayer Formulation (e.g. NoRSL, PhysickRSL, DeRidderRSL)
   - x_star: characteristic scale for variable x
   - d: Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
 
@@ -100,8 +99,8 @@ function save_profile(
     d;
     xlims = nothing,
     ylims = nothing,
-    xlabel = L"$\frac{u}{u_{\star}}$",
-    ylabel = L"$z$",
+    xlabel = "u/u_star",
+    ylabel = "z",
     fig_prefix = "",
     xaxis = :identity,
     yaxis = :identity,
@@ -115,7 +114,7 @@ function save_profile(
 
         Δx = κ * (x_i .- X_sfc) ./ x_star
 
-        Plots.plot!(Δx, Z, label = L"L_{MO} = %$L_MO")
+        Plots.plot!(Δx, Z, label = "L_MO = $L_MO")
         Plots.plot!(; xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright)
 
         Plots.savefig("$(fig_prefix)_profile.svg")
@@ -187,7 +186,7 @@ save_profile(
     d;
     xlims = (-8, 0),
     ylims = (15, 50),
-    xlabel = L"$\frac{\theta}{\theta_{\star}}$",
+    xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4b_canopy",
 )
 
@@ -207,7 +206,7 @@ save_profile(
     d;
     xlims = (-8, 0),
     ylims = (15, 50),
-    xlabel = L"$\frac{\theta}{\theta_{\star}}$",
+    xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4b",
 )
 
@@ -265,7 +264,7 @@ save_profile(
     d;
     xlims = (0, 2),
     ylims = (15, 50),
-    xlabel = L"$\frac{\theta}{\theta_{\star}}$",
+    xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4d_canopy",
 )
 
@@ -285,7 +284,7 @@ save_profile(
     d;
     xlims = (0, 2),
     ylims = (15, 50),
-    xlabel = L"$\frac{\theta}{\theta_{\star}}$",
+    xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4d",
 )
 
