@@ -5,15 +5,11 @@ const SF = SurfaceFluxes
 SurfaceFluxes.error_on_non_convergence() = true
 
 import SurfaceFluxes.UniversalFunctions as UF
-using StaticArrays
-using Thermodynamics
+import Thermodynamics
 Thermodynamics.print_warning() = false
-using BenchmarkTools
-using RootSolvers
-const RS = RootSolvers
+
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 const SFP = SF.Parameters
-
 const FT = Float64;
 
 ### Generate parameter lists
