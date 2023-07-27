@@ -43,8 +43,8 @@ abstract type AbstractTransportType end
 struct MomentumTransport <: AbstractTransportType end
 struct HeatTransport <: AbstractTransportType end
 
-Base.broadcastable(tt::AbstractUniversalFunction) = Ref(tt)
-Base.broadcastable(tt::AbstractTransportType) = Ref(tt)
+Base.broadcastable(tt::AbstractUniversalFunction) = tuple(tt)
+Base.broadcastable(tt::AbstractTransportType) = tuple(tt)
 
 """
     phi

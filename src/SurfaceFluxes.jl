@@ -175,7 +175,6 @@ Base.@kwdef struct Fluxes{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
     lhf::FT
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
 end
 
@@ -254,7 +253,6 @@ Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, V
     state_sfc::VS
     z0m::FT
     z0b::FT
-    L_MO_init::FT = FT(-1)
     gustiness::FT = FT(1)
     beta::FT = FT(1)
 end
@@ -295,7 +293,7 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -324,7 +322,7 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -351,7 +349,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -398,7 +396,7 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.SolutionTolerance(FT(Δz(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -447,7 +445,8 @@ function obukhov_length(
             residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
             return residual
         end
-        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(sc.L_MO_init), soltype, tol, maxiter)
+        L_MO_init = FT(-1)
+        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(L_MO_init), soltype, tol, maxiter)
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
@@ -802,11 +801,8 @@ evaporation is directly calculated from the latent heat flux.
 function evaporation(param_set, sc::Union{Fluxes, FluxesAndFrictionVelocity}, Ch::FT) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     grav::FT = SFP.grav(param_set)
-    cp_v::FT = SFP.cp_v(param_set)
-    Lv_0::FT = SFP.LH_v0(param_set)
-    T_0::FT = SFP.T_0(param_set)
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
+    hv_sfc = TD.latent_heat_vapor(thermo_params, T_sfc)
     Φ_sfc = grav * z_sfc(sc)
     return sc.lhf / (hv_sfc + Φ_sfc)
 end
