@@ -107,8 +107,9 @@ for (ii, ilon) in enumerate(data_sfc.λ)
               z0m = z0m,
               z0b = z0b,
            )
-      result_fd = SF.surface_conditions(surface_params, sc, SF.FVScheme(); noniterative_stable_sol = false);
-      result_fv = SF.surface_conditions(surface_params, sc, SF.FDScheme(); noniterative_stable_sol = false);
+      result_fd = SF.surface_conditions(surface_params, sc, SF.FDScheme(); noniterative_stable_sol = false);
+      #result_fv = SF.surface_conditions(surface_params, sc, SF.FVScheme(); noniterative_stable_sol = false);
+
       ustar[ii,jj] = result_fd.ustar
       lmo[ii,jj] = result_fd.L_MO
       shf[ii,jj] = result_fd.shf
@@ -125,3 +126,4 @@ for (ii, ilon) in enumerate(data_sfc.λ)
 end
 
 Plots.heatmap(reverse(ustar[:,:,1]', dims=1), clims=(-0, 1.5), c = :RdGy_9)
+# Plots.savefig("Businger_uStarFD.svg")
