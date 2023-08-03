@@ -108,8 +108,11 @@ function save_profile(
             dx = SF.recover_profile(param_set, sc, L_MO, Zi, X_in, X_sfc, transport, uft, scheme, rsl)
         end
 
-        Δx = κ * (x_i .- X_sfc) ./ x_star
-
+        uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
+        _π_group = FT(UF.π_group(uf, transport))
+        
+        Δx = @. κ * (x_i - X_sfc) / (_π_group * x_star)
+  
         Plots.plot!(Δx, Z, label = "L_MO = $L_MO")
         Plots.plot!(; xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright)
 
