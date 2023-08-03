@@ -926,7 +926,7 @@ function recover_profile(
     scheme::Union{FVScheme, FDScheme},
     rsl::NoRSL,
 ) where {FT}
-    @assert isless.(Z, z_in(sc))
+    @assert all(isless.(Z, z_in(sc)))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
@@ -976,8 +976,8 @@ function recover_profile(
 ) where {FT}
     z_star = rsl.canopy.z_star
     d = rsl.canopy.d
-    @assert isless.(Z - d, z_in(sc))
-    @assert isless.(d, Z)
+    @assert all(isless.(Z - d, z_in(sc)))
+    @assert all(isless.(d, Z))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
@@ -1050,8 +1050,8 @@ function recover_profile(
 ) where {FT}
     z_star = rsl.canopy.z_star
     d = rsl.canopy.d
-    @assert isless.(Z - d, z_in(sc))
-    @assert isless.(d, Z)
+    @assert all(isless.(Z - d, z_in(sc)))
+    @assert all(isless.(d, Z))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
