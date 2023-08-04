@@ -6,36 +6,24 @@ SurfaceFluxes.jl provides profile recovery functions for the roughness sublayer 
 include("plot_profiles.jl")
 ```
 
-## Fig 6.4 (a) (No canopy)
+# Fig 6.4 (a) 
 
 ![](Fig6.4a_profile.svg)
-
-## Fig 6.4 (a) (With canopy)
-
 ![](Fig6.4a_canopy_profile.svg)
 
-## Fig 6.4 (b) (No canopy)
+# Fig 6.4 (b) 
 
 ![](Fig6.4b_profile.svg)
-
-## Fig 6.4 (b) (With canopy)
-
 ![](Fig6.4b_canopy_profile.svg)
 
-## Fig 6.4 (c) (No canopy)
+# Fig 6.4 (c)
 
 ![](Fig6.4c_profile.svg)
-
-## Fig 6.4 (c) (With canopy)
-
 ![](Fig6.4c_canopy_profile.svg)
 
-## Fig 6.4 (d) (No canopy)
+# Fig 6.4 (d) 
 
 ![](Fig6.4d_profile.svg)
-
-## Fig 6.4 (d) (With canopy)
-
 ![](Fig6.4d_canopy_profile.svg)
 
 
