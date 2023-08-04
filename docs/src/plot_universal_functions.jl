@@ -27,7 +27,7 @@ function save_ϕ_figs(ufts, ζ; ylims = nothing, fig_prefix = "", xaxis = :ident
         uf = universal_functions(uft)
         ϕ_m = UF.phi.(uf, ζ, UF.MomentumTransport())
         label = "$(typeof(uf).name)"
-        Plots.plot!(ζ, ϕ_m; xlabel = "ζ", ylabel = "ϕ_m", label, ylims, xaxis, yaxis)
+        Plots.plot!(ζ, ϕ_m; xlabel = "ζ = z/L_MO", ylabel = "ϕ_m", label, ylims, xaxis, yaxis)
     end
     Plots.savefig("$(fig_prefix)_phi_m.svg")
     Plots.plot()
@@ -35,7 +35,7 @@ function save_ϕ_figs(ufts, ζ; ylims = nothing, fig_prefix = "", xaxis = :ident
         uf = universal_functions(uft)
         ϕ_h = UF.phi.(uf, ζ, UF.HeatTransport())
         label = "$(typeof(uf).name)"
-        Plots.plot!(ζ, ϕ_h; xlabel = "ζ", ylabel = "ϕ_h", label, ylims, xaxis, yaxis)
+        Plots.plot!(ζ, ϕ_h; xlabel = "ζ = z/L_MO", ylabel = "ϕ_h", label, ylims, xaxis, yaxis)
     end
     Plots.savefig("$(fig_prefix)_phi_h.svg")
 end
@@ -45,7 +45,7 @@ function save_ψ_figs(ufts, ζ; ylims = nothing, fig_prefix = "", xaxis = :ident
         uf = universal_functions(uft)
         ψ_m = UF.psi.(uf, ζ, UF.MomentumTransport())
         label = "$(typeof(uf).name)"
-        Plots.plot!(ζ, ψ_m; xlabel = "ζ", ylabel = "ψ_m", label, ylims, xaxis, yaxis)
+        Plots.plot!(ζ, ψ_m; xlabel = "ζ = z/L_MO", ylabel = "ψ_m", label, ylims, xaxis, yaxis)
     end
     Plots.savefig("$(fig_prefix)_psi_m.svg")
     Plots.plot()
@@ -53,7 +53,7 @@ function save_ψ_figs(ufts, ζ; ylims = nothing, fig_prefix = "", xaxis = :ident
         uf = universal_functions(uft)
         ψ_h = UF.psi.(uf, ζ, UF.HeatTransport())
         label = "$(typeof(uf).name)"
-        Plots.plot!(ζ, ψ_h; xlabel = "ζ", ylabel = "ψ_h", label, ylims, xaxis, yaxis)
+        Plots.plot!(ζ, ψ_h; xlabel = "ζ = z/L_MO", ylabel = "ψ_h", label, ylims, xaxis, yaxis)
     end
     Plots.savefig("$(fig_prefix)_psi_h.svg")
 end

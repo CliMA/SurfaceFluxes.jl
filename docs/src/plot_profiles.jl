@@ -58,7 +58,7 @@ state_in = SF.InteriorValues(FT(350), (FT(0.0), FT(0)), ts_int_test)
 state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
 sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
 rsc = SF.surface_conditions(param_set, sc, SF.FDScheme())
-Z = collect(range(FT(19.1), stop = FT(100), length = 250))
+Z = collect(range(FT(d + 10^-10), stop = FT(100), length = 250))
 
 """
 save_profile(param_set, sc, ca, L_MOs, Z, X_in, X_sfc, transport, uft, scheme, x_star, d)
@@ -93,6 +93,7 @@ function save_profile(
     rsl::SF.AbstractRoughnessSublayerType,
     x_star,
     d;
+    title = nothing,
     xlims = nothing,
     ylims = nothing,
     xlabel = "u/u_star",
@@ -110,11 +111,11 @@ function save_profile(
 
         uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
         _π_group = FT(UF.π_group(uf, transport))
-        
+
         Δx = @. κ * (x_i - X_sfc) / (_π_group * x_star)
-  
+
         Plots.plot!(Δx, Z, label = "L_MO = $L_MO")
-        Plots.plot!(; xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright)
+        Plots.plot!(; title, xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright, titlefontalign = :center)
 
         Plots.savefig("$(fig_prefix)_profile.svg")
     end
@@ -148,6 +149,7 @@ save_profile(
     xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4a_canopy",
+    title = "Vertical Profile of Wind Velocity (Canopy)",
 )
 
 # Bonan2019 Fig. 6.4a (No Canopy)
@@ -167,6 +169,7 @@ save_profile(
     xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4a",
+    title = "Vertical Profile of Wind Velocity (No Canopy)",
 )
 
 # Bonan2019 Fig. 6.4b (With Canopy)
@@ -187,6 +190,7 @@ save_profile(
     ylims = (15, 50),
     xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4b_canopy",
+    title = "Vertical Profile of Temperature (Canopy)",
 )
 
 # Bonan2019 Fig. 6.4b (No Canopy)
@@ -207,6 +211,7 @@ save_profile(
     ylims = (15, 50),
     xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4b",
+    title = "Vertical Profile of Temperature (No Canopy)",
 )
 
 # Bonan2019 Fig. 6.4c (With Canopy)
@@ -226,6 +231,7 @@ save_profile(
     xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4c_canopy",
+    title = "Vertical Profile of Wind Velocity (Canopy)",
 )
 
 # Bonan2019 Fig. 6.4c (No Canopy)
@@ -245,6 +251,7 @@ save_profile(
     xlims = (0, 4),
     ylims = (15, 50),
     fig_prefix = "Fig6.4c",
+    title = "Vertical Profile of Wind Velocity (No Canopy)",
 )
 
 # Bonan2019 Fig. 6.4d (With Canopy)
@@ -265,6 +272,7 @@ save_profile(
     ylims = (15, 50),
     xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4d_canopy",
+    title = "Vertical Profile of Temperature (Canopy)",
 )
 
 # Bonan2019 Fig. 6.4d (No Canopy)
@@ -285,6 +293,7 @@ save_profile(
     ylims = (15, 50),
     xlabel = "θ/θ_star",
     fig_prefix = "Fig6.4d",
+    title = "Vertical Profile of Temperature (No Canopy)",
 )
 
 # tol_neutral = FT(SFP.cp_d(param_set) / 100);
