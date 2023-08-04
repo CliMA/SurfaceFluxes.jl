@@ -59,9 +59,9 @@ function save_ψ_figs(ufts, ζ; ylims = nothing, fig_prefix = "", xaxis = :ident
 end
 
 
+# Gryanik Plots
 save_ϕ_figs(ufts, FT(0):FT(0.01):FT(15); ylims = (0, 30), fig_prefix = "Gryanik12")
 save_ψ_figs(ufts, FT(0):FT(0.01):FT(15); ylims = (-25, 0), fig_prefix = "Gryanik12")
-
 
 save_ϕ_figs(
     ufts,
@@ -73,4 +73,9 @@ save_ϕ_figs(
 )
 
 
+# Businger Plots
 save_ϕ_figs(ufts, FT(-2.5):FT(0.01):FT(2); ylims = (-1, 8), fig_prefix = "Businger")
+
+# Bonan Plots
+save_ϕ_figs(ufts, FT(-2):FT(0.01):FT(1); ylims = (0, 6), fig_prefix = "Bonan")
+save_ψ_figs(ufts, FT(-2):FT(0.01):FT(1); ylims = (-5, 4), fig_prefix = "Bonan")
