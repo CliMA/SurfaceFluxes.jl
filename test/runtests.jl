@@ -99,7 +99,7 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
     Thermodynamics.Parameters.ThermodynamicsParameters{FloatType},
 }(
     0.4f0,
-    SurfaceFluxes.UniversalFunctions.BusingerParams{FloatType}(0.74f0, 4.7f0, 4.7f0, 2.5f0, 4.45f0),
+    SurfaceFluxes.UniversalFunctions.BusingerParams{FloatType}(0.74f0, 4.7f0, 4.7f0, 15.0f0, 9.0f0, 2.5f0, 4.45f0),
     Thermodynamics.Parameters.ThermodynamicsParameters{FloatType}(
         273.16f0,
         100000.0f0,

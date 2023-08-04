@@ -94,6 +94,8 @@ Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
+    b_m::FT
+    b_h::FT
     ζ_a::FT
     γ::FT
 end
@@ -129,9 +131,15 @@ end
 struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
 
-f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
+function f_momentum(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(sqrt(1 - FT(b_m(uf)) * ζ))
+end
 
-f_heat(uf::Businger, ζ) = sqrt(1 - 9 * ζ)
+function f_heat(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(1 - FT(b_h(uf)) * ζ)
+end
 
 function phi(uf::Businger, ζ, ::MomentumTransport)
     if ζ < 0
@@ -188,7 +196,7 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
             _a_m = FT(a_m(uf))
             return -_a_m * ζ / 2
         else
-            return -FT(15) * ζ / FT(8)
+            return -FT(b_m(uf)) * ζ / FT(8)
         end
     else
         if ζ < 0
@@ -214,7 +222,7 @@ function Psi(uf::Businger, ζ, tt::HeatTransport)
             _π_group = FT(π_group(uf, tt))
             return -_a_h * ζ / (2 * _π_group)
         else
-            return -9 * ζ / 4
+            return -FT(b_h(uf)) * ζ / 4
         end
     else
         if ζ >= 0
@@ -223,7 +231,7 @@ function Psi(uf::Businger, ζ, tt::HeatTransport)
         else
             f_h = f_heat(uf, ζ)
             log_term = 2 * log((1 + f_h) / 2)
-            return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+            return log_term + 2 * (1 - f_h) / (FT(b_h(uf)) * ζ) - 1
         end
     end
 end

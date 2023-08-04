@@ -25,8 +25,8 @@ end
 
 function create_uf_parameters(toml_dict, ::UF.BusingerType)
     FT = CP.float_type(toml_dict)
-    aliases = ["Pr_0_Businger", "a_m_Businger", "a_h_Businger", "ζ_a_Businger", "γ_Businger"]
-
+    aliases =
+        ["Pr_0_Businger", "a_m_Businger", "a_h_Businger", "b_m_Businger", "b_h_Businger", "ζ_a_Businger", "γ_Businger"]
     pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
@@ -34,6 +34,8 @@ function create_uf_parameters(toml_dict, ::UF.BusingerType)
         Pr_0 = pairs.Pr_0_Businger,
         a_m = pairs.a_m_Businger,
         a_h = pairs.a_h_Businger,
+        b_m = pairs.b_m_Businger,
+        b_h = pairs.b_h_Businger,
         ζ_a = pairs.ζ_a_Businger,
         γ = pairs.γ_Businger,
     )
