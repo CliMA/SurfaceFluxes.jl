@@ -605,8 +605,9 @@ compute_ustar(param_set, L_MO, sc::Fluxes, uft, scheme) =
 
 compute_ustar(param_set, L_MO, sc::Coefficients, uft, scheme) = sqrt(sc.Cd) * (windspeed(sc))
 
-compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+function compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme)
+    return windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+end
 
 """
     momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -897,7 +898,7 @@ function compute_physical_scale_coeff(
 end
 
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme, rsl)
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, transport, uft, scheme, rsl)
 
 Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
 ## Arguments
@@ -906,7 +907,7 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in, X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -919,14 +920,13 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     Z,
-    X_in,
     X_sfc,
+    X_star,
     transport,
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
     rsl::NoRSL,
 ) where {FT}
-    @assert all(isless.(Z, z_in(sc)))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
@@ -936,13 +936,12 @@ function recover_profile(
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const *
-           (X_in - X_sfc) + X_sfc
+    return Σnum * X_star / von_karman_const + X_sfc
 end
 
 
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme, rsl) 
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, transport, uft, scheme, rsl) 
 
 Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
 Follows Nishizawa equation (21, 22) 
@@ -953,7 +952,7 @@ Canopy modification follows Physick and Garratt (1995) equation (8, 9)
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in, X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -967,8 +966,8 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     Z,
-    X_in,
     X_sfc,
+    X_star,
     transport,
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
@@ -976,8 +975,6 @@ function recover_profile(
 ) where {FT}
     z_star = rsl.canopy.z_star
     d = rsl.canopy.d
-    @assert all(isless.(Z - d, z_in(sc)))
-    @assert all(isless.(d, Z))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
@@ -1010,12 +1007,11 @@ function recover_profile(
     rsl_physick = ψ_RSL_term(Z)
     Σnum += rsl_physick
 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const *
-           (X_in - X_sfc) + X_sfc
+    return Σnum * X_star / von_karman_const + X_sfc
 end
 
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme, rsl) 
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, transport, uft, scheme, rsl) 
 
 Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
 Follows Nishizawa equation (21, 22) 
@@ -1027,7 +1023,7 @@ Canopy modification follows De Ridder (2010) equation (6, 7, 13)
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in, X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -1041,8 +1037,8 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     Z,
-    X_in,
     X_sfc,
+    X_star,
     transport,
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
@@ -1050,8 +1046,6 @@ function recover_profile(
 ) where {FT}
     z_star = rsl.canopy.z_star
     d = rsl.canopy.d
-    @assert all(isless.(Z - d, z_in(sc)))
-    @assert all(isless.(d, Z))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
@@ -1077,8 +1071,7 @@ function recover_profile(
     rsl_deridder = ψ_analytic(Z - d)
     Σnum += rsl_deridder
 
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) / von_karman_const *
-           (X_in - X_sfc) + X_sfc
+    return Σnum * X_star / von_karman_const + X_sfc
 end
 
 end # SurfaceFluxes module
