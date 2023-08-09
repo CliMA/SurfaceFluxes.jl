@@ -54,14 +54,15 @@ q_sfc = FT(0.0107) # kg/kg
 θ_sfc = FT(289.7) # K
 ts_sfc_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 99340.0, 289.7, 0.0107)
 ts_int_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 95342.0, 298.0, 0.0085)
-state_in = SF.InteriorValues(FT(350), (FT(0.0), FT(0)), ts_int_test)
+state_in = SF.InteriorValues(FT(100), (FT(1.0), FT(0)), ts_int_test)
 state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
 sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-rsc = SF.surface_conditions(param_set, sc, SF.FDScheme())
+ts_sfc_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 100000.0, 289.7, 0.0)
+ts_int_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 99990.0, 298.0, 0.0)
 Z = collect(range(FT(d + 10^-10), stop = FT(100), length = 250))
 
 """
-save_profile(param_set, sc, ca, L_MOs, Z, X_in, X_sfc, transport, uft, scheme, x_star, d)
+save_profile(param_set, sc, ca, L_MOs, Z, X_sfc, transport, uft, scheme, x_star, d)
 
 Saves profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
 
@@ -71,7 +72,7 @@ Saves profiles of variable X given values of Z coordinates. Follows Nishizawa eq
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MOs: Monin-Obukhov length(s)
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in, X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at interior and surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -85,7 +86,6 @@ function save_profile(
     sc::SF.AbstractSurfaceConditions,
     L_MOs::Array{FT, 1},
     Z::Array{FT, 1},
-    X_in,
     X_sfc,
     transport,
     uft::UF.AUFT,
@@ -96,7 +96,7 @@ function save_profile(
     title = nothing,
     xlims = nothing,
     ylims = nothing,
-    xlabel = "u/u_star",
+    xlabel = "u(z)",
     ylabel = "z",
     fig_prefix = "",
     xaxis = :identity,
@@ -106,13 +106,17 @@ function save_profile(
     for L_MO in L_MOs
         x_i = map(Z) do z
             Zi = typeof(rsl) == SF.NoRSL ? FT(z - d) : FT(z)
-            dx = SF.recover_profile(param_set, sc, L_MO, Zi, X_in, X_sfc, transport, uft, scheme, rsl)
+            state_in = SF.InteriorValues(FT(Zi), (FT(1.0), FT(0)), ts_int_test)
+            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
+            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+            rsc = SF.surface_conditions(param_set, sc, SF.FDScheme())
+            dx = SF.recover_profile(param_set, sc, L_MO, Zi, X_sfc, x_star, transport, uft, scheme, rsl)
         end
 
         uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
         _π_group = FT(UF.π_group(uf, transport))
 
-        Δx = @. κ * (x_i - X_sfc) / (_π_group * x_star)
+        Δx = @. (x_i - X_sfc) #/ (_π_group * x_star)
 
         Plots.plot!(Δx, Z, label = "L_MO = $L_MO")
         Plots.plot!(; title, xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright, titlefontalign = :center)
@@ -138,7 +142,6 @@ save_profile(
     sc,
     Unstable_L_MOs,
     Z,
-    FT(3.7),
     FT(0),
     UF.MomentumTransport(),
     uft,
@@ -158,7 +161,6 @@ save_profile(
     sc,
     Unstable_L_MOs,
     Z,
-    FT(3.7),
     FT(0),
     UF.MomentumTransport(),
     uft,
@@ -178,7 +180,6 @@ save_profile(
     sc,
     Unstable_L_MOs,
     Z,
-    FT(298.0),
     θ_sfc,
     UF.HeatTransport(),
     uft,
@@ -188,7 +189,7 @@ save_profile(
     d;
     xlims = (-8, 0),
     ylims = (15, 50),
-    xlabel = "θ/θ_star",
+    xlabel = "θ - θ_sfc",
     fig_prefix = "Fig6.4b_canopy",
     title = "Vertical Profile of Temperature (Canopy)",
 )
@@ -199,7 +200,6 @@ save_profile(
     sc,
     Unstable_L_MOs,
     Z,
-    FT(298.0),
     θ_sfc,
     UF.HeatTransport(),
     uft,
@@ -209,7 +209,7 @@ save_profile(
     d;
     xlims = (-8, 0),
     ylims = (15, 50),
-    xlabel = "θ/θ_star",
+    xlabel = "θ- θ_sfc",
     fig_prefix = "Fig6.4b",
     title = "Vertical Profile of Temperature (No Canopy)",
 )
@@ -220,7 +220,6 @@ save_profile(
     sc,
     Stable_L_MOs,
     Z,
-    FT(3.7),
     FT(0),
     UF.MomentumTransport(),
     uft,
@@ -240,7 +239,6 @@ save_profile(
     sc,
     Stable_L_MOs,
     Z,
-    FT(3.7),
     FT(0),
     UF.MomentumTransport(),
     uft,
@@ -260,7 +258,6 @@ save_profile(
     sc,
     Stable_L_MOs,
     Z,
-    FT(298.0),
     θ_sfc,
     UF.HeatTransport(),
     uft,
@@ -270,7 +267,7 @@ save_profile(
     d;
     xlims = (0, 2),
     ylims = (15, 50),
-    xlabel = "θ/θ_star",
+    xlabel = "θ-θ_sfc",
     fig_prefix = "Fig6.4d_canopy",
     title = "Vertical Profile of Temperature (Canopy)",
 )
@@ -281,7 +278,6 @@ save_profile(
     sc,
     Stable_L_MOs,
     Z,
-    FT(298.0),
     θ_sfc,
     UF.HeatTransport(),
     uft,
@@ -291,7 +287,7 @@ save_profile(
     d;
     xlims = (0, 2),
     ylims = (15, 50),
-    xlabel = "θ/θ_star",
+    xlabel = "θ-θ_sfc",
     fig_prefix = "Fig6.4d",
     title = "Vertical Profile of Temperature (No Canopy)",
 )
