@@ -7,7 +7,7 @@ import CLIMAParameters
 const CP = CLIMAParameters
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FT = Float32;
+FT = Float32;
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 
 import Plots

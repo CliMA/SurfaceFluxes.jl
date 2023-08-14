@@ -11,10 +11,9 @@ import CLIMAParameters
 const CP = CLIMAParameters
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FT = Float32;
+FT = Float64;
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
-
 universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(toml_dict, uft))
 
 # TODO: Right now, we test these functions for

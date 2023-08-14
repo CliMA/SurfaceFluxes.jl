@@ -357,6 +357,11 @@ function non_zero(value::FT) where {FT}
     end
 end
 
+
+function compute_richardson_number(sc::AbstractSurfaceConditions{FT}, DSEᵥ_in::FT, DSEᵥ_sfc::FT, grav::FT) where {FT}
+    return (grav * z_in(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_sfc * (windspeed(sc))^2)
+end
+
 function obukhov_length(
     param_set,
     sc::AbstractSurfaceConditions{FT},
@@ -379,7 +384,7 @@ function obukhov_length(
         ### Analytical Solution 
         ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
-        Ri_b = (grav * z_in(sc) * ΔDSEᵥ) / (DSEᵥ_sfc * (windspeed(sc))^2)
+        Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
         @assert Ri_b >= FT(0)
         ϵₘ = FT(Δz(sc) / z0(sc, UF.MomentumTransport()))
         ϵₕ = FT(Δz(sc) / z0(sc, UF.HeatTransport()))
@@ -539,7 +544,7 @@ compute_bstar(param_set, L_MO, sc::Fluxes, uft, scheme) =
     compute_ustar(
         param_set::AbstractSurfaceFluxesParameters,
         L_MO,
-        sc::AbstractSufaceCondition,
+        sc::AbstractSurfaceCondition,
         uft,
         scheme
     )
