@@ -893,7 +893,6 @@ function recover_profile(
 ) where {FT}
     @assert isless.(Z, z_in(sc))
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
-    von_karman_const::FT = SFP.von_karman_const(param_set)
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
     num1 = log(Z / z0(sc, transport))
