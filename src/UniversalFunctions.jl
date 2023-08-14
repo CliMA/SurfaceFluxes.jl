@@ -297,7 +297,7 @@ function phi(uf::Gryanik, ζ, tt::HeatTransport)
         _Pr_0 = FT(Pr_0(uf))
         _a_h = FT(a_h(uf))
         _b_h = FT(b_h(uf))
-        return _Pr_0 * (1 + (_a_h * ζ) / (1 + _b_h * ζ))
+        return 1 + (ζ * _Pr_0 * _a_h) / (1 + _b_h * ζ)
     else
         f_h = f_heat(uf, ζ)
         return 1 / f_h

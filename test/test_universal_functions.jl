@@ -1,5 +1,7 @@
 using Test
 
+import QuadGK
+
 import SurfaceFluxes
 const SF = SurfaceFluxes
 import SurfaceFluxes.UniversalFunctions as UF
@@ -65,10 +67,10 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
     @testset "Asymptotic range" begin
         FT = Float32
 
-        ϕ_h_ζ∞(uf::UF.Grachev) = 1 + FT(UF.b_h(uf))
+        ϕ_h_ζ∞(uf::UF.Grachev, ζ) = 1 + FT(UF.b_h(uf))
         ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(UF.a_m(uf)) / FT(UF.b_m(uf)) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::UF.Gryanik) = FT(UF.Pr_0(uf)) * (1 + FT(UF.a_h(uf) / UF.b_h(uf)))
+        ϕ_h_ζ∞(uf::UF.Gryanik, ζ) = FT(1) + (FT(ζ) * FT(UF.Pr_0(uf)) * FT(UF.a_h(uf))) / (1 + FT(UF.b_h(uf)) * FT(ζ))
         ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
 
         for L in (-FT(10), FT(10))
@@ -76,7 +78,7 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
                 uf = universal_functions(uft, L)
                 for ζ in FT(10) .^ (4, 6, 8, 10)
                     ϕ_h = UF.phi(uf, ζ, UF.HeatTransport())
-                    @test isapprox(ϕ_h, ϕ_h_ζ∞(uf))
+                    @test isapprox(ϕ_h, ϕ_h_ζ∞(uf, ζ))
                 end
                 for ζ in FT(10) .^ (8, 9, 10)
                     ϕ_m = UF.phi(uf, ζ, UF.MomentumTransport())
@@ -96,6 +98,29 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
                     uf = universal_functions(uft, L)
                     Ψ_0 = UF.psi(uf, FT(0), transport)
                     @test isapprox(Ψ_0, FT(0))
+                end
+            end
+        end
+    end
+
+    # Test that the integrated forms of the stability correction functions ψ(ζ) are consistent
+    # when directly evaluated via numerical integration from ϕ(ζ).
+    @testset "Test Correctness: ψ(ζ) = ∫ 𝒻(ϕ(ζ′)) dζ′" begin
+        FloatType = (Float32, Float64)
+        for FT in FloatType
+            ζ_array = (FT(-20), FT(-10), FT(-1), -sqrt(eps(FT)), sqrt(eps(FT)), FT(1), FT(10), FT(20))
+            for L in (-FT(10), FT(10))
+                for ζ in ζ_array
+                    for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.HoltslagType())
+                        uf = universal_functions(uft, L)
+                        for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                            # Compute ψ via numerical integration of 𝒻(ϕ(ζ))
+                            ψ_int = QuadGK.quadgk(ζ′ -> (FT(1) - UF.phi(uf, ζ′, transport)) / ζ′, eps(FT), ζ)
+                            # Compute ψ using function definitions of ψ(ζ)
+                            ψ = UF.psi(uf, ζ, transport)
+                            @test isapprox(ψ_int[1] - ψ, FT(0), atol = 200eps(FT))
+                        end
+                    end
                 end
             end
         end
