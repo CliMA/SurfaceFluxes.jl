@@ -7,6 +7,7 @@ universal functions:
  - `Businger`
  - `Gryanik`
  - `Grachev`
+ - `Holtslag`
 """
 module UniversalFunctions
 
@@ -80,6 +81,9 @@ a_h(uf::AUF) = uf.params.a_h
 b_m(uf::AUF) = uf.params.b_m
 b_h(uf::AUF) = uf.params.b_h
 c_h(uf::AUF) = uf.params.c_h
+c_m(uf::AUF) = uf.params.c_m
+d_h(uf::AUF) = uf.params.d_h
+d_m(uf::AUF) = uf.params.d_m
 ζ_a(uf::AUF) = uf.params.ζ_a
 γ(uf::AUF) = uf.params.γ
 
@@ -496,12 +500,194 @@ function psi(uf::Grachev, ζ, tt::HeatTransport)
     end
 end
 
+#####
+##### Holtslag
+#####
+
+Base.@kwdef struct HoltslagParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT
+    c_m::FT
+    c_h::FT
+    d_m::FT
+    d_h::FT
+    ζ_a::FT
+    γ::FT
+end
+
+"""
+    Holtslag <: AbstractUniversalFunction{FT}
+
+# References
+ - [Holtslag1988](@cite)
+
+# Equations in reference:
+
+    `ϕ_m`: Derived from Eq. 12
+    `ϕ_h`: Derived from Eq. 12
+    `ψ_m`: Eq. 12
+    `ψ_h`: Eq. 12
+
+# Holtslag and Bruin 1988 functions are used in stable conditions
+# In unstable conditions the functions of Businger (1971) are 
+# assigned by default. 
+
+# Fields
+
+$(DSE.FIELDS)
+"""
+struct Holtslag{FT, PS <: HoltslagParams} <: AbstractUniversalFunction{FT}
+    "Monin-Obhukov Length"
+    L::FT
+    params::PS
+end
+
+struct HoltslagType <: AbstractUniversalFunctionType end
+Holtslag() = HoltslagType()
+
+# Nishizawa2018 Eq. A7
+f_momentum(uf::Holtslag, ζ) = sqrt(sqrt(1 - 15 * ζ))
+
+# Nishizawa2018 Eq. A8
+f_heat(uf::Holtslag, ζ) = sqrt(1 - 9 * ζ)
+
+function phi(uf::Holtslag, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Derived from Holtslag1988 Eq. 12
+        _a_m = FT(a_m(uf))
+        _b_m = FT(b_m(uf))
+        _c_m = FT(c_m(uf))
+        _d_m = FT(d_m(uf))
+        _π_group = FT(π_group(uf, tt))
+
+        first_exp = _b_m * exp(-_d_m * ζ)
+        second_exp = -_b_m * _d_m * exp(-_d_m * ζ) * (ζ - _c_m / _d_m)
+
+        return _π_group + ζ * (_a_m + first_exp + second_exp)
+    else
+        # Nishizawa2018 Eq. A1 (L < 0)
+        f_m = f_momentum(uf, ζ)
+        return 1 / f_m
+    end
+end
+
+function phi(uf::Holtslag, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Derived from Holtslag1988 Eq. 12
+        _a_h = FT(a_h(uf))
+        _b_h = FT(b_h(uf))
+        _c_h = FT(c_h(uf))
+        _d_h = FT(d_h(uf))
+        _π_group = FT(π_group(uf, tt))
+
+        first_exp = _b_h * exp(-_d_h * ζ)
+        second_exp = -_b_h * _d_h * exp(-_d_h * ζ) * (ζ - _c_h / _d_h)
+
+        return _π_group + ζ * (_a_h + first_exp + second_exp)
+    else
+        # Nishizawa2018 Eq. A2 (L < 0)
+        f_h = f_heat(uf, ζ)
+        return 1 / f_h
+    end
+end
+
+function psi(uf::Holtslag, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Holtslag1988 Eq. 12
+        _a_m = FT(a_m(uf))
+        _b_m = FT(b_m(uf))
+        _c_m = FT(c_m(uf))
+        _d_m = FT(d_m(uf))
+
+        return -_a_m * ζ - _b_m * (ζ - _c_m / _d_m) * exp(-_d_m * ζ) - _b_m * _c_m / _d_m
+    else
+        # Nishizawa2018 Eq. A3 (ζ < 0)
+        f_m = f_momentum(uf, ζ)
+        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
+        return log_term - 2 * atan(f_m) + FT(π) / 2
+    end
+end
+
+function psi(uf::Holtslag, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Holtslag1988 Eq. 12
+        _a_h = FT(a_h(uf))
+        _b_h = FT(b_h(uf))
+        _c_h = FT(c_h(uf))
+        _d_h = FT(d_h(uf))
+
+        return -_a_h * ζ - _b_h * (ζ - _c_h / _d_h) * exp(-_d_h * ζ) - _b_h * _c_h / _d_h
+
+    else
+        # Nishizawa2018 Eq. A4 (ζ < 0)
+        f_h = f_heat(uf, ζ)
+        return 2 * log((1 + f_h) / 2)
+    end
+end
+
+function Psi(uf::Holtslag, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    _a_m = FT(a_m(uf))
+    _b_m = FT(b_m(uf))
+    _c_m = FT(c_m(uf))
+    _d_m = FT(d_m(uf))
+    if ζ >= 0
+        # Derived from Holtslag1988 Eq. 12
+        exp_term1 = _c_m * ((1 - exp(-_d_m * ζ)) / (ζ * _d_m^2) - 1 / _d_m)
+        exp_term2 = (exp(-_d_m * ζ) - 1) / (ζ * _d_m^2)
+        exp_term3 = exp(-_d_m * ζ) / _d_m
+        return _b_m * (exp_term1 + exp_term2 + exp_term3) - _a_m * ζ / 2
+
+    elseif abs(ζ) < eps(FT) && ζ < 0
+        # Nishizawa2018 Eq. A13 (ζ < 0)
+        return -FT(15) * ζ / FT(8)
+
+    else
+        # Nishizawa2018 Eq. A5 (ζ < 0)
+        return -FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2) - FT(1)
+    end
+end
+
+function Psi(uf::Holtslag, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    _a_h = FT(a_h(uf))
+    _b_h = FT(b_h(uf))
+    _c_h = FT(c_h(uf))
+    _d_h = FT(d_h(uf))
+    if ζ >= 0
+        # Derived from Holtslag1988 Eq. 12
+        exp_term1 = _c_h * ((1 - exp(-_d_h * ζ)) / (ζ * _d_h^2) - 1 / _d_h)
+        exp_term2 = (exp(-_d_h * ζ) - 1) / (ζ * _d_h^2)
+        exp_term3 = exp(-_d_h * ζ) / _d_h
+        return _b_h * (exp_term1 + exp_term2 + exp_term3) - _a_h * ζ / 2
+
+    elseif abs(ζ) < eps(FT) && ζ < 0
+        # Nishizawa2018 Eq. A14 (ζ < 0)
+        return -9 * ζ / 4
+
+    else
+        # Nishizawa2018 Eq. A6 (ζ < 0)
+        f_h = f_heat(uf, ζ)
+        log_term = 2 * log((1 + f_h) / 2)
+        return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+    end
+end
+
 universal_func(::BusingerType, L_MO::Real, params::BusingerParams) = Businger(L_MO, params)
 universal_func(::GryanikType, L_MO::Real, params::GryanikParams) = Gryanik(L_MO, params)
 universal_func(::GrachevType, L_MO::Real, params::GrachevParams) = Grachev(L_MO, params)
+universal_func(::HoltslagType, L_MO::Real, params::HoltslagParams) = Holtslag(L_MO, params)
 
 universal_func_type(::Type{T}) where {T <: BusingerParams} = BusingerType()
 universal_func_type(::Type{T}) where {T <: GryanikParams} = GryanikType()
 universal_func_type(::Type{T}) where {T <: GrachevParams} = GrachevType()
+universal_func_type(::Type{T}) where {T <: HoltslagParams} = HoltslagType()
 
 end # module
