@@ -16,6 +16,7 @@
 """
 module SurfaceFluxes
 
+
 import RootSolvers
 const RS = RootSolvers
 
@@ -27,9 +28,6 @@ const DSE = DocStringExtensions
 
 import Thermodynamics
 const TD = Thermodynamics
-
-import StaticArrays
-const SA = StaticArrays
 
 include("UniversalFunctions.jl")
 import .UniversalFunctions
@@ -259,7 +257,7 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -288,7 +286,7 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -315,7 +313,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
+        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -351,12 +349,57 @@ obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
 non_zero(v::FT) where {FT} = abs(v) < eps(FT) ? v + sqrt(eps(FT)) : v
 
+
+function compute_richardson_number(sc::AbstractSurfaceConditions{FT}, DSEᵥ_in, DSEᵥ_sfc, grav) where {FT}
+    return (grav * z_in(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_sfc * (windspeed(sc))^2)
+end
+
+function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ::FT) where {FT}
+    # In this design, this ∂Ri∂ζ function is intended to be an 
+    # internal function to support the Newton iteration scheme
+    thermo_params = SFP.thermodynamics_params(param_set)
+    ufparams = SFP.uf_params(param_set)
+    grav = SFP.grav(param_set)
+    cp_d = SFP.cp_d(param_set)
+    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    dz = Δz(sc)
+    z0m = z0(sc, UF.MomentumTransport())
+    z0h = z0(sc, UF.HeatTransport())
+    ufₛ = UF.universal_func(uft, Δz(sc) / ζ, SFP.uf_params(param_set))
+    ψₘ = UF.psi(ufₛ, ζ, UF.MomentumTransport())
+    ψₕ = UF.psi(ufₛ, ζ, UF.HeatTransport())
+    ψₘ₀ = UF.psi(ufₛ, z0m * ζ / dz, UF.MomentumTransport())
+    ψₕ₀ = UF.psi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
+    ϕₘ = UF.phi(ufₛ, ζ, UF.MomentumTransport())
+    ϕₕ = UF.phi(ufₛ, ζ, UF.HeatTransport())
+    ϕₘ₀ = UF.phi(ufₛ, z0m * ζ / dz, UF.MomentumTransport())
+    ϕₕ₀ = UF.phi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
+    F_m = log(dz / z0m) - ψₘ + ψₘ₀
+    F_h = log(dz / z0h) - ψₕ + ψₕ₀
+    Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
+    ∂Ri∂ζ = Ri_b / ζ * (1 + 1 / F_h * (ϕₕ - ϕₕ₀) - 2 * (ϕₘ - ϕₘ₀) * (1 / F_m))
+end
+
+function compute_Ri_b(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ) where {FT}
+    #TODO: Fix code duplication
+    # In this design, if a user knows ζ, they may use it 
+    # to compute the bulk Richardson number. This may be used 
+    # to compute the Lₘₒ based on the definition of the Bulk-Richardson number 
+    # in terms of the virtual dry static energy
+    ufparams = SFP.uf_params(param_set)
+    ufₛ = UF.universal_func(uft, Δz(sc) / ζ, ufparams)
+    F_m = compute_physical_scale_coeff(param_set, sc, ufₛ.L, UF.MomentumTransport(), uft, scheme)
+    F_h = compute_physical_scale_coeff(param_set, sc, ufₛ.L, UF.HeatTransport(), uft, scheme)
+    return ζ * F_h * 1 / F_m^2
+end
+
 function obukhov_length(
     param_set,
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(FT(3e-5), FT(Δz(sc) / 50)),
+    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -373,7 +416,7 @@ function obukhov_length(
         ### Analytical Solution 
         ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
-        Ri_b = (grav * z_in(sc) * ΔDSEᵥ) / (DSEᵥ_sfc * (windspeed(sc))^2)
+        Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
         @assert Ri_b >= FT(0)
         ϵₘ = FT(Δz(sc) / z0(sc, UF.MomentumTransport()))
         ϵₕ = FT(Δz(sc) / z0(sc, UF.HeatTransport()))
@@ -401,13 +444,15 @@ function obukhov_length(
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
         return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
-        function root_l_mo(x_lmo)
-            residual = x_lmo - local_lmo(param_set, x_lmo, sc, uft, scheme)
+        function root_ζ(ζ)
+            residual =
+                compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
+                compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
             return residual
         end
-        L_MO_init = FT(-1)
-        sol = RS.find_zero(root_l_mo, RS.NewtonsMethodAD(L_MO_init), soltype, tol, maxiter)
-        L_MO = sol.root
+        ζ₀ = FT(sign(ΔDSEᵥ))
+        sol = RS.find_zero(root_ζ, RS.NewtonsMethodAD(ζ₀), soltype, tol, maxiter)
+        L_MO = Δz(sc) / sol.root
         if !sol.converged
             if error_on_non_convergence()
                 KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
@@ -451,29 +496,6 @@ function obukhov_length(param_set, sc::Coefficients{FT}, uft::UF.AUFT, scheme; k
     ustar = sqrt(sc.Cd) * windspeed(sc)
     buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
     return -ustar^3 / FT(SFP.von_karman_const(param_set)) / non_zero(buoyancy_flux)
-end
-
-"""
-    local_lmo(param_set, x_lmo, sc, uft, scheme)
-
-Helper function for the iterative solver with the Monin-Obukhov length equation with buoyancy flux.
-"""
-function local_lmo(param_set, x_lmo, sc::Fluxes, uft::UF.AUFT, scheme)
-    κ = SFP.von_karman_const(param_set)
-    u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
-    return -(windspeed(sc) * u_scale)^3 / κ / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
-end
-
-"""
-    local_lmo(param_set, x_lmo, sc, uft, scheme)
-
-Helper function for the iterative solver with the Monin-Obukhov
-length equation with buoyancy star.
-"""
-function local_lmo(param_set, x_lmo, sc::ValuesOnly, uft::UF.AUFT, scheme)
-    κ = SFP.von_karman_const(param_set)
-    u_scale = compute_physical_scale_coeff(param_set, sc, x_lmo, UF.MomentumTransport(), uft, scheme)
-    return (windspeed(sc) * u_scale)^2 / κ / non_zero(compute_bstar(param_set, x_lmo, sc, uft, scheme))
 end
 
 """
@@ -533,7 +555,7 @@ compute_bstar(param_set, L_MO, sc::Fluxes, uft::UF.AUFT, scheme) =
     compute_ustar(
         param_set::AbstractSurfaceFluxesParameters,
         L_MO,
-        sc::AbstractSufaceCondition,
+        sc::AbstractSurfaceCondition,
         uft,
         scheme
     )

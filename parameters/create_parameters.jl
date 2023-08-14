@@ -1,10 +1,9 @@
-import CLIMAParameters as CP
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
 
 function create_uf_parameters(toml_dict, ::UF.BeljaarsType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
 
     aliases = [
         "Pr_0_Beljaars",
@@ -20,7 +19,7 @@ function create_uf_parameters(toml_dict, ::UF.BeljaarsType)
         "γ_Beljaars",
     ]
 
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -42,10 +41,10 @@ function create_uf_parameters(toml_dict, ::UF.BeljaarsType)
 end
 
 function create_uf_parameters(toml_dict, ::UF.ChengType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
 
     aliases = ["Pr_0_Cheng", "a_m_Cheng", "a_h_Cheng", "b_m_Cheng", "b_h_Cheng", "ζ_a_Cheng", "γ_Cheng"]
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -61,7 +60,7 @@ function create_uf_parameters(toml_dict, ::UF.ChengType)
 end
 
 function create_uf_parameters(toml_dict, ::UF.HoltslagType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
 
     aliases = [
         "Pr_0_Holtslag",
@@ -77,7 +76,7 @@ function create_uf_parameters(toml_dict, ::UF.HoltslagType)
         "γ_Holtslag",
     ]
 
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -97,11 +96,11 @@ function create_uf_parameters(toml_dict, ::UF.HoltslagType)
 end
 
 function create_uf_parameters(toml_dict, ::UF.GryanikType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
 
     aliases = ["Pr_0_Gryanik", "a_m_Gryanik", "a_h_Gryanik", "b_m_Gryanik", "b_h_Gryanik", "ζ_a_Gryanik", "γ_Gryanik"]
 
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -117,10 +116,10 @@ function create_uf_parameters(toml_dict, ::UF.GryanikType)
 end
 
 function create_uf_parameters(toml_dict, ::UF.BusingerType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
     aliases = ["Pr_0_Businger", "a_m_Businger", "a_h_Businger", "ζ_a_Businger", "γ_Businger"]
 
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -134,7 +133,7 @@ function create_uf_parameters(toml_dict, ::UF.BusingerType)
 end
 
 function create_uf_parameters(toml_dict, ::UF.GrachevType)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
     aliases = [
         "Pr_0_Grachev",
         "a_m_Grachev",
@@ -146,7 +145,7 @@ function create_uf_parameters(toml_dict, ::UF.GrachevType)
         "γ_Grachev",
     ]
 
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "UniversalFunctions")
     pairs = (; pairs...) # convert to NamedTuple
 
     pairs = (;
@@ -163,17 +162,17 @@ function create_uf_parameters(toml_dict, ::UF.GrachevType)
 end
 
 function create_parameters(toml_dict, ufpt)
-    FT = CP.float_type(toml_dict)
+    FT = CLIMAParameters.float_type(toml_dict)
 
     ufp = create_uf_parameters(toml_dict, ufpt)
     AUFP = typeof(ufp)
 
     aliases = string.(fieldnames(TD.Parameters.ThermodynamicsParameters))
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
     thermo_params = TD.Parameters.ThermodynamicsParameters{FT}(; pairs...)
     TP = typeof(thermo_params)
 
     aliases = ["von_karman_const"]
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "SurfaceFluxesParameters")
-    return SFP.SurfaceFluxesParameters{FT, AUFP, TP}(; pairs..., ufp, thermo_params)
+    pairs = CLIMAParameters.get_parameter_values!(toml_dict, aliases, "SurfaceFluxesParameters")
+    return SF.Parameters.SurfaceFluxesParameters{FT, AUFP, TP}(; pairs..., ufp, thermo_params)
 end

@@ -4,19 +4,16 @@ import SurfaceFluxes
 const SF = SurfaceFluxes
 import SurfaceFluxes.UniversalFunctions as UF
 using Statistics
-using StaticArrays
 import Thermodynamics
 import ArtifactWrappers
 const AW = ArtifactWrappers
-import UnPack
 const TD = Thermodynamics
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FT = Float32;
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+FT = Float32;
+toml_dict = CLIMAParameters.create_toml_dict(FT; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
-thermo_params = SFP.thermodynamics_params(param_set)
-
+thermo_params = SF.Parameters.thermodynamics_params(param_set)
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
@@ -31,7 +28,6 @@ PyCLES_output_dataset = AW.ArtifactWrapper(
 )
 #! format: on
 PyCLES_output_dataset_path = AW.get_data_folder(PyCLES_output_dataset)
-
 
 files = ["DYCOMS_RF01.nc", "Bomex.nc", "Rico.nc", "Gabls.nc"];
 for f in files
@@ -54,7 +50,7 @@ for f in files
         LHF = Array(timeseries["lhf_surface_mean"]) # Care with variable names across cases ()?
         (; z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF)
     end
-    UnPack.@unpack z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF = nt
+    z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF = nt
 
     function getval(X) # Consider only the last timestep
         X[:, end]
@@ -96,8 +92,8 @@ for f in files
     ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
     ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ_in, qt_in)
 
-    u_in = SVector{2, FT}(u_in, v_in)
-    u_sfc = SVector{2, FT}(u_sfc, v_sfc)
+    u_in = [u_in, v_in]
+    u_sfc = [u_sfc, v_sfc]
 
     state_sfc = SF.SurfaceValues(z_sfc, u_sfc, ts_sfc)
     state_in = SF.InteriorValues(z_in, u_in, ts_in)

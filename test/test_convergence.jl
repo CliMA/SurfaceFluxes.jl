@@ -11,7 +11,6 @@ const CP = CLIMAParameters
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
 using Statistics
-using StaticArrays
 using Thermodynamics
 using Thermodynamics.TemperatureProfiles
 using Thermodynamics.TestedProfiles
@@ -26,7 +25,7 @@ abstract type TestProfiles end
 struct DryProfiles <: TestProfiles end
 struct MoistEquilProfiles <: TestProfiles end
 
-function input_config(ArrayType; n = 2, n_RS1 = 2, n_RS2 = 2, T_surface = 290, T_min = 150)
+function input_config(ArrayType; n = 5, n_RS1 = 5, n_RS2 = 5, T_surface = 290, T_min = 150)
     n_RS = n_RS1 + n_RS2
     z_range = ArrayType(range(0, stop = 80, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
@@ -38,8 +37,8 @@ end
 function generate_profiles(FT, ::DryProfiles; uf_type = UF.BusingerType())
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     param_set = create_parameters(toml_dict, uf_type)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    uft = SFP.universal_func_type(param_set)
+    thermo_params = SF.Parameters.thermodynamics_params(param_set)
+    uft = SF.Parameters.universal_func_type(param_set)
     profiles = collect(Thermodynamics.TestedProfiles.PhaseDryProfiles(thermo_params, Array{FT}))
     profiles_sfc = filter(p -> iszero(p.z), profiles)
     profiles_int = filter(p -> !iszero(p.z), profiles)
@@ -53,8 +52,8 @@ end
 function generate_profiles(FT, ::MoistEquilProfiles; uf_type = UF.BusingerType())
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     param_set = create_parameters(toml_dict, uf_type)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    uft = SFP.universal_func_type(param_set)
+    thermo_params = SF.Parameters.thermodynamics_params(param_set)
+    uft = SF.Parameters.universal_func_type(param_set)
     profiles = collect(Thermodynamics.TestedProfiles.PhaseEquilProfiles(thermo_params, Array{FT}))
     profiles_sfc = filter(p -> iszero(p.z), profiles)
     profiles_int = filter(p -> !iszero(p.z), profiles)
@@ -99,7 +98,7 @@ function check_over_dry_states(
                         if z0m / z0b >= FT(1e2) || z0b / z0m >= FT(1e2)
                             nothing
                         else
-                            thermo_params = SFP.thermodynamics_params(param_set)
+                            thermo_params = SF.Parameters.thermodynamics_params(param_set)
                             ts_sfc = Thermodynamics.PhaseDry{FT}(prof_sfc.e_int, prof_sfc.ρ)
                             ts_int = Thermodynamics.PhaseDry{FT}(prof_int.e_int, prof_int.ρ)
                             sc = assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
@@ -126,7 +125,13 @@ function check_over_dry_states(
                                 @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
                                 @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
                                 @test sign(
-                                    SF.compute_bstar(param_set, sfcc.L_MO, sc, SFP.universal_func_type(param_set), sch),
+                                    SF.compute_bstar(
+                                        param_set,
+                                        sfcc.L_MO,
+                                        sc,
+                                        SF.Parameters.universal_func_type(param_set),
+                                        sch,
+                                    ),
                                 ) == sign(ΔDSEᵥ)
                                 @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
                             end
@@ -160,7 +165,7 @@ function check_over_moist_states(
                         if z0m / z0b >= FT(1e2) || z0b / z0m >= FT(1e2)
                             nothing
                         else
-                            thermo_params = SFP.thermodynamics_params(param_set)
+                            thermo_params = SF.Parameters.thermodynamics_params(param_set)
                             ts_sfc = Thermodynamics.PhaseEquil{FT}(
                                 prof_sfc.ρ,
                                 prof_sfc.p,
@@ -199,7 +204,13 @@ function check_over_moist_states(
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
                                 @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
                                 @test sign(
-                                    SF.compute_bstar(param_set, sfcc.L_MO, sc, SFP.universal_func_type(param_set), sch),
+                                    SF.compute_bstar(
+                                        param_set,
+                                        sfcc.L_MO,
+                                        sc,
+                                        SF.Parameters.universal_func_type(param_set),
+                                        sch,
+                                    ),
                                 ) == sign(ΔDSEᵥ)
                             end
                         end
@@ -221,7 +232,7 @@ end
                 z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
-                tol_neutral = FT(SFP.cp_d(param_set) / 10)
+                tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
                 for iteration_option in [false, true]
                     counter = check_over_dry_states(
                         param_set,

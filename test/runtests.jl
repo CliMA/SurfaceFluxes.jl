@@ -7,14 +7,15 @@ Random.seed!(1234)
 using Test
 import Thermodynamics
 using SurfaceFluxes
+using CLIMAParameters
 const SF = SurfaceFluxes
 const SFP = SF.Parameters
 using StaticArrays
 import KernelAbstractions: CPU
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FloatType = Float32;
-toml_dict = CP.create_toml_dict(FloatType; dict_type = "alias")
+FloatType = Float32;
+toml_dict = CLIMAParameters.create_toml_dict(FloatType; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
 thermo_params = SFP.thermodynamics_params(param_set)
 uft = SFP.universal_func_type(param_set)
