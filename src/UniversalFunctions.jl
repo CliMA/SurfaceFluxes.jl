@@ -136,10 +136,7 @@ function f_momentum(uf::Businger, ζ)
     return sqrt(sqrt(1 - FT(b_m(uf)) * ζ))
 end
 
-function f_heat(uf::Businger, ζ)
-    FT = eltype(uf)
-    return sqrt(1 - FT(b_h(uf)) * ζ)
-end
+f_heat(uf::Businger, ζ) = sqrt(1 - 9 * ζ)
 
 function phi(uf::Businger, ζ, ::MomentumTransport)
     if ζ < 0
