@@ -862,50 +862,8 @@ function compute_physical_scale_coeff(
     return _π_group⁻¹ * von_karman_const / Σterms
 end
 
-# """
-#     recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme)
-
-# Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
-# ## Arguments
-#   - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-#   - sc: Container for surface conditions based on known combination
-#         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-#   - L_MO: Monin-Obukhov length
-#   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-#   - X_sfc: For variable X, values at interior and surface nodes
-#   - X_star: For variable X, scale parameter
-#   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-#   - uft: A Universal Function type, (returned by, e.g., Businger())
-#   - scheme: Discretization scheme (currently supports FD and FV)
-
-# # TODO: add tests
-# """
-# function recover_profile(
-#     param_set::APS,
-#     sc::AbstractSurfaceConditions,
-#     L_MO::FT,
-#     Z,
-#     X_sfc,
-#     X_star,
-#     transport,
-#     uft::UF.AUFT,
-#     scheme::Union{FVScheme, FDScheme},
-# ) where {FT}
-#     @assert isless.(Z, z_in(sc))
-#     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
-#     von_karman_const::FT = SFP.von_karman_const(param_set)
-#     _π_group = FT(UF.π_group(uf, transport))
-#     _π_group⁻¹ = (1 / _π_group)
-#     num1 = log(Z / z0(sc, transport))
-#     num2 = -UF.psi(uf, Z / L_MO, transport)
-#     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
-#     Σnum = num1 + num2 + num3
-#     ΔX = X_in - X_sfc
-#     return Σnum * X_star / von_karman_const + X_sfc
-# end
-
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, X_star, transport, uft, scheme)
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, X_star, transport, uft, scheme)
 
 Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
 ## Arguments
@@ -914,7 +872,7 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in, X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at interior and surface nodes
   - X_star: For variable X, scale parameter
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
@@ -927,7 +885,6 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO::FT,
     Z,
-    X_in,
     X_sfc,
     X_star,
     transport,
@@ -943,7 +900,6 @@ function recover_profile(
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
-    ΔX = X_in - X_sfc
     return Σnum * X_star / von_karman_const + X_sfc
 end
 
