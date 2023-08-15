@@ -416,32 +416,31 @@ function obukhov_length(
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
-                # KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-                # KA.@print(" T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-                # KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-                # KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-                # KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-                # KA.@print(", u_in = ", u_in(sc))
-                # KA.@print(", u_sfc = ", u_sfc(sc))
-                # KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
-                # KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
-                # KA.@print(", Δz = ", Δz(sc))
-                # KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
-                # KA.@print("\n")
-                # KA.@print("ts_in(sc) = ", ts_in(sc))
-                # KA.@print("\n")
-                # KA.@print("ts_sfc(sc) = ", ts_sfc(sc))
-                # KA.@print("\n")
-                # if soltype isa RS.CompactSolution
-                #     KA.@print(", sol.root = ", sol.root)
-                # else
-                #     KA.@print(", sol.root_history = ", sol.root_history)
-                #     KA.@print(", sol.err_history = ", sol.err_history)
-                # end
+                KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
+                KA.@print(" T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+                KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+                KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+                KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+                KA.@print(", u_in = ", u_in(sc))
+                KA.@print(", u_sfc = ", u_sfc(sc))
+                KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
+                KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
+                KA.@print(", Δz = ", Δz(sc))
+                KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
+                KA.@print("\n")
+                KA.@print("ts_in(sc) = ", ts_in(sc))
+                KA.@print("\n")
+                KA.@print("ts_sfc(sc) = ", ts_sfc(sc))
+                KA.@print("\n")
+                if soltype isa RS.CompactSolution
+                    KA.@print(", sol.root = ", sol.root)
+                else
+                    KA.@print(", sol.root_history = ", sol.root_history)
+                    KA.@print(", sol.err_history = ", sol.err_history)
+                end
                 error("Unconverged Surface Fluxes.")
             else
-                nothing
-                # KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
+                KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
             end
         end
         return non_zero(L_MO)
@@ -873,7 +872,8 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - L_MO: Monin-Obukhov length
   - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_in,X_sfc: For variable X, values at interior and surface nodes
+  - X_sfc: For variable X, values at interior and surface nodes
+  - X_star: For variable X, scale parameter
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
@@ -885,8 +885,8 @@ function recover_profile(
     sc::AbstractSurfaceConditions,
     L_MO,
     Z,
-    X_in,
     X_sfc,
+    X_star,
     transport,
     uft::UF.AUFT,
     scheme::Union{FVScheme, FDScheme},
@@ -901,7 +901,7 @@ function recover_profile(
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
     ΔX = X_in - X_sfc
-    return Σnum * compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme) * _π_group⁻¹ * ΔX + X_sfc
+    return Σnum * X_star / von_karman_const + X_sfc
 end
 
 end # SurfaceFluxes module
