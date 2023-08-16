@@ -8,6 +8,7 @@ universal functions:
  - `Gryanik`
  - `Grachev`
  - 'Cheng'
+ - `Beljaars`
  - `Holtslag`
 """
 module UniversalFunctions
@@ -740,6 +741,189 @@ function Psi(uf::Cheng, ζ, tt::MomentumTransport)
 end
 
 #####
+##### Beljaars
+#####
+
+Base.@kwdef struct BeljaarsParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    Pr_0::FT
+    a_m::FT
+    a_h::FT
+    b_m::FT
+    b_h::FT
+    c_m::FT
+    c_h::FT
+    d_m::FT
+    d_h::FT
+    ζ_a::FT
+    γ::FT
+end
+
+"""
+    Beljaars <: AbstractUniversalFunction{FT}
+
+# References
+ - [Beljaars1991](@cite)
+
+# Equations in reference:
+
+    `ϕ_m`: Derived from Eq. 28
+    `ϕ_h`: Derived from Eq. 32
+    `ψ_m`: Eq. 28
+    `ψ_h`: Eq. 32
+
+# Beljaars and Holtslag (1991) functions are used in stable conditions
+# In unstable conditions the functions of Businger (1971) are 
+# assigned by default. 
+
+# Fields
+
+$(DSE.FIELDS)
+"""
+struct Beljaars{FT, PS <: BeljaarsParams} <: AbstractUniversalFunction{FT}
+    "Monin-Obhukov Length"
+    L::FT
+    params::PS
+end
+
+struct BeljaarsType <: AbstractUniversalFunctionType end
+Beljaars() = BeljaarsType()
+
+# Nishizawa2018 Eq. A7
+f_momentum(uf::Beljaars, ζ) = sqrt(sqrt(1 - 15 * ζ))
+
+# Nishizawa2018 Eq. A8
+f_heat(uf::Beljaars, ζ) = sqrt(1 - 9 * ζ)
+
+function phi(uf::Beljaars, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Derived from Beljaars1991 Eq. 28
+        _a_m = FT(a_m(uf))
+        _b_m = FT(b_m(uf))
+        _c_m = FT(c_m(uf))
+        _d_m = FT(d_m(uf))
+        _π_group = FT(π_group(uf, tt))
+
+        first_exp = _b_m * exp(-_d_m * ζ)
+        second_exp = -_b_m * _d_m * exp(-_d_m * ζ) * (ζ - _c_m / _d_m)
+
+        return _π_group + ζ * (_a_m + first_exp + second_exp)
+    else
+        # Nishizawa2018 Eq. A1 (L < 0)
+        f_m = f_momentum(uf, ζ)
+        return 1 / f_m
+    end
+end
+
+function phi(uf::Beljaars, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Derived from Beljaars1991 Eq. 32
+        _a_h = FT(a_h(uf))
+        _b_h = FT(b_h(uf))
+        _c_h = FT(c_h(uf))
+        _d_h = FT(d_h(uf))
+        _π_group = FT(π_group(uf, tt))
+
+        first_exp = _b_h * exp(-_d_h * ζ)
+        second_exp = -_b_h * _d_h * exp(-_d_h * ζ) * (ζ - _c_h / _d_h)
+        sqrt_term = _a_h * sqrt(2 * _a_h * ζ / 3 + 1)
+
+        return _π_group + ζ * (first_exp + second_exp + sqrt_term)
+    else
+        # Nishizawa2018 Eq. A2 (L < 0)
+        f_h = f_heat(uf, ζ)
+        return 1 / f_h
+    end
+end
+
+function psi(uf::Beljaars, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Beljaars1991 Eq. 28
+        _a_m = FT(a_m(uf))
+        _b_m = FT(b_m(uf))
+        _c_m = FT(c_m(uf))
+        _d_m = FT(d_m(uf))
+
+        return -_a_m * ζ - _b_m * (ζ - _c_m / _d_m) * exp(-_d_m * ζ) - _b_m * _c_m / _d_m
+    else
+        # Nishizawa2018 Eq. A3 (ζ < 0)
+        f_m = f_momentum(uf, ζ)
+        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
+        return log_term - 2 * atan(f_m) + FT(π) / 2
+    end
+end
+
+function psi(uf::Beljaars, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    if 0 < ζ
+        # Beljaars1991 Eq. 32
+        _a_h = FT(a_h(uf))
+        _b_h = FT(b_h(uf))
+        _c_h = FT(c_h(uf))
+        _d_h = FT(d_h(uf))
+
+        power_term = -(1 + 2 * _a_h * ζ / 3)^(FT(3 / 2))
+        exp_term = -_b_h * (ζ - _c_h / _d_h) * exp(-_d_h * ζ)
+        const_term = -_b_h * _c_h / _d_h
+
+        return power_term + 1 + exp_term + const_term
+
+    else
+        # Nishizawa2018 Eq. A4 (ζ < 0)
+        f_h = f_heat(uf, ζ)
+        return 2 * log((1 + f_h) / 2)
+    end
+end
+
+function Psi(uf::Beljaars, ζ, tt::MomentumTransport)
+    FT = eltype(uf)
+    _a_m = FT(a_m(uf))
+    _b_m = FT(b_m(uf))
+    _c_m = FT(c_m(uf))
+    _d_m = FT(d_m(uf))
+    if ζ >= 0
+        # Volume-averaged form of Beljaars1991 Eq. 28
+        exp_term1 = _c_m * ((1 - exp(-_d_m * ζ)) / (ζ * _d_m^2) - 1 / _d_m)
+        exp_term2 = (exp(-_d_m * ζ) - 1) / (ζ * _d_m^2)
+        exp_term3 = exp(-_d_m * ζ) / _d_m
+        return _b_m * (exp_term1 + exp_term2 + exp_term3) - _a_m * ζ / 2
+    elseif abs(ζ) < eps(FT) && ζ < 0
+        # Nishizawa2018 Eq. A13 (ζ < 0)
+        return -FT(15) * ζ / FT(8)
+    else
+        # Nishizawa2018 Eq. A5 (ζ < 0)
+        return -FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2) - FT(1)
+    end
+end
+
+function Psi(uf::Beljaars, ζ, tt::HeatTransport)
+    FT = eltype(uf)
+    _a_h = FT(a_h(uf))
+    _b_h = FT(b_h(uf))
+    _c_h = FT(c_h(uf))
+    _d_h = FT(d_h(uf))
+    if ζ >= 0
+        # Volume-averaged form of Beljaars1991 Eq. 32
+        sqrt_term = ((3^(FT(1 / 2))) * (2 * _a_h * ζ + 3)^(FT(5 / 2)) - 27) / (45 * _a_h)
+        exp_term1 = _b_h * _c_h * (exp(-_d_h * ζ) - 1) / (_d_h^2)
+        linear_term = ζ * (_b_h * _c_h / _d_h - 1)
+        exp_term2 = _b_h * (1 - exp(-_d_h * ζ) * (_d_h * ζ + 1)) / (_d_h^2)
+        return (-1 / ζ) * (sqrt_term + exp_term1 + linear_term + exp_term2)
+    elseif abs(ζ) < eps(FT) && ζ < 0
+        # Nishizawa2018 Eq. A14 (ζ < 0)
+        return -9 * ζ / 4
+    else
+        # Nishizawa2018 Eq. A6 (ζ < 0)
+        f_h = f_heat(uf, ζ)
+        log_term = 2 * log((1 + f_h) / 2)
+        return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+    end
+end
+
+
+#####
 ##### Holtslag
 #####
 
@@ -923,12 +1107,14 @@ universal_func(::BusingerType, L_MO::Real, params::BusingerParams) = Businger(L_
 universal_func(::GryanikType, L_MO::Real, params::GryanikParams) = Gryanik(L_MO, params)
 universal_func(::GrachevType, L_MO::Real, params::GrachevParams) = Grachev(L_MO, params)
 universal_func(::ChengType, L_MO::Real, params::ChengParams) = Cheng(L_MO, params)
+universal_func(::BeljaarsType, L_MO::Real, params::BeljaarsParams) = Beljaars(L_MO, params)
 universal_func(::HoltslagType, L_MO::Real, params::HoltslagParams) = Holtslag(L_MO, params)
 
 universal_func_type(::Type{T}) where {T <: BusingerParams} = BusingerType()
 universal_func_type(::Type{T}) where {T <: GryanikParams} = GryanikType()
 universal_func_type(::Type{T}) where {T <: GrachevParams} = GrachevType()
 universal_func_type(::Type{T}) where {T <: ChengParams} = ChengType()
+universal_func_type(::Type{T}) where {T <: BeljaarsParams} = Beljaars()
 universal_func_type(::Type{T}) where {T <: HoltslagParams} = HoltslagType()
 
 end # module
