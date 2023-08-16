@@ -124,7 +124,7 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
     @testset "Vanishes at Zero" begin
         FT = Float32
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.GrachevType())
+            for uft in (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.ChengType(), UF.BeljaarsType(), UF.HoltslagType())
                 for transport in (UF.HeatTransport(), UF.MomentumTransport())
                     uf = universal_functions(uft, L)
                     Ψ_0 = UF.psi(uf, FT(0), transport)
@@ -143,7 +143,7 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
             for L in (-FT(10), FT(10))
                 for ζ in ζ_array
                     for uft in
-                        (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.HoltslagType(), UF.ChengType())
+                        (UF.GryanikType(), UF.GrachevType(), UF.BusingerType(), UF.HoltslagType(), UF.ChengType(), UF.BeljaarsType())
                         uf = universal_functions(uft, L)
                         for transport in (UF.MomentumTransport(), UF.HeatTransport())
                             # Compute ψ via numerical integration of 𝒻(ϕ(ζ))
