@@ -212,7 +212,8 @@ function check_over_moist_states(
 end
 
 @testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
-    for uf_type in [UF.BusingerType(), UF.GryanikType(), UF.GrachevType(), UF.ChengType(), UF.HoltslagType()]
+    for uf_type in
+        [UF.BusingerType(), UF.GryanikType(), UF.GrachevType(), UF.BeljaarsType(), UF.HoltslagType(), UF.ChengType()]
         for FT in [Float32, Float64]
             for profile_type in [DryProfiles(), MoistEquilProfiles()]
                 profiles_sfc, profiles_int = generate_profiles(FT, profile_type; uf_type = uf_type)
@@ -250,6 +251,6 @@ end
             end
         end
     end
-    @info "Tested Businger/Gryanik/Grachev/Cheng/Holtslag u.f., Float32/Float64, Dry/EquilMoist profiles, non-iterative solver on/off"
+    @info "Tested Businger/Gryanik/Grachev/Cheng/Beljaars/Holtslag u.f., Float32/Float64, Dry/EquilMoist profiles, non-iterative solver on/off"
 
 end
