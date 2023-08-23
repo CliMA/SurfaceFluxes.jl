@@ -37,6 +37,9 @@ SurfaceFluxes.UniversalFunctions
 SurfaceFluxes.UniversalFunctions.Gryanik
 SurfaceFluxes.UniversalFunctions.Grachev
 SurfaceFluxes.UniversalFunctions.Businger
+SurfaceFluxes.UniversalFunctions.Beljaars
+SurfaceFluxes.UniversalFunctions.Cheng
+SurfaceFluxes.UniversalFunctions.Holtslag
 ```
 
 ```@docs
