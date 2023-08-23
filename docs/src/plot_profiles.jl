@@ -115,12 +115,12 @@ function save_profile(
         uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
         _π_group = FT(UF.π_group(uf, transport))
 
-        Δx = @. (x_i - X_sfc) #/ (_π_group * x_star)
+        Δx = @. (x_i - X_sfc) 
 
         Plots.plot!(Δx, Z, label = "L_MO = $L_MO")
         Plots.plot!(; title, xlabel, ylabel, ylims, xlims, grid = :off, legend = :outerright, titlefontalign = :center)
 
-        Plots.savefig("$(fig_prefix)_profile.svg")
+        Plots.savefig("$(fig_prefix)_profile.png")
     end
 end
 
