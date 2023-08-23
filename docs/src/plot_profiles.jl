@@ -1,6 +1,6 @@
 using Plots
 
-import SurfaceFluxes
+using SurfaceFluxes
 const SF = SurfaceFluxes
 SurfaceFluxes.error_on_non_convergence() = true
 
@@ -9,7 +9,7 @@ import Thermodynamics
 Thermodynamics.print_warning() = false
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const SFP = SF.Parameters
+const SFP = SurfaceFluxes.Parameters
 const FT = Float64;
 
 ### Generate parameter lists
@@ -54,9 +54,9 @@ q_sfc = FT(0.0107) # kg/kg
 θ_sfc = FT(289.7) # K
 ts_sfc_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 99340.0, 289.7, 0.0107)
 ts_int_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 95342.0, 298.0, 0.0085)
-state_in = SF.InteriorValues(FT(100), (FT(1.0), FT(0)), ts_int_test)
-state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+state_in = SurfaceFluxes.InteriorValues(FT(100), (FT(1.0), FT(0)), ts_int_test)
+state_sfc = SurfaceFluxes.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
+sc = SurfaceFluxes.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
 ts_sfc_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 100000.0, 289.7, 0.0)
 ts_int_test = Thermodynamics.PhaseEquil_pθq(thermo_params, 99990.0, 298.0, 0.0)
 Z = collect(range(FT(d + 10^-10), stop = FT(100), length = 250))
@@ -79,18 +79,17 @@ Saves profiles of variable X given values of Z coordinates. Follows Nishizawa eq
   - rsl : Roughness Sublayer Formulation (e.g. NoRSL, PhysickRSL, DeRidderRSL)
   - x_star: characteristic scale for variable x
   - d: Displacement height (measure of the spatial lengthscale of the effect of the canopy roughness on near-wall turbulence)
-
 """
 function save_profile(
-    param_set::SF.APS,
-    sc::SF.AbstractSurfaceConditions,
+    param_set::SurfaceFluxes.APS,
+    sc::SurfaceFluxes.AbstractSurfaceConditions,
     L_MOs::Array{FT, 1},
     Z::Array{FT, 1},
     X_sfc,
     transport,
     uft::UF.AUFT,
-    scheme::Union{SF.FVScheme, SF.FDScheme},
-    rsl::SF.AbstractRoughnessSublayerType,
+    scheme::Union{SurfaceFluxes.FVScheme, SurfaceFluxes.FDScheme},
+    rsl::SurfaceFluxes.AbstractRoughnessSublayerType,
     x_star,
     d;
     title = nothing,
@@ -105,12 +104,12 @@ function save_profile(
     Plots.plot()
     for L_MO in L_MOs
         x_i = map(Z) do z
-            Zi = typeof(rsl) == SF.NoRSL ? FT(z - d) : FT(z)
-            state_in = SF.InteriorValues(FT(Zi), (FT(1.0), FT(0)), ts_int_test)
-            state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
-            sc = SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
-            rsc = SF.surface_conditions(param_set, sc, SF.FDScheme())
-            dx = SF.recover_profile(param_set, sc, L_MO, Zi, X_sfc, x_star, transport, uft, scheme, rsl)
+            Zi = typeof(rsl) == SurfaceFluxes.NoRSL ? FT(z - d) : FT(z)
+            state_in = SurfaceFluxes.InteriorValues(FT(Zi), (FT(1.0), FT(0)), ts_int_test)
+            state_sfc = SurfaceFluxes.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc_test)
+            sc = SurfaceFluxes.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+            rsc = SurfaceFluxes.surface_conditions(param_set, sc, SurfaceFluxes.FDScheme())
+            dx = SurfaceFluxes.recover_profile(param_set, sc, L_MO, Zi, X_sfc, x_star, transport, uft, scheme, rsl)
         end
 
         uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
@@ -145,7 +144,7 @@ save_profile(
     FT(0),
     UF.MomentumTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     PhysickRSL,
     u_star_unstable,
     d;
@@ -164,7 +163,7 @@ save_profile(
     FT(0),
     UF.MomentumTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     NoRSL,
     u_star_unstable,
     d;
@@ -183,7 +182,7 @@ save_profile(
     θ_sfc,
     UF.HeatTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     PhysickRSL,
     θ_star_unstable,
     d;
@@ -203,7 +202,7 @@ save_profile(
     θ_sfc,
     UF.HeatTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     NoRSL,
     θ_star_unstable,
     d;
@@ -223,7 +222,7 @@ save_profile(
     FT(0),
     UF.MomentumTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     PhysickRSL,
     u_star_stable,
     d;
@@ -242,7 +241,7 @@ save_profile(
     FT(0),
     UF.MomentumTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     NoRSL,
     u_star_stable,
     d;
@@ -261,7 +260,7 @@ save_profile(
     θ_sfc,
     UF.HeatTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     PhysickRSL,
     θ_star_stable,
     d;
@@ -281,7 +280,7 @@ save_profile(
     θ_sfc,
     UF.HeatTransport(),
     uft,
-    SF.FDScheme(),
+    SurfaceFluxes.FDScheme(),
     NoRSL,
     θ_star_stable,
     d;

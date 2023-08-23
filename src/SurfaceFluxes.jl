@@ -49,8 +49,6 @@ struct FDScheme <: SolverScheme end
 
 
 abstract type CanopyType end
-const CT = CanopyType
-
 struct SparseCanopy{FT} <: CanopyType
     d::FT
     z_star::FT
@@ -60,10 +58,7 @@ struct DenseCanopy{FT} <: CanopyType
     z_star::FT
 end
 
-
 abstract type AbstractRoughnessSublayerType end
-const ARST = AbstractRoughnessSublayerType
-
 struct NoRSL <: AbstractRoughnessSublayerType end
 struct PhysickRSL <: AbstractRoughnessSublayerType
     canopy::CanopyType
@@ -74,10 +69,6 @@ end
 struct HarmonRSL <: AbstractRoughnessSublayerType
     canopy::CanopyType
 end
-
-
-
-
 
 # Allow users to skip error on non-convergence
 # by importing:
