@@ -349,13 +349,7 @@ function obukhov_length end
 
 obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
-function non_zero(value::FT) where {FT}
-    if abs(value) < eps(FT)
-        return value + sqrt(eps(FT))
-    else
-        return value
-    end
-end
+non_zero(v::FT) where {FT} = abs(v) < eps(FT) ? v + sqrt(eps(FT)) : v
 
 function obukhov_length(
     param_set,
