@@ -995,7 +995,7 @@ function recover_profile(
         integral, error = quadgk(integrand, z, z_star)
         return integral
     end
-    rsl_physick = ψ_RSL_term(Z)
+    rsl_physick = ψ_RSL_term(Z+d)
     Σnum += rsl_physick
 
     return Σnum * X_star / von_karman_const + X_sfc
