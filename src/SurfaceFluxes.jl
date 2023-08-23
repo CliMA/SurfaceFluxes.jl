@@ -881,7 +881,7 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
 """
 function recover_profile(
     param_set::APS,
-    sc::AbstractSurfaceConditions,
+    sc::AbstractSurfaceConditions{FT},
     L_MO,
     Z,
     X_in,
