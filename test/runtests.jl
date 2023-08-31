@@ -103,6 +103,7 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
     Thermodynamics.Parameters.ThermodynamicsParameters{FloatType}(
         273.16f0,
         100000.0f0,
+        100000.0f0,
         1859.0f0,
         4181.0f0,
         2100.0f0,
