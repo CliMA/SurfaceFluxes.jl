@@ -184,6 +184,7 @@ end
     @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
 end
 
+
 @testset "Test profiles" begin
     include("test_profiles.jl")
 end
@@ -192,4 +193,7 @@ end
 end
 @testset "Test generated thermodynamic states" begin
     include("test_convergence.jl")
+end
+@testset "Test roughness sublayer profiles" begin
+    include("test_rsl.jl")
 end

@@ -12,7 +12,7 @@ import UnPack
 const TD = Thermodynamics
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FT = Float32;
+FT = Float32;
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
 thermo_params = SFP.thermodynamics_params(param_set)
