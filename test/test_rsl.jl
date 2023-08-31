@@ -85,7 +85,7 @@ Z = collect(range(FT(d + 0.1), stop = FT(100), length = 250))
                     PhysickRSL,
                 )
 
-                @test isapprox(du_ridder, du_physick, atol = 2.5)
+                @test isapprox(du_ridder, du_physick, rtol = 0.25)
             end
         end
     end
@@ -118,7 +118,7 @@ Z = collect(range(FT(d + 0.1), stop = FT(100), length = 250))
                     PhysickRSL,
                 )
 
-                @test isapprox(dθ_ridder, dθ_physick, atol = 2.5)
+                @test isapprox(dθ_ridder, dθ_physick, rtol = 0.25)
             end
         end
     end

@@ -1049,10 +1049,14 @@ function recover_profile(
     ## De Ridder (2010) RSL Term 
     function ψ_analytic(z)
         # TODO Move to ClimaParameters
-        # De Ridder Eq. 213
+        # De Ridder Eq. 13
 
         ν = FT(0.5)
-        μ = FT(2.59) # Momentum, μₕ = 0.95
+        if transport isa UF.MomentumTransport
+            μ = FT(2.59) # Momentum, μₕ = 0.95
+        elseif transport isa UF.HeatTransport
+            μ = FT(0.95) # Momentum, μₕ = 0.95
+        end
         λ = FT(1.5)
         return UF.phi(uf, z / L_MO * (1 + ν / (μ * z / z_star)), transport) *
                (1 / λ) *
