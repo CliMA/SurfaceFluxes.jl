@@ -7,13 +7,8 @@ steps:
     key: "init_cpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile()'"
-      - "julia --project -e 'using Pkg; Pkg.status()'"
-
-      - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.precompile()'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile()'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(); '"
 
     agents:
       config: cpu
@@ -40,7 +35,7 @@ steps:
 
   - label: "CPU tests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test()'"
+      - "julia --project=test --color=yes test/runtests.jl"
     agents:
       config: cpu
       queue: central
@@ -48,7 +43,7 @@ steps:
 
   - label: "GPU tests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
+      - "julia --project=test --color=yes test/runtests.jl CuArray"
     agents:
       config: gpu
       queue: central
