@@ -517,7 +517,7 @@ end
 
 Returns buoyancy star based on known friction velocity  and fluxes.
 """
-compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
+compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme) =
     -compute_buoyancy_flux(param_set, sc, scheme) / sc.ustar
 
 """
@@ -525,7 +525,7 @@ compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
 
 Return buoyancy star based on known fluxes.
 """
-compute_bstar(param_set, L_MO, sc::Fluxes, uft, scheme) =
+compute_bstar(param_set, L_MO, sc::Fluxes, uft::UF.AUFT, scheme) =
     -compute_buoyancy_flux(param_set, sc, scheme) / compute_ustar(param_set, L_MO, sc, uft, scheme)
 
 
