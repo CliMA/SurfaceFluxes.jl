@@ -14,7 +14,7 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 [compat]
 DocStringExtensions = "0.8, 0.9"
 KernelAbstractions = "0.5, 0.6, 0.7, 0.8, 0.9"
-RootSolvers = "0.2, 0.3"
+RootSolvers = "0.2, 0.3, 0.4"
 StaticArrays = "1"
 Thermodynamics = "0.11"
 julia = "1.6"
