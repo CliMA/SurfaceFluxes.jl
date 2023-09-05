@@ -21,17 +21,16 @@ uft = SFP.universal_func_type(param_set)
 
 const TD = Thermodynamics
 
-# FIXME: Refactor tests to work on GPUs as in `Thermodynamics.jl`
-#if get(ARGS, 1, "Array") == "CuArray"
-#    using CUDA
-#    import CUDAKernels: CUDADevice
-#    ArrayType = CUDA.CuArray
-#    CUDA.allowscalar(false)
-#    device(::T) where {T <: CuArray} = CUDADevice()
-#else
-ArrayType = Array
-device(::T) where {T <: Array} = CPU()
-#end
+if get(ARGS, 1, "Array") == "CuArray"
+    import CUDA
+    import CUDAKernels
+    ArrayType = CUDA.CuArray
+    CUDA.allowscalar(false)
+    device(::Type{T}) where {T <: CUDA.CuArray} = CUDAKernels.CUDADevice()
+else
+    ArrayType = Array
+    device(::Type{T}) where {T <: Array} = CK.CPU()
+end
 
 @show ArrayType
 
