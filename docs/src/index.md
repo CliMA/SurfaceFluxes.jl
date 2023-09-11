@@ -7,8 +7,7 @@ SurfaceFluxes
 ## Core input types
 
 ```@docs
-SurfaceFluxes.SurfaceValues
-SurfaceFluxes.InteriorValues
+SurfaceFluxes.StateValues
 ```
 
 ## Dispatch types
