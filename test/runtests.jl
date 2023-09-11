@@ -9,8 +9,6 @@ import Thermodynamics
 using SurfaceFluxes
 const SF = SurfaceFluxes
 const SFP = SF.Parameters
-using StaticArrays
-import KernelAbstractions: CPU
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 const FloatType = Float32;
@@ -64,8 +62,8 @@ ArrayType = Array
         ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc[ii], qt_sfc)
         ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ[ii], qt_in)
 
-        state_sfc = SF.SurfaceValues(FloatType(0), SVector{2, FloatType}(0, 0), ts_sfc)
-        state_in = SF.InteriorValues(z[ii], SVector{2, FloatType}(speed[ii], 0), ts_in)
+        state_sfc = SF.SurfaceValues(FloatType(0), FloatType[0, 0], ts_sfc)
+        state_in = SF.InteriorValues(z[ii], FloatType[speed[ii], 0], ts_in)
 
         # State containers
         kwargs = (; state_in, state_sfc, z0m = z0[ii], z0b = FloatType(0.001))

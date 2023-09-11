@@ -16,20 +16,16 @@
 """
 module SurfaceFluxes
 
+using CUDA
+
 import RootSolvers
 const RS = RootSolvers
-
-import KernelAbstractions
-const KA = KernelAbstractions
 
 using DocStringExtensions
 const DSE = DocStringExtensions
 
 import Thermodynamics
 const TD = Thermodynamics
-
-import StaticArrays
-const SA = StaticArrays
 
 include("UniversalFunctions.jl")
 import .UniversalFunctions
@@ -410,31 +406,31 @@ function obukhov_length(
         L_MO = sol.root
         if !sol.converged
             if error_on_non_convergence()
-                KA.@print("maxiter reached in SurfaceFluxes.jl:\n")
-                KA.@print(" T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
-                KA.@print(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
-                KA.@print(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
-                KA.@print(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
-                KA.@print(", u_in = ", u_in(sc))
-                KA.@print(", u_sfc = ", u_sfc(sc))
-                KA.@print(", z0_m = ", z0(sc, UF.MomentumTransport()))
-                KA.@print(", z0_b = ", z0(sc, UF.HeatTransport()))
-                KA.@print(", Δz = ", Δz(sc))
-                KA.@print(", ΔDSEᵥ = ", ΔDSEᵥ)
-                KA.@print("\n")
-                KA.@print("ts_in(sc) = ", ts_in(sc))
-                KA.@print("\n")
-                KA.@print("ts_sfc(sc) = ", ts_sfc(sc))
-                KA.@print("\n")
+                CUDA.@cuprintf("maxiter reached in SurfaceFluxes.jl:\n")
+                CUDA.@cuprintf(" T_in = ", TD.air_temperature(thermo_params, ts_in(sc)))
+                CUDA.@cuprintf(", T_sfc = ", TD.air_temperature(thermo_params, ts_sfc(sc)))
+                CUDA.@cuprintf(", q_in = ", TD.total_specific_humidity(thermo_params, ts_in(sc)))
+                CUDA.@cuprintf(", q_sfc = ", TD.total_specific_humidity(thermo_params, ts_sfc(sc)))
+                CUDA.@cuprintf(", u_in = ", u_in(sc))
+                CUDA.@cuprintf(", u_sfc = ", u_sfc(sc))
+                CUDA.@cuprintf(", z0_m = ", z0(sc, UF.MomentumTransport()))
+                CUDA.@cuprintf(", z0_b = ", z0(sc, UF.HeatTransport()))
+                CUDA.@cuprintf(", Δz = ", Δz(sc))
+                CUDA.@cuprintf(", ΔDSEᵥ = ", ΔDSEᵥ)
+                CUDA.@cuprintf("\n")
+                CUDA.@cuprintf("ts_in(sc) = ", ts_in(sc))
+                CUDA.@cuprintf("\n")
+                CUDA.@cuprintf("ts_sfc(sc) = ", ts_sfc(sc))
+                CUDA.@cuprintf("\n")
                 if soltype isa RS.CompactSolution
-                    KA.@print(", sol.root = ", sol.root)
+                    CUDA.@cuprintf(", sol.root = ", sol.root)
                 else
-                    KA.@print(", sol.root_history = ", sol.root_history)
-                    KA.@print(", sol.err_history = ", sol.err_history)
+                    CUDA.@cuprintf(", sol.root_history = ", sol.root_history)
+                    CUDA.@cuprintf(", sol.err_history = ", sol.err_history)
                 end
                 error("Unconverged Surface Fluxes.")
             else
-                KA.@print("Warning: Unconverged Surface Fluxes. Returning last interation.")
+                CUDA.@cuprintf("Warning: Unconverged Surface Fluxes. Returning last interation.")
             end
         end
         return non_zero(L_MO)
