@@ -450,8 +450,17 @@ function obukhov_length(
                 compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
             return residual
         end
+        function root_and_deriv_ζ(ζ)
+            residual =
+                compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
+                compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
+            deriv = compute_∂Ri∂ζ(param_set, sc, uft, scheme, non_zero(ζ))
+            return residual,deriv
+        end
         ζ₀ = FT(sign(ΔDSEᵥ))
         sol = RS.find_zero(root_ζ, RS.NewtonsMethodAD(ζ₀), soltype, tol, maxiter)
+        sol2 = RS.find_zero(root_and_deriv_ζ, RS.NewtonsMethod(ζ₀), soltype, tol, maxiter)
+        @show sol.root, sol2.root
         L_MO = Δz(sc) / sol.root
         if !sol.converged
             if error_on_non_convergence()
