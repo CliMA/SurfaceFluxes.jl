@@ -361,23 +361,17 @@ function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, s
     ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     dz = Δz(sc)
     z0m = z0(sc, UF.MomentumTransport())
     z0h = z0(sc, UF.HeatTransport())
     ufₛ = UF.universal_func(uft, Δz(sc) / ζ, SFP.uf_params(param_set))
-    ψₘ = UF.psi(ufₛ, ζ, UF.MomentumTransport())
-    ψₕ = UF.psi(ufₛ, ζ, UF.HeatTransport())
-    ψₘ₀ = UF.psi(ufₛ, z0m * ζ / dz, UF.MomentumTransport())
-    ψₕ₀ = UF.psi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
     ϕₘ = UF.phi(ufₛ, ζ, UF.MomentumTransport())
     ϕₕ = UF.phi(ufₛ, ζ, UF.HeatTransport())
     ϕₘ₀ = UF.phi(ufₛ, z0m * ζ / dz, UF.MomentumTransport())
     ϕₕ₀ = UF.phi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
-    F_m = log(dz / z0m) - ψₘ + ψₘ₀
-    F_h = log(dz / z0h) - ψₕ + ψₕ₀
-    Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
+    F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
+    F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
+    Ri_b = compute_Ri_b(param_set, sc, uft, scheme, ζ)
     ∂Ri∂ζ = Ri_b / ζ * (1 + 1 / F_h * (ϕₕ - ϕₕ₀) - 2 * (ϕₘ - ϕₘ₀) * (1 / F_m))
 end
 
@@ -389,9 +383,9 @@ function compute_Ri_b(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme,
     # in terms of the virtual dry static energy
     ufparams = SFP.uf_params(param_set)
     ufₛ = UF.universal_func(uft, Δz(sc) / ζ, ufparams)
-    F_m = compute_physical_scale_coeff(param_set, sc, ufₛ.L, UF.MomentumTransport(), uft, scheme)
-    F_h = compute_physical_scale_coeff(param_set, sc, ufₛ.L, UF.HeatTransport(), uft, scheme)
-    return ζ * F_h * 1 / F_m^2
+    F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
+    F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
+    return ζ*F_h*1/F_m^2
 end
 
 function obukhov_length(
@@ -455,12 +449,15 @@ function obukhov_length(
                 compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
                 compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
             deriv = compute_∂Ri∂ζ(param_set, sc, uft, scheme, non_zero(ζ))
-            return residual,deriv
+            return residual, deriv
         end
         ζ₀ = FT(sign(ΔDSEᵥ))
+        maxiter = 150
         sol = RS.find_zero(root_ζ, RS.NewtonsMethodAD(ζ₀), soltype, tol, maxiter)
         sol2 = RS.find_zero(root_and_deriv_ζ, RS.NewtonsMethod(ζ₀), soltype, tol, maxiter)
-        @show sol.root, sol2.root
+        sol3 = RS.find_zero(root_ζ, RS.SecantMethod(-100ζ₀, 100ζ₀), soltype, tol, maxiter)
+        sol4 = RS.find_zero(root_ζ, RS.RegulaFalsiMethod(-100ζ₀, 100ζ₀), soltype, tol, maxiter)
+        @show sol.root, sol2.root, sol3.root, sol4.root
         L_MO = Δz(sc) / sol.root
         if !sol.converged
             if error_on_non_convergence()
@@ -816,6 +813,7 @@ function evaporation(param_set, sc::Union{ValuesOnly, Coefficients}, Ch)
 end
 
 
+
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FVScheme)
 
@@ -853,11 +851,28 @@ function compute_physical_scale_coeff(
 end
 
 
+
+"""
+    compute_Fₘₕ(sc::AbstractSurfaceConditions, L_MO::FT, uft, transport)
+Compute the Fₘ, Fₕ coefficients following Bonan(2019)
+"""
+function compute_Fₘₕ(
+    sc::AbstractSurfaceConditions, 
+    L_MO::FT, 
+    uf::UF.AbstractUniversalFunction, 
+    transport
+) where {FT}
+    A₁ = log(Δz(sc) / z0(sc, transport))
+    A₂ = -UF.psi(uf, Δz(sc) / L_MO, transport)
+    A₃ = UF.psi(uf, z0(sc, transport) / L_MO, transport)
+    return A₁ + A₂ + A₃
+end
+
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FDScheme)
 
 Computes the coefficient for the physical scale of a variable based on Byun(1990)
-for the Finite Differneces scheme.
+for the Finite Difference scheme.
 
 ## Arguments
   - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
@@ -880,11 +895,7 @@ function compute_physical_scale_coeff(
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
-    denom1 = log(Δz(sc) / z0(sc, transport))
-    denom2 = -UF.psi(uf, Δz(sc) / uf.L, transport)
-    denom3 = UF.psi(uf, z0(sc, transport) / uf.L, transport)
-    Σterms = denom1 + denom2 + denom3
-    return _π_group⁻¹ * von_karman_const / Σterms
+    return _π_group⁻¹ * von_karman_const / compute_Fₘₕ(sc, L_MO, uf, transport)
 end
 
 """
