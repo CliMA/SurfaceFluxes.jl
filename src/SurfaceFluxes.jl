@@ -16,7 +16,6 @@
 """
 module SurfaceFluxes
 
-
 import RootSolvers
 const RS = RootSolvers
 
@@ -257,7 +256,7 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = FVScheme();
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
+        tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -286,14 +285,15 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FVScheme();
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
+    solver_method::RS.RootSolvingMethod=RS.NewtonsMethodAD(FT(1)),
+    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = false,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
+    L_MO = obukhov_length(param_set, sc, uft, scheme; solver_method, tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
@@ -313,7 +313,7 @@ end
         sc::AbstractSurfaceConditions,
         uft,
         scheme;
-        tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
+        tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
@@ -356,11 +356,8 @@ end
 
 function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ::FT) where {FT}
     # In this design, this ∂Ri∂ζ function is intended to be an 
-    # internal function to support the Newton iteration scheme
-    thermo_params = SFP.thermodynamics_params(param_set)
+    # internal function to support the Newton iteration scheme.
     ufparams = SFP.uf_params(param_set)
-    grav = SFP.grav(param_set)
-    cp_d = SFP.cp_d(param_set)
     dz = Δz(sc)
     z0m = z0(sc, UF.MomentumTransport())
     z0h = z0(sc, UF.HeatTransport())
@@ -372,20 +369,17 @@ function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, s
     F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
     F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
     Ri_b = compute_Ri_b(param_set, sc, uft, scheme, ζ)
-    ∂Ri∂ζ = Ri_b / ζ * (1 + 1 / F_h * (ϕₕ - ϕₕ₀) - 2 * (ϕₘ - ϕₘ₀) * (1 / F_m))
+    ∂Ri∂ζ = Ri_b/ζ * (1+(ϕₕ-ϕₕ₀)/F_h-2*(ϕₘ-ϕₘ₀)/F_m)
 end
 
 function compute_Ri_b(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ) where {FT}
-    #TODO: Fix code duplication
-    # In this design, if a user knows ζ, they may use it 
-    # to compute the bulk Richardson number. This may be used 
-    # to compute the Lₘₒ based on the definition of the Bulk-Richardson number 
-    # in terms of the virtual dry static energy
+    # If a user knows ζ, they may use it 
+    # to compute the bulk Richardson number.
     ufparams = SFP.uf_params(param_set)
-    ufₛ = UF.universal_func(uft, Δz(sc) / ζ, ufparams)
+    ufₛ = UF.universal_func(uft, Δz(sc)/ζ, ufparams)
     F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
     F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
-    return ζ*F_h*1/F_m^2
+    return ζ*F_h/F_m^2
 end
 
 function obukhov_length(
@@ -393,7 +387,8 @@ function obukhov_length(
     sc::AbstractSurfaceConditions{FT},
     uft::UF.AUFT,
     scheme;
-    tol::RS.AbstractTolerance = RS.RelativeOrAbsoluteSolutionTolerance(100eps(FT), 10eps(FT)),
+    solver_method::RS.RootSolvingMethod = RS.NewtonsMethodAD(FT(1)),
+    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
@@ -439,25 +434,20 @@ function obukhov_length(
         return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
     else
         function root_ζ(ζ)
-            residual =
+            f =
                 compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
                 compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
-            return residual
+            return f  
         end
         function root_and_deriv_ζ(ζ)
-            residual =
+            f =
                 compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
                 compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
-            deriv = compute_∂Ri∂ζ(param_set, sc, uft, scheme, non_zero(ζ))
-            return residual, deriv
+            f′= -compute_∂Ri∂ζ(param_set, sc, uft, scheme, non_zero(ζ))
+            return (f,f′)
         end
         ζ₀ = FT(sign(ΔDSEᵥ))
-        maxiter = 150
-        sol = RS.find_zero(root_ζ, RS.NewtonsMethodAD(ζ₀), soltype, tol, maxiter)
-        sol2 = RS.find_zero(root_and_deriv_ζ, RS.NewtonsMethod(ζ₀), soltype, tol, maxiter)
-        sol3 = RS.find_zero(root_ζ, RS.SecantMethod(-100ζ₀, 100ζ₀), soltype, tol, maxiter)
-        sol4 = RS.find_zero(root_ζ, RS.RegulaFalsiMethod(-100ζ₀, 100ζ₀), soltype, tol, maxiter)
-        @show sol.root, sol2.root, sol3.root, sol4.root
+        sol = solver_method isa RS.NewtonsMethod ? RS.find_zero(root_and_deriv_ζ, solver_method, soltype, tol, maxiter) : RS.find_zero(root_ζ, solver_method, soltype, tol, maxiter)  
         L_MO = Δz(sc) / sol.root
         if !sol.converged
             if error_on_non_convergence()
@@ -858,13 +848,13 @@ Compute the Fₘ, Fₕ coefficients following Bonan(2019)
 """
 function compute_Fₘₕ(
     sc::AbstractSurfaceConditions, 
-    L_MO::FT, 
+    ζ::FT, 
     uf::UF.AbstractUniversalFunction, 
     transport
 ) where {FT}
     A₁ = log(Δz(sc) / z0(sc, transport))
-    A₂ = -UF.psi(uf, Δz(sc) / L_MO, transport)
-    A₃ = UF.psi(uf, z0(sc, transport) / L_MO, transport)
+    A₂ = -UF.psi(uf, ζ, transport)
+    A₃ = UF.psi(uf, ζ * z0(sc, transport) / Δz(sc), transport)
     return A₁ + A₂ + A₃
 end
 

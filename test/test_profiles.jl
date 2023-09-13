@@ -8,6 +8,7 @@ import Thermodynamics
 import ArtifactWrappers
 const AW = ArtifactWrappers
 const TD = Thermodynamics
+using RootSolvers
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 FT = Float32;
@@ -110,5 +111,14 @@ for f in files
     elseif f == "Gabls.nc"
         sc = SF.ValuesOnly{FT}(; kwargs...)
     end
-    result = SF.surface_conditions(param_set, sc)
+    sol_lmo = [];
+    maxiter = 20
+    ζ₀ = FT(1)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethod(FT(1)), maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethodAD(ζ₀),maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.SecantMethod(-100ζ₀, 100ζ₀),maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.RegulaFalsiMethod(-100ζ₀,100ζ₀),maxiter).L_MO)
+    for i=1:length(sol_lmo)
+        @test isapprox(sol_lmo[1], sol_lmo[i], atol=sol_lmo[1] / 1000)
+    end
 end
