@@ -32,8 +32,6 @@ PyCLES_output_dataset_path = AW.get_data_folder(PyCLES_output_dataset)
 
 files = ["DYCOMS_RF01.nc", "Bomex.nc", "Rico.nc", "Gabls.nc"];
 for f in files
-    @info "Casename: $f"
-
     nt = NC.NCDataset(joinpath(PyCLES_output_dataset_path, f), "r") do data
         prof = data.group["profiles"]
         timeseries = data.group["timeseries"]
@@ -112,9 +110,9 @@ for f in files
         sc = SF.ValuesOnly{FT}(; kwargs...)
     end
     sol_lmo = [];
-    maxiter = 20
-    ζ₀ = FT(1)
-    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethod(FT(1)), maxiter).L_MO)
+    maxiter = 10
+    ζ₀=FT(1)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethod(ζ₀), maxiter).L_MO)
     push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethodAD(ζ₀),maxiter).L_MO)
     push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.SecantMethod(-100ζ₀, 100ζ₀),maxiter).L_MO)
     push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.RegulaFalsiMethod(-100ζ₀,100ζ₀),maxiter).L_MO)

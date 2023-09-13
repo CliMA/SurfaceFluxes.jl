@@ -131,9 +131,9 @@ end
 @testset "Exercise container structs, evaluate and compare Lₘₒ across all available solver methods" begin
     include("test_profiles.jl")
 end
-#@testset "Test universal functions" begin
-#    include("test_universal_functions.jl")
-#end
+@testset "Test universal functions" begin
+    include("test_universal_functions.jl")
+end
 #@testset "Test generated thermodynamic states" begin
 #    include("test_convergence.jl")
 #end

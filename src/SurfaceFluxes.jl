@@ -255,7 +255,7 @@ end
     surface_conditions(
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
-        scheme::SurfaceFluxes.SolverScheme = FVScheme();
+        scheme::SurfaceFluxes.SolverScheme = FDScheme();
         tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
@@ -284,7 +284,7 @@ Result struct of type SurfaceFluxConditions{FT} contains:
 function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
-    scheme::SolverScheme = FVScheme();
+    scheme::SolverScheme = FDScheme();
     solver_method::RS.RootSolvingMethod=RS.NewtonsMethodAD(FT(1)),
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
