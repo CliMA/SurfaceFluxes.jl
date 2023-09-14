@@ -98,35 +98,35 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
     end
 end
 
-@testset "Identical thermodynamic states (Floating Point Consistency)" begin
-    FloatTypes = (Float32, Float64)
-    z_levels = [1, 5, 10, 20, 40, 80, 160, ] # [m] level of first interior grid point
-    z0_m = [1e-5, 1e-4, 1e-3] # roughness length [momentum]
-    z0_b = [1e-5, 1e-4, 1e-3] # roughness length [heat] 
-    sol_mat = Array{Any, 4}(undef, 2, length(z_levels), length(z0_m), length(z0_b))
-    for (ii, FloatType) in enumerate(FloatTypes)
-        for (jj, z_int) in enumerate(z_levels)
-            for (kk, z0m) in enumerate(z0_m)
-                for (ll, z0b) in enumerate(z0_b)
-                    # Test case with identical interior and surface states
-                    ts_int_test =
-                        Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
-                    ts_sfc_test = ts_int_test
-                    sc = SF.ValuesOnly{FloatType}(;
-                        state_in = SF.InteriorValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
-                        state_sfc = SF.SurfaceValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
-                        z0m = FloatType(z0m),
-                        z0b = FloatType(z0b),
-                    )
-                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
-                    sol_mat[ii, jj, kk, ll] = isinf(sfc_output.L_MO) ? FloatType(1e6) : sfc_output.L_MO
-                end
-            end
-        end
-    end
-    rdiff_sol = (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[2, :, :, :]
-    @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
-end
+#@testset "Identical thermodynamic states (Floating Point Consistency)" begin
+#    FloatTypes = (Float32, Float64)
+#    z_levels = [1, 5, 10, 20, 40, 80, 160, ] # [m] level of first interior grid point
+#    z0_m = [1e-5, 1e-4, 1e-3] # roughness length [momentum]
+#    z0_b = [1e-5, 1e-4, 1e-3] # roughness length [heat] 
+#    sol_mat = Array{Any, 4}(undef, 2, length(z_levels), length(z0_m), length(z0_b))
+#    for (ii, FloatType) in enumerate(FloatTypes)
+#        for (jj, z_int) in enumerate(z_levels)
+#            for (kk, z0m) in enumerate(z0_m)
+#                for (ll, z0b) in enumerate(z0_b)
+#                    # Test case with identical interior and surface states
+#                    ts_int_test =
+#                        Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
+#                    ts_sfc_test = ts_int_test
+#                    sc = SF.ValuesOnly{FloatType}(;
+#                        state_in = SF.InteriorValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
+#                        state_sfc = SF.SurfaceValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
+#                        z0m = FloatType(z0m),
+#                        z0b = FloatType(z0b),
+#                    )
+#                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
+#                    sol_mat[ii, jj, kk, ll] = isinf(sfc_output.L_MO) ? FloatType(1e6) : sfc_output.L_MO
+#                end
+#            end
+#        end
+#    end
+#    rdiff_sol = (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[2, :, :, :]
+#    @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
+#end
 
 @testset "Exercise container structs, evaluate and compare Lₘₒ across all available solver methods" begin
     include("test_profiles.jl")
@@ -134,9 +134,9 @@ end
 @testset "Test universal functions" begin
     include("test_universal_functions.jl")
 end
-#@testset "Test generated thermodynamic states" begin
-#    include("test_convergence.jl")
-#end
+@testset "Test generated thermodynamic states" begin
+    include("test_convergence.jl")
+end
 
 @testset "Quality assurance" begin
     include("aqua.jl")

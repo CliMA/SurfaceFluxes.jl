@@ -288,8 +288,8 @@ function surface_conditions(
     solver_method::RS.RootSolvingMethod=RS.NewtonsMethodAD(FT(1)),
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
-    maxiter::Int = 10,
-    soltype::RS.SolutionType = RS.CompactSolution(),
+    maxiter::Int = 100,
+    soltype::RS.SolutionType = RS.VerboseSolution(),
     noniterative_stable_sol::Bool = false,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
@@ -354,9 +354,13 @@ function compute_richardson_number(sc::AbstractSurfaceConditions{FT}, DSEᵥ_in,
     return (grav * z_in(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_sfc * (windspeed(sc))^2)
 end
 
+"""
+    compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions, uft::AbstractUniversalFunctionType, scheme::SolverScheme, ζ::FT)
+
+Compute and return the partial derivative of the bulk Richardson number with respect to the stability parameter ζ.
+Useful for Newton's method with explicit derivative prescription. 
+"""
 function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ::FT) where {FT}
-    # In this design, this ∂Ri∂ζ function is intended to be an 
-    # internal function to support the Newton iteration scheme.
     ufparams = SFP.uf_params(param_set)
     dz = Δz(sc)
     z0m = z0(sc, UF.MomentumTransport())
@@ -364,10 +368,10 @@ function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, s
     ufₛ = UF.universal_func(uft, Δz(sc) / ζ, SFP.uf_params(param_set))
     ϕₘ = UF.phi(ufₛ, ζ, UF.MomentumTransport())
     ϕₕ = UF.phi(ufₛ, ζ, UF.HeatTransport())
-    ϕₘ₀ = UF.phi(ufₛ, z0m * ζ / dz, UF.MomentumTransport())
-    ϕₕ₀ = UF.phi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
-    F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
-    F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
+    ϕₘ₀ = UF.phi(ufₛ, z0m*ζ/dz, UF.MomentumTransport())
+    ϕₕ₀ = UF.phi(ufₛ, z0h*ζ/dz, UF.HeatTransport())
+    F_m = compute_Fₘₕ(sc, ζ, ufₛ, UF.MomentumTransport())
+    F_h = compute_Fₘₕ(sc, ζ, ufₛ, UF.HeatTransport())
     Ri_b = compute_Ri_b(param_set, sc, uft, scheme, ζ)
     ∂Ri∂ζ = Ri_b/ζ * (1+(ϕₕ-ϕₕ₀)/F_h-2*(ϕₘ-ϕₘ₀)/F_m)
 end
@@ -377,8 +381,8 @@ function compute_Ri_b(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme,
     # to compute the bulk Richardson number.
     ufparams = SFP.uf_params(param_set)
     ufₛ = UF.universal_func(uft, Δz(sc)/ζ, ufparams)
-    F_m = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.MomentumTransport())
-    F_h = compute_Fₘₕ(sc, Δz(sc)/ζ, ufₛ, UF.HeatTransport())
+    F_m = compute_Fₘₕ(sc, ζ, ufₛ, UF.MomentumTransport())
+    F_h = compute_Fₘₕ(sc, ζ, ufₛ, UF.HeatTransport())
     return ζ*F_h/F_m^2
 end
 
@@ -802,7 +806,23 @@ function evaporation(param_set, sc::Union{ValuesOnly, Coefficients}, Ch)
     return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc) * sc.beta
 end
 
+"""
+    compute_Fₘₕ(sc::AbstractSurfaceConditions, ζ::FT, uft, transport)
 
+ζ = z / L_MO is the stability parameter.
+Compute the Fₘ, Fₕ coefficients following Bonan(2019).
+"""
+function compute_Fₘₕ(
+    sc::AbstractSurfaceConditions, 
+    ζ::FT, 
+    uf::UF.AbstractUniversalFunction, 
+    transport,
+) where {FT}
+    A₁ = log(Δz(sc) / z0(sc, transport))
+    A₂ = -UF.psi(uf, ζ, transport)
+    A₃ = UF.psi(uf, z0(sc, transport) / uf.L, transport)
+    return A₁ + A₂ + A₃
+end
 
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FVScheme)
@@ -840,24 +860,6 @@ function compute_physical_scale_coeff(
     return _π_group⁻¹ * von_karman_const / Σterms
 end
 
-
-
-"""
-    compute_Fₘₕ(sc::AbstractSurfaceConditions, L_MO::FT, uft, transport)
-Compute the Fₘ, Fₕ coefficients following Bonan(2019)
-"""
-function compute_Fₘₕ(
-    sc::AbstractSurfaceConditions, 
-    ζ::FT, 
-    uf::UF.AbstractUniversalFunction, 
-    transport
-) where {FT}
-    A₁ = log(Δz(sc) / z0(sc, transport))
-    A₂ = -UF.psi(uf, ζ, transport)
-    A₃ = UF.psi(uf, ζ * z0(sc, transport) / Δz(sc), transport)
-    return A₁ + A₂ + A₃
-end
-
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FDScheme)
 
@@ -885,7 +887,7 @@ function compute_physical_scale_coeff(
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     _π_group = FT(UF.π_group(uf, transport))
     _π_group⁻¹ = (1 / _π_group)
-    return _π_group⁻¹ * von_karman_const / compute_Fₘₕ(sc, L_MO, uf, transport)
+    return _π_group⁻¹ * von_karman_const / compute_Fₘₕ(sc, Δz(sc)/L_MO, uf, transport)
 end
 
 """
