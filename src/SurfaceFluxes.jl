@@ -285,7 +285,7 @@ function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = FDScheme();
-    solver_method::RS.RootSolvingMethod=RS.NewtonsMethodAD(FT(1)),
+    solver_method::RS.RootSolvingMethod=RS.NewtonsMethodAD(FT(-1)),
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.001)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 100,
@@ -349,8 +349,13 @@ obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
 non_zero(v::FT) where {FT} = abs(v) < eps(FT) ? v + sqrt(eps(FT)) : v
 
+"""
+    compute_Ri_b_from_DSEᵥ(sc::AbstractSurfaceConditions, DSEᵥ_in, DSEᵥ_sfc, grav)
 
-function compute_richardson_number(sc::AbstractSurfaceConditions{FT}, DSEᵥ_in, DSEᵥ_sfc, grav) where {FT}
+Given virtual dry static energy at the first interior cell, and at the surface, compute
+the bulk Richardson number.
+"""
+function compute_Ri_b_from_DSEᵥ(sc::AbstractSurfaceConditions{FT}, DSEᵥ_in, DSEᵥ_sfc, grav) where {FT}
     return (grav * z_in(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_sfc * (windspeed(sc))^2)
 end
 
@@ -368,17 +373,21 @@ function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, s
     ufₛ = UF.universal_func(uft, Δz(sc) / ζ, SFP.uf_params(param_set))
     ϕₘ = UF.phi(ufₛ, ζ, UF.MomentumTransport())
     ϕₕ = UF.phi(ufₛ, ζ, UF.HeatTransport())
-    ϕₘ₀ = UF.phi(ufₛ, z0m*ζ/dz, UF.MomentumTransport())
-    ϕₕ₀ = UF.phi(ufₛ, z0h*ζ/dz, UF.HeatTransport())
+    ϕₘ₀ = UF.phi(ufₛ, z0m * ζ/dz, UF.MomentumTransport())
+    ϕₕ₀ = UF.phi(ufₛ, z0h * ζ/dz, UF.HeatTransport())
     F_m = compute_Fₘₕ(sc, ζ, ufₛ, UF.MomentumTransport())
     F_h = compute_Fₘₕ(sc, ζ, ufₛ, UF.HeatTransport())
-    Ri_b = compute_Ri_b(param_set, sc, uft, scheme, ζ)
+    Ri_b = compute_Ri_b_from_ζ(param_set, sc, uft, scheme, ζ)
     ∂Ri∂ζ = Ri_b/ζ * (1+(ϕₕ-ϕₕ₀)/F_h-2*(ϕₘ-ϕₘ₀)/F_m)
 end
 
-function compute_Ri_b(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ) where {FT}
-    # If a user knows ζ, they may use it 
-    # to compute the bulk Richardson number.
+"""
+    compute_Ri_b_from_ζ(param_set, sc, uft, scheme, ζ)
+
+Compute and return the bulk Richardson number as a function of the stability parameter `ζ` and 
+surface conditions `sc`.
+"""
+function compute_Ri_b_from_ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ) where {FT}
     ufparams = SFP.uf_params(param_set)
     ufₛ = UF.universal_func(uft, Δz(sc)/ζ, ufparams)
     F_m = compute_Fₘₕ(sc, ζ, ufₛ, UF.MomentumTransport())
@@ -409,7 +418,7 @@ function obukhov_length(
         ### Analytical Solution 
         ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
-        Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
+        Ri_b = compute_Ri_b_from_DSEᵥ(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
         @assert Ri_b >= FT(0)
         ϵₘ = FT(Δz(sc) / z0(sc, UF.MomentumTransport()))
         ϵₕ = FT(Δz(sc) / z0(sc, UF.HeatTransport()))
@@ -439,18 +448,17 @@ function obukhov_length(
     else
         function root_ζ(ζ)
             f =
-                compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
-                compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
+                compute_Ri_b_from_DSEᵥ(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
+                compute_Ri_b_from_ζ(param_set, sc, uft, scheme, non_zero(ζ))
             return f  
         end
         function root_and_deriv_ζ(ζ)
             f =
-                compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
-                compute_Ri_b(param_set, sc, uft, scheme, non_zero(ζ))
+                compute_Ri_b_from_DSEᵥ(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
+                compute_Ri_b_from_ζ(param_set, sc, uft, scheme, non_zero(ζ))
             f′= -compute_∂Ri∂ζ(param_set, sc, uft, scheme, non_zero(ζ))
             return (f,f′)
         end
-        ζ₀ = FT(sign(ΔDSEᵥ))
         sol = solver_method isa RS.NewtonsMethod ? RS.find_zero(root_and_deriv_ζ, solver_method, soltype, tol, maxiter) : RS.find_zero(root_ζ, solver_method, soltype, tol, maxiter)  
         L_MO = Δz(sc) / sol.root
         if !sol.converged
@@ -809,7 +817,9 @@ end
 """
     compute_Fₘₕ(sc::AbstractSurfaceConditions, ζ::FT, uft, transport)
 
-ζ = z / L_MO is the stability parameter.
+ζ = z/L_MO is the stability parameter.
+ζ₀ = z₀/L_MO, where z₀ is the aerodynamic roughness length.
+L_MO = z/ζ
 Compute the Fₘ, Fₕ coefficients following Bonan(2019).
 """
 function compute_Fₘₕ(
@@ -820,7 +830,7 @@ function compute_Fₘₕ(
 ) where {FT}
     A₁ = log(Δz(sc) / z0(sc, transport))
     A₂ = -UF.psi(uf, ζ, transport)
-    A₃ = UF.psi(uf, z0(sc, transport) / uf.L, transport)
+    A₃ = UF.psi(uf, ζ * z0(sc, transport) / Δz(sc), transport)
     return A₁ + A₂ + A₃
 end
 

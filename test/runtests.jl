@@ -98,6 +98,7 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
     end
 end
 
+#@info "Identical thermodynamic states"
 #@testset "Identical thermodynamic states (Floating Point Consistency)" begin
 #    FloatTypes = (Float32, Float64)
 #    z_levels = [1, 5, 10, 20, 40, 80, 160, ] # [m] level of first interior grid point
@@ -128,12 +129,15 @@ end
 #    @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
 #end
 
+@info "Container + Solver Method Comparison"
 @testset "Exercise container structs, evaluate and compare Lₘₒ across all available solver methods" begin
     include("test_profiles.jl")
 end
+@info "Universal Functions"
 @testset "Test universal functions" begin
     include("test_universal_functions.jl")
 end
+@info "Generated Thermodynamic States"
 @testset "Test generated thermodynamic states" begin
     include("test_convergence.jl")
 end

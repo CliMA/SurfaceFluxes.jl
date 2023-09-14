@@ -25,7 +25,7 @@ abstract type TestProfiles end
 struct DryProfiles <: TestProfiles end
 struct MoistEquilProfiles <: TestProfiles end
 
-function input_config(ArrayType; n = 5, n_RS1 = 5, n_RS2 = 5, T_surface = 290, T_min = 150)
+function input_config(ArrayType; n = 3, n_RS1 = 3, n_RS2 = 3, T_surface = 290, T_min = 250)
     n_RS = n_RS1 + n_RS2
     z_range = ArrayType(range(0, stop = 80, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
