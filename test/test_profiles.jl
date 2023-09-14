@@ -43,10 +43,10 @@ for f in files
         ρ = Array(prof["rho"])
         p0 = Array(prof["p0"])
         b = Array(prof["buoyancy_mean"])
-        θli = Array(prof["thetali_mean"]) # Care with variable names across cases ()?
-        T = Array(prof["temperature_mean"]) # Care with variable names across cases ()?
-        SHF = Array(timeseries["shf_surface_mean"]) # Care with variable names across cases ()?
-        LHF = Array(timeseries["lhf_surface_mean"]) # Care with variable names across cases ()?
+        θli = Array(prof["thetali_mean"]) 
+        T = Array(prof["temperature_mean"]) 
+        SHF = Array(timeseries["shf_surface_mean"]) 
+        LHF = Array(timeseries["lhf_surface_mean"]) 
         (; z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF)
     end
     z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF = nt
@@ -110,12 +110,12 @@ for f in files
         sc = SF.ValuesOnly{FT}(; kwargs...)
     end
     sol_lmo = [];
-    maxiter = 10
-    ζ₀=FT(1)
-    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethod(ζ₀), maxiter).L_MO)
-    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.NewtonsMethodAD(ζ₀),maxiter).L_MO)
-    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.SecantMethod(-100ζ₀, 100ζ₀),maxiter).L_MO)
-    push!(sol_lmo, SF.surface_conditions(param_set,sc;solver_method=RootSolvers.RegulaFalsiMethod(-100ζ₀,100ζ₀),maxiter).L_MO)
+    maxiter = 20
+    ζ₀=FT(0.01)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc; solver_method=RootSolvers.NewtonsMethodAD(ζ₀),maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc; solver_method=RootSolvers.SecantMethod(-100ζ₀, 100ζ₀),maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc; solver_method=RootSolvers.RegulaFalsiMethod(-100ζ₀,100ζ₀),maxiter).L_MO)
+    push!(sol_lmo, SF.surface_conditions(param_set,sc; solver_method=RootSolvers.NewtonsMethod(ζ₀), maxiter).L_MO)
     for i=1:length(sol_lmo)
         @test isapprox(sol_lmo[1], sol_lmo[i], atol=sol_lmo[1] / 1000)
     end
