@@ -11,7 +11,6 @@ const CP = CLIMAParameters
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
 using Statistics
-using StaticArrays
 using Thermodynamics
 using Thermodynamics.TemperatureProfiles
 using Thermodynamics.TestedProfiles

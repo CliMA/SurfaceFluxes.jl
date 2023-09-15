@@ -28,9 +28,6 @@ const DSE = DocStringExtensions
 import Thermodynamics
 const TD = Thermodynamics
 
-import StaticArrays
-const SA = StaticArrays
-
 include("UniversalFunctions.jl")
 import .UniversalFunctions
 const UF = UniversalFunctions
