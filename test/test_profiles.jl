@@ -4,7 +4,6 @@ import SurfaceFluxes
 const SF = SurfaceFluxes
 import SurfaceFluxes.UniversalFunctions as UF
 using Statistics
-using StaticArrays
 import Thermodynamics
 import ArtifactWrappers
 const AW = ArtifactWrappers
@@ -96,8 +95,8 @@ for f in files
     ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
     ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ_in, qt_in)
 
-    u_in = SVector{2, FT}(u_in, v_in)
-    u_sfc = SVector{2, FT}(u_sfc, v_sfc)
+    u_in = (FT(u_in), FT(v_in))
+    u_sfc = (FT(u_sfc), FT(v_sfc))
 
     state_sfc = SF.StateValues(z_sfc, u_sfc, ts_sfc)
     state_in = SF.StateValues(z_in, u_in, ts_in)
