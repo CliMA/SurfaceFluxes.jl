@@ -64,21 +64,17 @@ ArrayType = Array
         ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc[ii], qt_sfc)
         ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ[ii], qt_in)
 
-        state_sfc = SF.SurfaceValues(FloatType(0), SVector{2, FloatType}(0, 0), ts_sfc)
-        state_in = SF.InteriorValues(z[ii], SVector{2, FloatType}(speed[ii], 0), ts_in)
+        state_sfc = SF.StateValues(FloatType(0), SVector{2, FloatType}(0, 0), ts_sfc)
+        state_in = SF.StateValues(z[ii], SVector{2, FloatType}(speed[ii], 0), ts_in)
 
         # State containers
-        kwargs = (; state_in, state_sfc, z0m = z0[ii], z0b = FloatType(0.001))
+        z0m = z0[ii]
+        z0b = FloatType(0.001)
         sc = (
-            SF.Fluxes{FloatType}(; kwargs..., shf = FloatType(0), lhf = FloatType(0)),
-            SF.FluxesAndFrictionVelocity{FloatType}(;
-                kwargs...,
-                shf = FloatType(0),
-                lhf = FloatType(0),
-                ustar = u_star[ii],
-            ),
-            SF.Coefficients{FloatType}(; kwargs..., Cd = FloatType(0.001), Ch = FloatType(0.001)),
-            SF.ValuesOnly{FloatType}(; kwargs...),
+            SF.Fluxes(state_in, state_sfc, FloatType(0), FloatType(0), z0m, z0b),
+            SF.FluxesAndFrictionVelocity(state_in, state_sfc, FloatType(0), FloatType(0), u_star[ii], z0m, z0b),
+            SF.Coefficients(state_in, state_sfc, FloatType(0.001), FloatType(0.001), z0m, z0b),
+            SF.ValuesOnly(state_in, state_sfc, z0m, z0b),
         )
         for jj in 1:length(sc)
             u_scale_fd =
@@ -137,11 +133,11 @@ const sf_params = SurfaceFluxes.Parameters.SurfaceFluxesParameters{
             ts_int_test = Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
             ts_sfc_test =
                 Thermodynamics.PhaseEquil{FloatType}(1.2176297f0, 102852.51f0, 45087.812f0, 0.013232904f0, 291.96683f0)
-            sc = SF.ValuesOnly{FloatType}(;
-                state_in = SF.InteriorValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
-                state_sfc = SF.SurfaceValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
-                z0m = FloatType(1e-5),
-                z0b = FloatType(1e-5),
+            sc = SF.ValuesOnly(
+                SF.StateValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
+                SF.StateValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
+                FloatType(1e-5),
+                FloatType(1e-5),
             )
 
             sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
@@ -168,11 +164,11 @@ end
                     ts_int_test =
                         Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
                     ts_sfc_test = ts_int_test
-                    sc = SF.ValuesOnly{FloatType}(;
-                        state_in = SF.InteriorValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
-                        state_sfc = SF.SurfaceValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
-                        z0m = FloatType(z0m),
-                        z0b = FloatType(z0b),
+                    sc = SF.ValuesOnly(
+                        SF.StateValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
+                        SF.StateValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
+                        FloatType(z0m),
+                        FloatType(z0b),
                     )
                     sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
                     sol_mat[ii, jj, kk, ll] = isinf(sfc_output.L_MO) ? FloatType(1e6) : sfc_output.L_MO

@@ -73,9 +73,9 @@ end
 
 function assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
     FT = eltype(z0m)
-    state_in = SF.InteriorValues(prof_int.z, (prof_int.u / 10, prof_int.v / 10), ts_int)
-    state_sfc = SF.SurfaceValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly{FT}(; state_in, state_sfc, z0m, z0b)
+    state_in = SF.StateValues(prof_int.z, (prof_int.u / 10, prof_int.v / 10), ts_int)
+    state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
+    return SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
 end
 
 function check_over_dry_states(

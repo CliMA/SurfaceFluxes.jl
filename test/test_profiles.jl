@@ -99,20 +99,20 @@ for f in files
     u_in = SVector{2, FT}(u_in, v_in)
     u_sfc = SVector{2, FT}(u_sfc, v_sfc)
 
-    state_sfc = SF.SurfaceValues(z_sfc, u_sfc, ts_sfc)
-    state_in = SF.InteriorValues(z_in, u_in, ts_in)
+    state_sfc = SF.StateValues(z_sfc, u_sfc, ts_sfc)
+    state_in = SF.StateValues(z_in, u_in, ts_in)
 
     kwargs = (; state_in, state_sfc, z0m, z0b)
 
     # shf and lhf in dycoms are mising /wrong in the file
     if f == "DYCOMS_RF01.nc"
-        sc = SF.Fluxes{FT}(; kwargs..., shf = FT(15), lhf = FT(115))
+        sc = SF.Fluxes(state_in, state_sfc, FT(15), FT(115), z0m, z0b)
     elseif f == "Bomex.nc"
-        sc = SF.FluxesAndFrictionVelocity{FT}(; kwargs..., shf = shf, lhf = lhf, ustar = FT(0.28))
+        sc = SF.FluxesAndFrictionVelocity(state_in, state_sfc, shf, lhf, FT(0.28), z0m, z0b)
     elseif f == "Rico.nc"
-        sc = SF.Coefficients{FT}(; kwargs..., Cd = FT(0.001229), Ch = FT(0.001094))
+        sc = SF.Coefficients(state_in, state_sfc, FT(0.001229), FT(0.001094), z0m, z0b)
     elseif f == "Gabls.nc"
-        sc = SF.ValuesOnly{FT}(; kwargs...)
+        sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
     end
     result = SF.surface_conditions(param_set, sc)
 end

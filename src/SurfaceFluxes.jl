@@ -92,37 +92,21 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
 end
 
 """
-    SurfaceValues
+   StateValues 
 
-Input container for state variables at the ground level.
-
-# Fields
-
-$(DSE.FIELDS)
-"""
-struct SurfaceValues{FT <: Real, A, TS <: TD.ThermodynamicState}
-    z::FT
-    u::A
-    ts::TS
-end
-
-"""
-    InteriorValues
-
-Input container for state variables at the first interior node.
+Input container for state variables at either first / interior nodes.
 
 # Fields
 
 $(DSE.FIELDS)
 """
-struct InteriorValues{FT <: Real, A, TS <: TD.ThermodynamicState}
+struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState}
     z::FT
     u::A
     ts::TS
 end
 
-abstract type AbstractSurfaceConditions{FT <: Real, VI <: InteriorValues, VS <: SurfaceValues} end
-
+abstract type AbstractSurfaceConditions{FT <: Real, SV <: StateValues} end
 
 """
     Fluxes
@@ -134,19 +118,18 @@ initial obukhov length and gustiness.
 
 $(DSE.FIELDS)
 """
-Base.@kwdef struct Fluxes{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
-    state_in::VI
-    state_sfc::VS
+struct Fluxes{FT, SV} <: AbstractSurfaceConditions{FT, SV}
+    state_in::SV
+    state_sfc::SV
     shf::FT
     lhf::FT
     z0m::FT
     z0b::FT
-    gustiness::FT = FT(1)
+    gustiness::FT
 end
 
-function Fluxes{FT}(; state_in, state_sfc, kwargs...) where {FT}
-    types = (FT, typeof(state_in), typeof(state_sfc))
-    return Fluxes{types...}(; state_in, state_sfc, kwargs...)
+function Fluxes(state_in::SV, state_sfc::SV, shf::FT, lhf::FT, z0m::FT, z0b::FT; gustiness::FT = FT(1)) where {SV, FT}
+    return Fluxes{FT, SV}(state_in, state_sfc, shf, lhf, z0m, z0b, gustiness)
 end
 
 
@@ -161,20 +144,28 @@ initial obukhov length and gustiness.
 
 $(DSE.FIELDS)
 """
-Base.@kwdef struct FluxesAndFrictionVelocity{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
-    state_in::VI
-    state_sfc::VS
+struct FluxesAndFrictionVelocity{FT, SV} <: AbstractSurfaceConditions{FT, SV}
+    state_in::SV
+    state_sfc::SV
     shf::FT
     lhf::FT
     ustar::FT
     z0m::FT
     z0b::FT
-    gustiness::FT = FT(1)
+    gustiness::FT
 end
 
-function FluxesAndFrictionVelocity{FT}(; state_in, state_sfc, kwargs...) where {FT}
-    types = (FT, typeof(state_in), typeof(state_sfc))
-    return FluxesAndFrictionVelocity{types...}(; state_in, state_sfc, kwargs...)
+function FluxesAndFrictionVelocity(
+    state_in::SV,
+    state_sfc::SV,
+    shf::FT,
+    lhf::FT,
+    ustar::FT,
+    z0m::FT,
+    z0b::FT;
+    gustiness::FT = FT(1),
+) where {SV, FT}
+    return FluxesAndFrictionVelocity{FT, SV}(state_in, state_sfc, shf, lhf, ustar, z0m, z0b, gustiness)
 end
 
 """
@@ -187,20 +178,28 @@ initial obukhov length and gustiness.
 
 $(DSE.FIELDS)
 """
-Base.@kwdef struct Coefficients{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
-    state_in::VI
-    state_sfc::VS
+struct Coefficients{FT, SV} <: AbstractSurfaceConditions{FT, SV}
+    state_in::SV
+    state_sfc::SV
     Cd::FT
     Ch::FT
     z0m::FT
     z0b::FT
-    gustiness::FT = FT(1)
-    beta::FT = FT(1)
+    gustiness::FT
+    beta::FT
 end
 
-function Coefficients{FT}(; state_in, state_sfc, kwargs...) where {FT}
-    types = (FT, typeof(state_in), typeof(state_sfc))
-    return Coefficients{types...}(; state_in, state_sfc, kwargs...)
+function Coefficients(
+    state_in::SV,
+    state_sfc::SV,
+    Cd::FT,
+    Ch::FT,
+    z0m::FT,
+    z0b::FT;
+    gustiness::FT = FT(1),
+    beta::FT = FT(1),
+) where {SV, FT}
+    return Coefficients{FT, SV}(state_in, state_sfc, Cd, Ch, z0m, z0b, gustiness, beta)
 end
 
 
@@ -214,18 +213,24 @@ initial obukhov length and gustiness.
 
 $(DSE.FIELDS)
 """
-Base.@kwdef struct ValuesOnly{FT, VI, VS} <: AbstractSurfaceConditions{FT, VI, VS}
-    state_in::VI
-    state_sfc::VS
+struct ValuesOnly{FT, SV} <: AbstractSurfaceConditions{FT, SV}
+    state_in::SV
+    state_sfc::SV
     z0m::FT
     z0b::FT
-    gustiness::FT = FT(1)
-    beta::FT = FT(1)
+    gustiness::FT
+    beta::FT
 end
 
-function ValuesOnly{FT}(; state_in, state_sfc, kwargs...) where {FT}
-    types = (FT, typeof(state_in), typeof(state_sfc))
-    return ValuesOnly{types...}(; state_in, state_sfc, kwargs...)
+function ValuesOnly(
+    state_in::SV,
+    state_sfc::SV,
+    z0m::FT,
+    z0b::FT;
+    gustiness::FT = FT(1),
+    beta::FT = FT(1),
+) where {SV, FT}
+    return ValuesOnly{FT, SV}(state_in, state_sfc, z0m, z0b, gustiness, beta)
 end
 
 ts_in(sc::AbstractSurfaceConditions) = sc.state_in.ts
