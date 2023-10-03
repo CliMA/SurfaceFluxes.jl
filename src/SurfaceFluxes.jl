@@ -19,9 +19,6 @@ module SurfaceFluxes
 import RootSolvers
 const RS = RootSolvers
 
-import KernelAbstractions
-const KA = KernelAbstractions
-
 using DocStringExtensions
 const DSE = DocStringExtensions
 
@@ -41,17 +38,6 @@ const APS = SFP.AbstractSurfaceFluxesParameters
 abstract type SolverScheme end
 struct FVScheme <: SolverScheme end
 struct FDScheme <: SolverScheme end
-
-# Allow users to skip error on non-convergence
-# by importing:
-# ```julia
-# import SurfaceFluxes
-# SurfaceFluxes.error_on_non_convergence() = false
-# ```
-# Error on convergence must be the default
-# behavior because this can result in printing
-# very large logs resulting in CI to seemingly hang.
-error_on_non_convergence() = true
 
 """
     SurfaceFluxConditions
