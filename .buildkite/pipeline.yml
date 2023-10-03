@@ -1,6 +1,6 @@
 env:
   JULIA_VERSION: "1.9.2"
-  CUDA_VERSION: "10.2"
+  CUDA_VERSION: "12.2"
 
 steps:
   - label: "init cpu env"
@@ -24,6 +24,7 @@ steps:
       - "julia --project=test/ -e 'using Pkg; Pkg.add(\"CUDA\")'"
       - "julia --project=test/ -e 'using CUDA; CUDA.versioninfo()'"
       - "julia --project=test/ -e 'using CUDA; CUDA.precompile_runtime()'"
+      - "julia --project=test/ -e 'using CUDAKernels'"
       - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
     agents:
       config: gpu
@@ -41,9 +42,9 @@ steps:
       queue: central
       slurm_ntasks: 1
 
-  - label: "GPU tests"
+  - label: "GPU Compatibility tests"
     command:
-      - "julia --project=test --color=yes test/runtests.jl CuArray"
+      - "julia --project=test --color=yes test/runtests_gpu.jl"
     agents:
       config: gpu
       queue: central
