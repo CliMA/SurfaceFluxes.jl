@@ -7,15 +7,13 @@ using Statistics
 import Thermodynamics
 import ArtifactWrappers
 const AW = ArtifactWrappers
-import UnPack
 const TD = Thermodynamics
 
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FT = Float32;
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+FT = Float32;
+toml_dict = CLIMAParameters.create_toml_dict(FT; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
-thermo_params = SFP.thermodynamics_params(param_set)
-
+thermo_params = SF.Parameters.thermodynamics_params(param_set)
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
@@ -30,7 +28,6 @@ PyCLES_output_dataset = AW.ArtifactWrapper(
 )
 #! format: on
 PyCLES_output_dataset_path = AW.get_data_folder(PyCLES_output_dataset)
-
 
 files = ["DYCOMS_RF01.nc", "Bomex.nc", "Rico.nc", "Gabls.nc"];
 for f in files
@@ -53,7 +50,7 @@ for f in files
         LHF = Array(timeseries["lhf_surface_mean"]) # Care with variable names across cases ()?
         (; z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF)
     end
-    UnPack.@unpack z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF = nt
+    z, u, v, qt, ql, ρ, p0, b, θli, T, SHF, LHF = nt
 
     function getval(X) # Consider only the last timestep
         X[:, end]

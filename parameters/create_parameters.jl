@@ -1,7 +1,7 @@
-import CLIMAParameters as CP
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
+import CLIMAParameters as CP
 
 function create_uf_parameters(toml_dict, ::UF.BeljaarsType)
     FT = CP.float_type(toml_dict)
@@ -175,5 +175,5 @@ function create_parameters(toml_dict, ufpt)
 
     aliases = ["von_karman_const"]
     pairs = CP.get_parameter_values!(toml_dict, aliases, "SurfaceFluxesParameters")
-    return SFP.SurfaceFluxesParameters{FT, AUFP, TP}(; pairs..., ufp, thermo_params)
+    return SF.Parameters.SurfaceFluxesParameters{FT, AUFP, TP}(; pairs..., ufp, thermo_params)
 end
