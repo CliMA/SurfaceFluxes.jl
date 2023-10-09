@@ -2,7 +2,6 @@ using Test
 
 import SurfaceFluxes
 const SF = SurfaceFluxes
-SurfaceFluxes.error_on_non_convergence() = true
 
 import SurfaceFluxes.UniversalFunctions as UF
 

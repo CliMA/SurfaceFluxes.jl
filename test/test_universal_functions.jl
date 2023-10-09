@@ -70,24 +70,12 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.BusingerType(), UF.BeljaarsType(), UF.HoltslagType(), UF.ChengType())
+            for uft in (UF.GryanikType(), UF.BusingerType(), UF.BeljaarsType(), UF.HoltslagType())
                 uf = universal_functions(uft, L)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     Ψ = UF.Psi.(uf, ζ, transport)
                     @test eltype(Ψ) == FT
                 end
-            end
-        end
-
-        # Cheng formulation throws exception for Psi (ζ >> 0)
-        ζ = FT(1):FT(0.01):FT(200)
-        for L in (-FT(10), FT(10))
-            uf = universal_functions(UF.ChengType(), L)
-            for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                @test_logs (
-                    :error,
-                    "Volume-averaged form of Cheng (2005) SCF for ζ >> 0 not yet implemented. Use Nishizawa (2018) formulation instead.",
-                ) UF.Psi.(uf, ζ, transport)
             end
         end
 

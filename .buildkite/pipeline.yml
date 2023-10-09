@@ -1,6 +1,15 @@
+agents:
+  queue: central
+  slurm_mem: 8G
+  modules: julia/1.9.3 cuda/11.8 ucx/1.14.1_cuda-11.8 openmpi/4.1.5_cuda-11.8 hdf5/1.12.2-ompi415 nsight-systems/2023.2.1
+
 env:
-  JULIA_VERSION: "1.9.2"
-  CUDA_VERSION: "10.2"
+  JULIA_LOAD_PATH: "${JULIA_LOAD_PATH}:${BUILDKITE_BUILD_CHECKOUT_PATH}/.buildkite"
+  OPENBLAS_NUM_THREADS: 1
+  JULIA_NVTX_CALLBACKS: gc
+  OMPI_MCA_opal_warn_on_missing_libcuda: 0
+  JULIA_CPU_TARGET: 'broadwell;skylake'
+
 
 steps:
   - label: "init cpu env"
@@ -20,9 +29,7 @@ steps:
     command:
       - "echo $JULIA_DEPOT_PATH"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.precompile()'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.add(\"CUDA\")'"
-      - "julia --project=test/ -e 'using CUDA; CUDA.versioninfo()'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(); '"
       - "julia --project=test/ -e 'using CUDA; CUDA.precompile_runtime()'"
       - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
     agents:
@@ -43,7 +50,7 @@ steps:
 
   - label: "GPU tests"
     command:
-      - "julia --project=test --color=yes test/runtests.jl CuArray"
+      - "julia --project=test --color=yes test/runtests_gpu.jl"
     agents:
       config: gpu
       queue: central

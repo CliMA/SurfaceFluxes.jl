@@ -1,7 +1,3 @@
-if !("." in LOAD_PATH) # for ease of local testing
-    push!(LOAD_PATH, ".")
-end
-
 import Random
 Random.seed!(1234)
 using Test
@@ -21,18 +17,9 @@ uft = SFP.universal_func_type(param_set)
 const TD = Thermodynamics
 device(::T) where {T <: Array} = CPU()
 
-# FIXME: Refactor tests to work on GPUs as in `Thermodynamics.jl`
-# if get(ARGS, 1, "Array") == "CuArray"
-#    using CUDA
-#    import CUDAKernels: CUDADevice
-#    ArrayType = CUDA.CuArray
-#    device(::T) where {T <: CuArray} = CUDADevice()
-#    CUDA.allowscalar(false)
-# else
 ArrayType = Array
-# end
-
-@show ArrayType
+@info "CPU Tests"
+@info ArrayType
 
 @testset "SurfaceFluxes - Recovery Profiles" begin
     FloatType = Float32
