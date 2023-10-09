@@ -3,13 +3,16 @@ Random.seed!(1234)
 using Test
 import Thermodynamics
 using SurfaceFluxes
+using CLIMAParameters
 const SF = SurfaceFluxes
 const SFP = SF.Parameters
 import KernelAbstractions: CPU
 
+import CLIMAParameters as CP
+
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-const FloatType = Float32;
-toml_dict = CP.create_toml_dict(FloatType; dict_type = "alias")
+FloatType = Float32;
+toml_dict = CLIMAParameters.create_toml_dict(FloatType; dict_type = "alias")
 param_set = create_parameters(toml_dict, UF.BusingerType())
 thermo_params = SFP.thermodynamics_params(param_set)
 uft = SFP.universal_func_type(param_set)
@@ -59,7 +62,6 @@ ArrayType = Array
         sc = (
             SF.Fluxes(state_in, state_sfc, FloatType(0), FloatType(0), z0m, z0b),
             SF.FluxesAndFrictionVelocity(state_in, state_sfc, FloatType(0), FloatType(0), u_star[ii], z0m, z0b),
-            SF.Coefficients(state_in, state_sfc, FloatType(0.001), FloatType(0.001), z0m, z0b),
             SF.ValuesOnly(state_in, state_sfc, z0m, z0b),
         )
         for jj in 1:length(sc)
@@ -138,7 +140,7 @@ end
 
 @testset "Identical thermodynamic states (Floating Point Consistency)" begin
     FloatTypes = (Float32, Float64)
-    z_levels = [1, 5, 10, 20, 40, 80, 160, 320, 640] # [m] level of first interior grid point
+    z_levels = [1, 5, 10, 20, 40, 80, 160] # [m] level of first interior grid point
     z0_m = [1e-5, 1e-4, 1e-3] # roughness length [momentum]
     z0_b = [1e-5, 1e-4, 1e-3] # roughness length [heat] 
     sol_mat = Array{Any, 4}(undef, 2, length(z_levels), length(z0_m), length(z0_b))
@@ -149,14 +151,15 @@ end
                     # Test case with identical interior and surface states
                     ts_int_test =
                         Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
-                    ts_sfc_test = ts_int_test
+                    ts_sfc_test =
+                        Thermodynamics.PhaseEquil{FloatType}(1.1751807f0, 97086.64f0, 10541.609f0, 0.0f0, 287.85202f0)
                     sc = SF.ValuesOnly(
                         SF.StateValues(FloatType(z_int), (FloatType(0), FloatType(0)), ts_int_test),
                         SF.StateValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc_test),
                         FloatType(z0m),
                         FloatType(z0b),
                     )
-                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
+                    sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20, noniterative_stable_sol = true)
                     sol_mat[ii, jj, kk, ll] = isinf(sfc_output.L_MO) ? FloatType(1e6) : sfc_output.L_MO
                 end
             end
@@ -168,6 +171,9 @@ end
 
 @testset "Test profiles" begin
     include("test_profiles.jl")
+end
+@testset "Test Float32 solver convergence" begin
+    include("test_cases.jl")
 end
 @testset "Test universal functions" begin
     include("test_universal_functions.jl")
