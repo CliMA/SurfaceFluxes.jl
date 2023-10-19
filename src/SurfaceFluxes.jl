@@ -39,8 +39,8 @@ const SFP = Parameters
 const APS = SFP.AbstractSurfaceFluxesParameters
 
 abstract type SolverScheme end
-struct FVScheme <: SolverScheme end
-struct FDScheme <: SolverScheme end
+struct LayerAverageScheme <: SolverScheme end
+struct PointValueScheme <: SolverScheme end
 
 """
     SurfaceFluxConditions
@@ -253,7 +253,7 @@ end
     surface_conditions(
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
-        scheme::SurfaceFluxes.SolverScheme = FVScheme();
+        scheme::SurfaceFluxes.SolverScheme = LayerAverageScheme();
         tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
         tol_neutral::FT = SFP.cp_d(param_set) / 100,
         maxiter::Int = 10,
@@ -283,7 +283,7 @@ Result struct of type SurfaceFluxConditions{FT} contains:
 function surface_conditions(
     param_set::APS,
     sc::AbstractSurfaceConditions{FT},
-    scheme::SolverScheme = FVScheme();
+    scheme::SolverScheme = LayerAverageScheme();
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
     tol_neutral = FT(SFP.cp_d(param_set) / 100),
     maxiter::Int = 10,
@@ -776,7 +776,7 @@ end
 
 
 """
-    compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FVScheme)
+    compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::LayerAverageScheme)
 
 Computes the coefficient for the physical scale of a variable based on Nishizawa(2018)
 for the FV scheme.
@@ -796,7 +796,7 @@ function compute_physical_scale_coeff(
     L_MO::FT,
     transport,
     uft,
-    ::FVScheme,
+    ::LayerAverageScheme,
 ) where {FT}
     von_karman_const::FT = SFP.von_karman_const(param_set)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
@@ -813,7 +813,7 @@ end
 
 
 """
-    compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::FDScheme)
+    compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::PointValueScheme)
 
 Computes the coefficient for the physical scale of a variable based on Byun(1990)
 for the Finite Differneces scheme.
@@ -833,7 +833,7 @@ function compute_physical_scale_coeff(
     L_MO::FT,
     transport,
     uft,
-    ::FDScheme,
+    ::PointValueScheme,
 ) where {FT}
     von_karman_const::FT = SFP.von_karman_const(param_set)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
@@ -873,7 +873,7 @@ function recover_profile(
     X_sfc,
     transport,
     uft::UF.AUFT,
-    scheme::Union{FVScheme, FDScheme},
+    scheme::Union{LayerAverageScheme, PointValueScheme},
 ) where {FT}
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     von_karman_const::FT = SFP.von_karman_const(param_set)
