@@ -65,11 +65,23 @@ ArrayType = Array
             SF.ValuesOnly(state_in, state_sfc, z0m, z0b),
         )
         for jj in 1:length(sc)
-            u_scale_fd =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uft, SF.FDScheme())
+            u_scale_fd = SF.compute_physical_scale_coeff(
+                param_set,
+                sc[jj],
+                L_MO,
+                UF.MomentumTransport(),
+                uft,
+                SF.PointValueScheme(),
+            )
             Δu_fd = u_star[ii] / u_scale_fd
-            u_scale_fv =
-                SF.compute_physical_scale_coeff(param_set, sc[jj], L_MO, UF.MomentumTransport(), uft, SF.FVScheme())
+            u_scale_fv = SF.compute_physical_scale_coeff(
+                param_set,
+                sc[jj],
+                L_MO,
+                UF.MomentumTransport(),
+                uft,
+                SF.LayerAverageScheme(),
+            )
             Δu_fv = u_star[ii] / u_scale_fv
             @test (Δu_fd - Δu_fv) ./ Δu_fd * 100 <= FloatType(50)
         end

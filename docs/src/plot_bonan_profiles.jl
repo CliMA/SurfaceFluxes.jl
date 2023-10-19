@@ -84,7 +84,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -98,7 +98,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -129,7 +129,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -143,7 +143,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -173,7 +173,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -187,7 +187,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -241,7 +241,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -255,7 +255,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -285,7 +285,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -299,7 +299,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -329,7 +329,7 @@ for il in 1:10
             FT(0),
             UniversalFunctions.MomentumTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
@@ -343,7 +343,7 @@ for il in 1:10
             θ_sfc,
             UniversalFunctions.HeatTransport(),
             uft,
-            SurfaceFluxes.FDScheme(),
+            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end

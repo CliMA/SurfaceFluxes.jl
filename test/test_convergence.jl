@@ -228,7 +228,7 @@ end
         for FT in [Float32, Float64]
             for profile_type in [DryProfiles(), MoistEquilProfiles()]
                 profiles_sfc, profiles_int = generate_profiles(FT, profile_type; uf_type = uf_type)
-                scheme = [SF.FVScheme(), SF.FDScheme()]
+                scheme = [SF.LayerAverageScheme(), SF.PointValueScheme()]
                 z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
