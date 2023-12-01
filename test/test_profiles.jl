@@ -1,7 +1,5 @@
-import NCDatasets
-const NC = NCDatasets
-import SurfaceFluxes
-const SF = SurfaceFluxes
+import NCDatasets as NC
+import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 using Statistics
 import Thermodynamics
@@ -9,11 +7,10 @@ import ArtifactWrappers
 const AW = ArtifactWrappers
 const TD = Thermodynamics
 
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-FT = Float32;
-toml_dict = CLIMAParameters.create_toml_dict(FT; dict_type = "alias")
-param_set = create_parameters(toml_dict, UF.BusingerType())
-thermo_params = SF.Parameters.thermodynamics_params(param_set)
+FT = Float32
+param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
+thermo_params = param_set.thermo_params
+uft = UF.BusingerType()
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(

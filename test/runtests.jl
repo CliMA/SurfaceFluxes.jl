@@ -3,19 +3,18 @@ Random.seed!(1234)
 using Test
 import Thermodynamics
 using SurfaceFluxes
-using CLIMAParameters
-const SF = SurfaceFluxes
-const SFP = SF.Parameters
+import SurfaceFluxes as SF
+import SurfaceFluxes.UniversalFunctions as UF
+import SurfaceFluxes.Parameters as SFP
+import SurfaceFluxes.UniversalFunctions.BusingerParams
 import KernelAbstractions: CPU
 
 import CLIMAParameters as CP
 
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-FloatType = Float32;
-toml_dict = CLIMAParameters.create_toml_dict(FloatType; dict_type = "alias")
-param_set = create_parameters(toml_dict, UF.BusingerType())
-thermo_params = SFP.thermodynamics_params(param_set)
-uft = SFP.universal_func_type(param_set)
+FloatType = Float32
+param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
+thermo_params = param_set.thermo_params
+uft = UF.BusingerType()
 
 const TD = Thermodynamics
 device(::T) where {T <: Array} = CPU()
@@ -25,7 +24,6 @@ ArrayType = Array
 @info ArrayType
 
 @testset "SurfaceFluxes - Recovery Profiles" begin
-    FloatType = Float32
     ρ_sfc = FloatType(1.15)
     ρ_in = FloatType(1.13)
     qt_sfc = FloatType(0.01)
