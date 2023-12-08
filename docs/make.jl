@@ -12,6 +12,7 @@ pages = Any[
     "References" => "References.md",
     "Equations" => "SurfaceFluxes.md",
     "Universal Functions" => "UniversalFunctions.md"
+    "Basic Usage" => "basic_usage.md"
 ]
 
 mathengine = MathJax(Dict(
