@@ -45,7 +45,12 @@
 # d_sfc = FT(0)
 # ```
 
-# # Define conditions at the lowest level in the atmosphere
+# # Define conditions at the lowest level in the atmosphere.
+
+# Note that you could define wind in terms of horizontal
+# velocity components (u,v) , but it won't change the result
+# if you instead pass in (√(u²+v²), 0)
+
 # ```julia
 # h  = FT(10) # height at which measurements are made, in m
 # u = FT(4) # horizontal windspeed
@@ -57,6 +62,7 @@
 
 
 # # Repeat for the land
+
 # ```julia
 # u_sfc = FT(0)
 # T_sfc = FT(290)
@@ -79,9 +85,10 @@
 # compared to Δh).
 
 # ```julia
-# state_sfc = SurfaceFluxes.StateValues(FT(0), SVector{2, FT}(0, 0), ts_sfc)
+# Δh  = h - d_sfc - h_sfc	
+# state_sfc = SurfaceFluxes.StateValues(FT(0), SVector{2, FT}(u_sfc, 0), ts_sfc)
 # state_atmos = SurfaceFluxes.StateValues(
-#    h - d_sfc - h_sfc,
+#    Δh,
 #    SVector{2, FT}(u, 0),
 #    ts_atmos,
 #    )
