@@ -1,105 +1,106 @@
-# # Basic usage
+# Basic usage
 
-# ```julia
-# using SurfaceFluxes
-# using Thermodynamics
-# using StaticArrays
-# import CLIMAParameters
-# ```
+```
+using SurfaceFluxes
+using Thermodynamics
+using StaticArrays
+import CLIMAParameters
+```
 
-# Next we define a helper function to estimate density of air at the surface
-# given atmospheric conditions higher up, using the ideal gas
-# law and an assumption of hydrostatic balance.
-# This is useful when your surface model does not model the density of
-# air.
+Next we define a helper function to estimate density of air at the surface
+given atmospheric conditions higher up, using the ideal gas
+law and an assumption of hydrostatic balance.
+This is useful when your surface model does not model the density of
+air.
 
-# ```julia
-# function compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
-#     T_atmos = Thermodynamics.air_temperature(thermo_params, ts_atmos)
-#     Rm_atmos = Thermodynamics.gas_constant_air(thermo_params, ts_atmos)
-#     ρ_atmos = Thermodynamics.air_density(thermo_params, ts_atmos)
-#     ρ_sfc =
-#         ρ_atmos *
-#         (T_sfc / T_atmos)^(Thermodynamics.cv_m(thermo_params, ts_atmos) / Rm_atmos)
-#     return ρ_sfc
-# end
-# ```
+```
+function compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
+     T_atmos = Thermodynamics.air_temperature(thermo_params, ts_atmos)
+     Rm_atmos = Thermodynamics.gas_constant_air(thermo_params, ts_atmos)
+     ρ_atmos = Thermodynamics.air_density(thermo_params, ts_atmos)
+     ρ_sfc =
+         ρ_atmos *
+         (T_sfc / T_atmos)^(Thermodynamics.cv_m(thermo_params, ts_atmos) / Rm_atmos)
+     return ρ_sfc
+end
+```
 
-# # Set up thermodynamics and surface fluxes parameters
+# Set up thermodynamics and surface fluxes parameters
 
-# ```julia
-# const CP = CLIMAParameters
-# include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-# FT = Float32
-# toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-# uf_type = UF.BusingerType()
-# param_set = create_parameters(toml_dict, uf_type)
-# thermo_params = SurfaceFluxes.Parameters.thermodynamics_params(param_set)
-# ```
+```
+const CP = CLIMAParameters
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+FT = Float32
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+uf_type = UF.BusingerType()
+param_set = create_parameters(toml_dict, uf_type)
+thermo_params = SurfaceFluxes.Parameters.thermodynamics_params(param_set)
+```
 
-# # Define some parameters that are intrinsic to your surface model
-# Roughness lengths and displacement height
-# ```julia
-# z_0m = FT(0.01)
-# z_0b = FT(0.001)
-# d_sfc = FT(0)
-# ```
+Roughness lengths and displacement height
+```
+z_0m = FT(0.01)
+z_0b = FT(0.001)
+d_sfc = FT(0)
+```
 
-# # Define conditions at the lowest level in the atmosphere.
+# Define conditions
 
-# Note that you could define wind in terms of horizontal
-# velocity components (u,v) , but it won't change the result
-# if you instead pass in (√(u²+v²), 0)
+First, at the lowest level in the atmosphere:
+```
+h  = FT(10) # height at which measurements are made, in m
+u = FT(4) # horizontal windspeed
+P = FT(101350)
+T = FT(298.15)
+q = FT(0.006)
+ts_atmos = Thermodynamics.PhaseEquil_pTq(thermo_params, P, T, q) # you could use ρ instead
+```
+Then, repeat for the land surface:
 
-# ```julia
-# h  = FT(10) # height at which measurements are made, in m
-# u = FT(4) # horizontal windspeed
-# P = FT(101350)
-# T = FT(298.15)
-# q = FT(0.006)
-# ts_atmos = Thermodynamics.PhaseEquil_pTq(thermo_params, P, T, q) # you could use ρ instead
-# ```
+```
+u_sfc = FT(0)
+T_sfc = FT(290)
+ρ_sfc = compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
+q_sfc = FT(0.003)
+ts_sfc = Thermodynamics.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc, q_sfc)
+h_sfc = FT(0) # height at which surface measurements are made
+```
 
+# Compute fluxes
 
-# # Repeat for the land
+SurfaceFluxes.jl expects a relative difference between where `u = 0` 
+and the atmosphere height. Here, we assume `h` and `h_sfc` are measured
+relative to a common reference. Then `d_sfc + h_sfc + z_0m` is the apparent
+source of momentum, and
+`Δh ≈ h - d_sfc - h_sfc` is the relative height difference between the
+apparent source of momentum and the atmosphere height.
 
-# ```julia
-# u_sfc = FT(0)
-# T_sfc = FT(290)
-# ρ_sfc = compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
-# q_sfc = FT(0.003)
-# ts_sfc = Thermodynamics.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc, q_sfc)
-# h_sfc = FT(0) # height at which surface measurements are made
-# ```
+In this we have neglected `z_0m` and `z_0b` (i.e. assumed they are small
+compared to `Δh`).
 
-# # Compute fluxes
+```
+Δh  = h - d_sfc - h_sfc	
+state_sfc = SurfaceFluxes.StateValues(FT(0), SVector{2, FT}(u_sfc, 0), ts_sfc)
+state_atmos = SurfaceFluxes.StateValues(
+    Δh,
+    SVector{2, FT}(u, 0),
+    ts_atmos,
+    )
+sc = SurfaceFluxes.ValuesOnly(     
+    state_atmos,
+    state_sfc,
+    z_0m,
+    z_0b,
+)
+```
 
-# SurfaceFluxes.jl expects a relative difference between where u = 0 
-# and the atmosphere height. Here, we assume h and h_sfc are measured
-# relative to a common reference. Then d_sfc + h_sfc + z_0m is the apparent
-# source of momentum, and
-# Δh ≈ h - d_sfc - h_sfc is the relative height difference between the
-# apparent source of momentum and the atmosphere height.
+Note that you could define wind in terms of horizontal
+velocity components (u,v) , but it won't change the result
+if you instead pass in (√(u²+v²), 0).
 
-# In this we have neglected z_0m and z_0b (i.e. assumed they are small
-# compared to Δh).
-
-# ```julia
-# Δh  = h - d_sfc - h_sfc	
-# state_sfc = SurfaceFluxes.StateValues(FT(0), SVector{2, FT}(u_sfc, 0), ts_sfc)
-# state_atmos = SurfaceFluxes.StateValues(
-#    Δh,
-#    SVector{2, FT}(u, 0),
-#    ts_atmos,
-#    )
-# sc = SurfaceFluxes.ValuesOnly(
-#     state_atmos,
-#     state_sfc,
-#     z_0m,
-#     z_0b,
-# )
-# conditions = SurfaceFluxes.surface_conditions(
-#     param_set,
-#     sc;
-#     )
-# ```
+```
+conditions = SurfaceFluxes.surface_conditions(
+     param_set,
+     sc;
+     )
+```
