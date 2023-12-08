@@ -12,15 +12,18 @@
 # law and an assumption of hydrostatic balance.
 # This is useful when your surface model does not model the density of
 # air.
-function compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
-    T_atmos = Thermodynamics.air_temperature(thermo_params, ts_atmos)
-    Rm_atmos = Thermodynamics.gas_constant_air(thermo_params, ts_atmos)
-    ρ_atmos = Thermodynamics.air_density(thermo_params, ts_atmos)
-    ρ_sfc =
-        ρ_atmos *
-        (T_sfc / T_atmos)^(Thermodynamics.cv_m(thermo_params, ts_atmos) / Rm_atmos)
-    return ρ_sfc
-end
+
+# ```julia
+# function compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
+#     T_atmos = Thermodynamics.air_temperature(thermo_params, ts_atmos)
+#     Rm_atmos = Thermodynamics.gas_constant_air(thermo_params, ts_atmos)
+#     ρ_atmos = Thermodynamics.air_density(thermo_params, ts_atmos)
+#     ρ_sfc =
+#         ρ_atmos *
+#         (T_sfc / T_atmos)^(Thermodynamics.cv_m(thermo_params, ts_atmos) / Rm_atmos)
+#     return ρ_sfc
+# end
+# ```
 
 # # Set up thermodynamics and surface fluxes parameters
 

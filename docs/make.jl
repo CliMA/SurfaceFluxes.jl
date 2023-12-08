@@ -11,7 +11,7 @@ pages = Any[
     "Home" => "index.md",
     "References" => "References.md",
     "Equations" => "SurfaceFluxes.md",
-    "Universal Functions" => "UniversalFunctions.md"
+    "Universal Functions" => "UniversalFunctions.md",
     "Basic Usage" => "basic_usage.md"
 ]
 
