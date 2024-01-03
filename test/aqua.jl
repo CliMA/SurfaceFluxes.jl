@@ -30,8 +30,7 @@ end
     Aqua.test_stale_deps(SurfaceFluxes)
     Aqua.test_deps_compat(SurfaceFluxes)
     Aqua.test_project_extras(SurfaceFluxes)
-    Aqua.test_project_toml_formatting(SurfaceFluxes)
-    Aqua.test_piracy(SurfaceFluxes)
+    Aqua.test_piracies(SurfaceFluxes)
 end
 
 nothing
