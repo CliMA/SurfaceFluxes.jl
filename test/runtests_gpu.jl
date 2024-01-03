@@ -1,8 +1,7 @@
-# Testing and Device 
+# Testing and Device
 using Test
 #using ClimaComms
 using CUDA
-using CUDAKernels
 using KernelAbstractions
 
 # Physics
@@ -16,14 +15,10 @@ import CLIMAParameters as CP
 # Create Parameters
 include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
-
-import CUDA: device
-device(::Type{T}) where {T <: CUDA.CuArray} = CUDAKernels.CUDADevice()
 ArrayType = CUDA.CuArray
 
 @info "GPU Compatibility Tests"
 @info ArrayType
-@info device(ArrayType)
 
 @kernel function test_surface_conditions_kernel!(
     param_set,
@@ -65,8 +60,7 @@ function test_surfacefluxes_gpu(FT)
     data_length = 4
     output = ArrayType{FT}(undef, 1, data_length)
     fill!(output, FT(-99999.99))
-    dev = device(ArrayType)
-    work_groups = (1,)
+
     ndrange = (data_length,)
     z = ArrayType([FT(29.432779269303), FT(30.0497139076724), FT(31.6880000418153), FT(34.1873479240475)])
     θ = ArrayType([FT(268.559120403867), FT(269.799228886728), FT(277.443023238556), FT(295.79192777341)])
@@ -77,9 +71,12 @@ function test_surfacefluxes_gpu(FT)
     b_star =
         ArrayType([FT(0.00690834676781433), FT(0.00428178089592372), FT(0.00121229800895103), FT(0.00262353784027441)])
     κ = SFP.von_karman_const(param_set)
-    kernel! = test_surface_conditions_kernel!(dev, work_groups)
+
+    backend = KernelAbstractions.get_backend(output)
+    kernel! = test_surface_conditions_kernel!(backend)
     event = kernel!(param_set, output, z, θ, θ_sfc, z0, speed, u_star, b_star, κ, ndrange = ndrange)
-    wait(dev, event)
+
+    KernelAbstractions.synchronize(backend)
     return output
 end
 
