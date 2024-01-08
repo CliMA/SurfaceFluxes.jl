@@ -25,3 +25,6 @@ docs/site/
 # environment.
 Manifest.toml
 test/Artifacts.toml
+
+# vim temporary files
+*.swp
