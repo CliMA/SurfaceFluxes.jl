@@ -28,3 +28,4 @@ test/Artifacts.toml
 
 # vim temporary files
 *.swp
+*.swo
