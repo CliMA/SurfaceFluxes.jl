@@ -25,12 +25,8 @@ using Aqua
     @test length(ambs) ≤ 0
 end
 
-@testset "Aqua tests (additional)" begin
-    Aqua.test_undefined_exports(SurfaceFluxes)
-    Aqua.test_stale_deps(SurfaceFluxes)
-    Aqua.test_deps_compat(SurfaceFluxes)
-    Aqua.test_project_extras(SurfaceFluxes)
-    Aqua.test_piracies(SurfaceFluxes)
+@testset "Aqua tests - remaining" begin
+    Aqua.test_all(SurfaceFluxes; ambiguities = false, unbound_args = false)
 end
 
 nothing
