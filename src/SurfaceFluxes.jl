@@ -820,8 +820,8 @@ end
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, ::PointValueScheme)
 
-Computes the coefficient for the physical scale of a variable based on Byun(1990)
-for the Finite Differneces scheme.
+Computes the coefficient for the physical scale of a variable based on Byun (1990)
+for the Finite Differences scheme.
 
 ## Arguments
   - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
