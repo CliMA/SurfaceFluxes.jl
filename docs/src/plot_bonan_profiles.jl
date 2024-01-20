@@ -2,22 +2,18 @@ if !("." in LOAD_PATH) # for ease of local testing
     push!(LOAD_PATH, ".")
 end
 
-using SurfaceFluxes
-using SurfaceFluxes.UniversalFunctions
+import CLIMAParameters as CP
+import SurfaceFluxes
+import SurfaceFluxes as SF
+import SurfaceFluxes.UniversalFunctions
 using Thermodynamics
-using SurfaceFluxes.Parameters
-using CLIMAParameters
+import SurfaceFluxes.Parameters.SurfaceFluxesParameters
 import Plots
 
-
-### Generate parameter functions
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-FT = Float32;
-toml_dict = CLIMAParameters.create_toml_dict(FT; dict_type = "alias")
-param_set = create_parameters(toml_dict, UF.BusingerType())
-thermo_params = SurfaceFluxes.Parameters.thermodynamics_params(param_set)
-uft = SurfaceFluxes.Parameters.universal_func_type(param_set)
-
+FT = Float32
+param_set = SurfaceFluxesParameters(FT, UniversalFunctions.BusingerParams)
+thermo_params = param_set.thermo_params
+uft = UniversalFunctions.universal_func_type(typeof(param_set.ufp))
 
 # Define surface parameters. Note that recovery parameters purely depend on LMO, scale variables and Δ(interior - surface) 
 # for each variable
@@ -83,7 +79,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -97,7 +92,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -128,7 +122,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -142,7 +135,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -172,7 +164,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -186,7 +177,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -240,7 +230,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -254,7 +243,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -284,7 +272,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -298,7 +285,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -328,7 +314,6 @@ for il in 1:10
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )
@@ -342,7 +327,6 @@ for il in 1:10
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            uft,
             SurfaceFluxes.PointValueScheme(),
         ),
     )

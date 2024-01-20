@@ -2,19 +2,13 @@ using Test
 
 import QuadGK
 
-import SurfaceFluxes
-const SF = SurfaceFluxes
+import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
+import CLIMAParameters as CP
 
-import CLIMAParameters
-const CP = CLIMAParameters
-
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-FT = Float32;
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-param_set = create_parameters(toml_dict, UF.BusingerType())
-
-universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(toml_dict, uft))
+FT = Float32
+param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+thermo_params = param_set.thermo_params
 
 # TODO: Right now, we test these functions for
 # type stability and correctness in the asymptotic
@@ -25,15 +19,16 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = FT(-2):FT(0.01):FT(200)
         for L in (-FT(10), FT(10))
-            for uft in (
-                UF.GryanikType(),
-                UF.GrachevType(),
-                UF.BusingerType(),
-                UF.BeljaarsType(),
-                UF.HoltslagType(),
-                UF.ChengType(),
+            for ufp in (
+                UF.GryanikParams(FT),
+                UF.GrachevParams(FT),
+                UF.BusingerParams(FT),
+                UF.BeljaarsParams(FT),
+                UF.HoltslagParams(FT),
+                UF.ChengParams(FT),
             )
-                uf = universal_functions(uft, L)
+                uft = UF.universal_func_type(typeof(ufp))
+                uf = UF.universal_func(uft, L, ufp)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -47,15 +42,16 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            for uft in (
-                UF.GryanikType(),
-                UF.GrachevType(),
-                UF.BusingerType(),
-                UF.BeljaarsType(),
-                UF.HoltslagType(),
-                UF.ChengType(),
+            for ufp in (
+                UF.GryanikParams(FT),
+                UF.GrachevParams(FT),
+                UF.BusingerParams(FT),
+                UF.BeljaarsParams(FT),
+                UF.HoltslagParams(FT),
+                UF.ChengParams(FT),
             )
-                uf = universal_functions(uft, L)
+                uft = UF.universal_func_type(typeof(ufp))
+                uf = UF.universal_func(uft, L, ufp)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     ϕ = UF.phi.(uf, ζ, transport)
                     @test eltype(ϕ) == FT
@@ -69,8 +65,9 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.BusingerType(), UF.BeljaarsType(), UF.HoltslagType())
-                uf = universal_functions(uft, L)
+            for ufp in (UF.GryanikParams(FT), UF.BusingerParams(FT), UF.BeljaarsParams(FT), UF.HoltslagParams(FT))
+                uft = UF.universal_func_type(typeof(ufp))
+                uf = UF.universal_func(uft, L, ufp)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
                     Ψ = UF.Psi.(uf, ζ, transport)
                     @test eltype(Ψ) == FT
@@ -92,8 +89,9 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
         ϕ_m_ζ∞(uf::UF.Cheng, ζ) = 1 + FT(UF.a_m(uf))
 
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.GrachevType(), UF.ChengType())
-                uf = universal_functions(uft, L)
+            for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT), UF.ChengParams(FT))
+                uft = UF.universal_func_type(typeof(ufp))
+                uf = UF.universal_func(uft, L, ufp)
                 for ζ in FT(10) .^ (4, 6, 8, 10)
                     ϕ_h = UF.phi(uf, ζ, UF.HeatTransport())
                     @test isapprox(ϕ_h, ϕ_h_ζ∞(uf, ζ))
@@ -111,9 +109,10 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
     @testset "Vanishes at Zero" begin
         FT = Float32
         for L in (-FT(10), FT(10))
-            for uft in (UF.GryanikType(), UF.GrachevType())
+            for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
                 for transport in (UF.HeatTransport(), UF.MomentumTransport())
-                    uf = universal_functions(uft, L)
+                    uft = UF.universal_func_type(typeof(ufp))
+                    uf = UF.universal_func(uft, L, ufp)
                     Ψ_0 = UF.psi(uf, FT(0), transport)
                     @test isapprox(Ψ_0, FT(0))
                 end
@@ -129,15 +128,16 @@ universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(tom
             ζ_array = (FT(-20), FT(-10), FT(-1), -sqrt(eps(FT)), sqrt(eps(FT)), FT(1), FT(10), FT(20))
             for L in FT(10) .* sign.(ζ_array)
                 for ζ in ζ_array
-                    for uft in (
-                        UF.GryanikType(),
-                        UF.GrachevType(),
-                        UF.BusingerType(),
-                        UF.HoltslagType(),
-                        UF.ChengType(),
-                        UF.BeljaarsType(),
+                    for ufp in (
+                        UF.GryanikParams(FT),
+                        UF.GrachevParams(FT),
+                        UF.BusingerParams(FT),
+                        UF.BeljaarsParams(FT),
+                        UF.HoltslagParams(FT),
+                        UF.ChengParams(FT),
                     )
-                        uf = universal_functions(uft, L)
+                        uft = UF.universal_func_type(typeof(ufp))
+                        uf = UF.universal_func(uft, L, ufp)
                         for transport in (UF.MomentumTransport(), UF.HeatTransport())
                             # Compute ψ via numerical integration of 𝒻(ϕ(ζ))
                             ψ_int = QuadGK.quadgk(ζ′ -> (FT(1) - UF.phi(uf, ζ′, transport)) / ζ′, eps(FT), ζ)
