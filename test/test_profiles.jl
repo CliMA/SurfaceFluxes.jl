@@ -8,7 +8,7 @@ const AW = ArtifactWrappers
 const TD = Thermodynamics
 
 FT = Float32
-param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
+param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
 thermo_params = param_set.thermo_params
 uft = UF.BusingerType()
 

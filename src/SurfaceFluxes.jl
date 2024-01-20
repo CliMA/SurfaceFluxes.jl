@@ -880,8 +880,6 @@ function recover_profile(
     uft = UF.universal_func_type(typeof(ufp))
     uf = UF.universal_func(uft, L_MO, ufp)
     von_karman_const::FT = SFP.von_karman_const(param_set)
-    _π_group = FT(UF.π_group(uf, transport))
-    _π_group⁻¹ = (1 / _π_group)
     num1 = log(Z / z0(sc, transport))
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
