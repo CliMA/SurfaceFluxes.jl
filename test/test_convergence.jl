@@ -230,7 +230,7 @@ end
                 z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
-                tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
+                tol_neutral = FT(0.01)
                 for iteration_option in [true]
                     counter = check_over_dry_states(
                         param_set,
