@@ -253,7 +253,7 @@ end
         sc::SurfaceFluxes.AbstractSurfaceConditions{FT},
         scheme::SurfaceFluxes.SolverScheme = PointValueScheme();
         tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-        tol_neutral::FT = SFP.cp_d(param_set) / 100,
+        tol_neutral::FT = 0.01,
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
         noniterative_stable_sol::Bool=true,
@@ -283,7 +283,7 @@ function surface_conditions(
     sc::AbstractSurfaceConditions{FT},
     scheme::SolverScheme = PointValueScheme();
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    tol_neutral = FT(SFP.cp_d(param_set) / 100),
+    tol_neutral = FT(0.01),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = true,
@@ -315,7 +315,7 @@ end
         uft,
         scheme;
         tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-        tol_neutral::FT = SFP.cp_d(param_set) / 100,
+        tol_neutral::FT = 0.01,
         maxiter::Int = 10
         soltype::RS.SolutionType = RS.CompactSolution(),
     )
@@ -351,8 +351,8 @@ obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 non_zero(v::FT) where {FT} = abs(v) < eps(FT) ? v + sqrt(eps(FT)) : v
 
 
-function compute_richardson_number(sc::AbstractSurfaceConditions, DSEᵥ_in, DSEᵥ_sfc, grav)
-    return (grav * Δz(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_in * (windspeed(sc))^2)
+function compute_richardson_number(sc::AbstractSurfaceConditions, θᵥ_in, θᵥ_sfc, grav)
+    return (grav * Δz(sc) * (θᵥ_in - θᵥ_sfc)) / (θᵥ_in * (windspeed(sc))^2)
 end
 
 function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions{FT}, uft, scheme, ζ::FT) where {FT}
@@ -398,7 +398,7 @@ function obukhov_length(
     uft::UF.AUFT,
     scheme;
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    tol_neutral = FT(SFP.cp_d(param_set) / 100),
+    tol_neutral = FT(0.01),
     maxiter::Int = 10,
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = true,
@@ -407,14 +407,14 @@ function obukhov_length(
     ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
-    if ΔDSEᵥ >= FT(0) && noniterative_stable_sol == true # Stable Layer
+    θᵥ_in = TD.virtual_pottemp(thermo_params, ts_in(sc))
+    θᵥ_sfc = TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+    Δθᵥ = θᵥ_in - θᵥ_sfc
+    if Δθᵥ >= FT(0) && noniterative_stable_sol == true # Stable Layer
         ### Analytical Solution 
         ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
-        Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
+        Ri_b = compute_richardson_number(sc, θᵥ_in, θᵥ_sfc, grav)
         ϵₘ = FT(Δz(sc) / z0(sc, UF.MomentumTransport()))
         ϵₕ = FT(Δz(sc) / z0(sc, UF.HeatTransport()))
         C = (log(ϵₘ))^2 / (log(ϵₕ))
@@ -436,13 +436,13 @@ function obukhov_length(
         Cd = κ^2 / (log(ϵₘ)^2) * (1 - ψₘ / log(ϵₘ))^(-2)
         Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * (1 - ψₘ / log(ϵₘ))^(-1) * (1 - ψₕ / Pr₀ / log(ϵₕ))^(-1)
         return non_zero(Δz(sc) ./ ζₛ)
-    elseif tol_neutral >= abs(ΔDSEᵥ) # Neutral Layer
+    elseif tol_neutral >= abs(Δθᵥ) # Neutral Layer
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
         # Return ζ->0 in the neutral boundary layer case, where ζ = z / L_MO
-        return L_MO = FT(Inf * sign(non_zero(ΔDSEᵥ)))
+        return L_MO = FT(Inf * sign(non_zero(Δθᵥ)))
     else
         function root_ζ(ζ)
-            f = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) - compute_Ri_b(param_set, sc, uft, scheme, ζ)
+            f = compute_richardson_number(sc, θᵥ_in, θᵥ_sfc, grav) - compute_Ri_b(param_set, sc, uft, scheme, ζ)
             return f
         end
         function root_and_deriv_ζ(ζ)
@@ -450,7 +450,7 @@ function obukhov_length(
             f′ = -compute_∂Ri∂ζ(param_set, sc, uft, scheme, ζ)
             return (f, f′)
         end
-        ζ₀ = FT(sign(ΔDSEᵥ))
+        ζ₀ = FT(sign(Δθᵥ))
         sol = RS.find_zero(root_and_deriv_ζ, RS.NewtonsMethod(ζ₀), soltype, tol, maxiter)
         L_MO = Δz(sc) / sol.root
         return non_zero(L_MO)
@@ -498,11 +498,10 @@ function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions{FT}, uft::
     thermo_params = SFP.thermodynamics_params(param_set)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     grav::FT = SFP.grav(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    DSEᵥ_star =
-        compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (DSEᵥ_in - DSEᵥ_sfc)
-    return grav * DSEᵥ_star / DSEᵥ_in
+    θᵥ_sfc = TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+    θᵥ_in = TD.virtual_pottemp(thermo_params, ts_in(sc))
+    θᵥ_star = compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (θᵥ_in - θᵥ_sfc)
+    return grav * θᵥ_star / θᵥ_in
 end
 
 """
@@ -580,11 +579,11 @@ function momentum_exchange_coefficient(
     κ = SFP.von_karman_const(param_set)
     grav::FT = SFP.grav(param_set)
     transport = UF.MomentumTransport()
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    θᵥ_sfc = TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+    θᵥ_in = TD.virtual_pottemp(thermo_params, ts_in(sc))
+    Δθᵥ = θᵥ_in - θᵥ_sfc
     cp_d::FT = SFP.cp_d(param_set)
-    if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
+    if isapprox(Δθᵥ, FT(0); atol = tol_neutral)
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
     else
         ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
@@ -622,12 +621,12 @@ function heat_exchange_coefficient(
     κ = SFP.von_karman_const(param_set)
     grav::FT = SFP.grav(param_set)
     cp_d::FT = SFP.cp_d(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
+    θᵥ_sfc = TD.virtual_pottemp(thermo_params, ts_sfc(sc))
+    θᵥ_in = TD.virtual_pottemp(thermo_params, ts_in(sc))
+    Δθᵥ = θᵥ_in - θᵥ_sfc
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
-    if isapprox(ΔDSEᵥ, FT(0); atol = tol_neutral)
+    if isapprox(Δθᵥ, FT(0); atol = tol_neutral)
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
         ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)

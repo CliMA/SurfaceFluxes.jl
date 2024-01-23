@@ -55,10 +55,10 @@ function generate_profiles(FT, ::MoistEquilProfiles; uf_params = UF.BusingerPara
     return profiles_sfc, profiles_int, param_set
 end
 
-function compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
-    DSEᵥ_int = TD.virtual_dry_static_energy(thermo_params, ts_int, prof_int.e_pot)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc, prof_sfc.e_pot)
-    return DSEᵥ_int - DSEᵥ_sfc
+function compute_pottemp_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+    θᵥ_int = TD.virtual_pottemp(thermo_params, ts_int)
+    θᵥ_sfc = TD.virtual_pottemp(thermo_params, ts_sfc)
+    return θᵥ_int - θᵥ_sfc
 end
 
 function assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
@@ -93,11 +93,11 @@ function check_over_dry_states(
                             ts_sfc = Thermodynamics.PhaseDry{FT}(prof_sfc.e_int, prof_sfc.ρ)
                             ts_int = Thermodynamics.PhaseDry{FT}(prof_int.e_int, prof_int.ρ)
                             sc = assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
-                            ΔDSEᵥ = compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            Δθᵥ = compute_pottemp_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+                            if abs(Δθᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
+                                sign(Δθᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
                             sfcc = SF.surface_conditions(
                                 param_set,
@@ -108,13 +108,13 @@ function check_over_dry_states(
                                 soltype = RS.VerboseSolution(),
                                 noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral && gryanik_noniterative == false
+                            if abs(Δθᵥ) <= tol_neutral && gryanik_noniterative == false
                                 @test isinf(sfcc.L_MO)
                             else
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
+                                @test sign(sfcc.L_MO) == sign(Δθᵥ)
+                                @test sign(sfcc.shf) == -sign(Δθᵥ)
                                 @test sign(
                                     SF.compute_bstar(
                                         param_set,
@@ -123,8 +123,8 @@ function check_over_dry_states(
                                         SF.Parameters.universal_func_type(param_set),
                                         sch,
                                     ),
-                                ) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
+                                ) == sign(Δθᵥ)
+                                @test sign(sfcc.buoy_flux) == -sign(Δθᵥ)
                             end
 
                         end
@@ -173,11 +173,11 @@ function check_over_moist_states(
                                 prof_int.T,
                             )
                             sc = assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0b)
-                            ΔDSEᵥ = compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            Δθᵥ = compute_pottemp_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+                            if abs(Δθᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
+                                sign(Δθᵥ) == 1 ? counter[1] += 1 : counter[2] += 1
                             end
                             sfcc = SF.surface_conditions(
                                 param_set,
@@ -188,13 +188,13 @@ function check_over_moist_states(
                                 soltype = RS.VerboseSolution(),
                                 noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral && gryanik_noniterative == false
+                            if abs(Δθᵥ) <= tol_neutral && gryanik_noniterative == false
                                 @test isinf(sfcc.L_MO)
                             else
                                 @test sign.(sfcc.evaporation) == -sign(prof_int.q_tot - prof_sfc.q_tot)
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
+                                @test sign(sfcc.L_MO) == sign(Δθᵥ)
                                 @test sign(
                                     SF.compute_bstar(
                                         param_set,
@@ -203,7 +203,7 @@ function check_over_moist_states(
                                         SF.Parameters.universal_func_type(param_set),
                                         sch,
                                     ),
-                                ) == sign(ΔDSEᵥ)
+                                ) == sign(Δθᵥ)
                             end
                         end
                     end
