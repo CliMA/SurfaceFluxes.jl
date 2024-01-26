@@ -1,19 +1,13 @@
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
-
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
-
-function generate_params(FT::T) where {T}
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    param_set = create_parameters(toml_dict, UF.BusingerType())
-    thermo_params = SF.Parameters.thermodynamics_params(param_set)
-    return (param_set, thermo_params)
-end
+import CLIMAParameters as CP
+import SurfaceFluxes.Parameters as SFP
 
 @testset "Test specific ClimaAtmos outcomes" begin
     FT = Float32
-    param_set, thermo_params = generate_params(FT)
+    param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+    thermo_params = param_set.thermo_params
     u_in = (FT(-19.07545), FT(16.88031))
     u_sfc = (FT(0.0), FT(0.0))
     z0m = FT(1.0e-5)

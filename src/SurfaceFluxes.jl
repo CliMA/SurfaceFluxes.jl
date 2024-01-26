@@ -29,11 +29,9 @@ include("UniversalFunctions.jl")
 import .UniversalFunctions
 const UF = UniversalFunctions
 
-using CLIMAParameters
 include("Parameters.jl")
 import .Parameters
 
-using CLIMAParameters
 const SFP = Parameters
 const APS = SFP.AbstractSurfaceFluxesParameters
 
@@ -851,7 +849,7 @@ function compute_physical_scale_coeff(
 end
 
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, uft, scheme)
+    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, scheme)
 
 Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
 ## Arguments
@@ -863,7 +861,6 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
   - X_star: Scale parameter for variable X
   - X_sfc: For variable X, values at surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-  - uft: A Universal Function type, (returned by, e.g., Businger())
   - scheme: Discretization scheme (currently supports FD and FV)
 
 # TODO: add tests
@@ -876,18 +873,22 @@ function recover_profile(
     X_star,
     X_sfc,
     transport,
-    uft::UF.AUFT,
     scheme::Union{LayerAverageScheme, PointValueScheme},
 ) where {FT}
-    uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
+    ufp = SFP.uf_params(param_set)
+    uft = UF.universal_func_type(typeof(ufp))
+    uf = UF.universal_func(uft, L_MO, ufp)
     von_karman_const::FT = SFP.von_karman_const(param_set)
-    _π_group = FT(UF.π_group(uf, transport))
-    _π_group⁻¹ = (1 / _π_group)
     num1 = log(Z / z0(sc, transport))
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
     return Σnum * X_star / von_karman_const + X_sfc
+end
+
+# For backwards compatibility with package extensions
+if !isdefined(Base, :get_extension)
+    include(joinpath("..", "ext", "CreateParametersExt.jl"))
 end
 
 end # SurfaceFluxes module

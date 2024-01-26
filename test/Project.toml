@@ -16,5 +16,5 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 Aqua = "0.8"
-CLIMAParameters = "0.7"
+CLIMAParameters = "0.8"
 KernelAbstractions = "0.9"

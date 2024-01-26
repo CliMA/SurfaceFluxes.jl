@@ -5,15 +5,11 @@ using CUDA
 using KernelAbstractions
 
 # Physics
-import Thermodynamics
-using SurfaceFluxes
-const SF = SurfaceFluxes
-const SFP = SF.Parameters
-const TD = Thermodynamics
+import Thermodynamics as TD
+import SurfaceFluxes as SF
+import SurfaceFluxes.Parameters as SFP
+import SurfaceFluxes.UniversalFunctions.BusingerParams
 import CLIMAParameters as CP
-
-# Create Parameters
-include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
 
 ArrayType = CUDA.CuArray
 
@@ -53,10 +49,7 @@ ArrayType = CUDA.CuArray
 end
 
 function test_surfacefluxes_gpu(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    param_set = create_parameters(toml_dict, UF.BusingerType())
-    thermo_params = SFP.thermodynamics_params(param_set)
-    uft = SFP.universal_func_type(param_set)
+    param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
     data_length = 4
     output = ArrayType{FT}(undef, 1, data_length)
     fill!(output, FT(-99999.99))
