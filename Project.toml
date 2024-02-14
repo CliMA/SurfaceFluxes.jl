@@ -16,8 +16,8 @@ CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
 CreateParametersExt = "CLIMAParameters"
 
 [compat]
-CLIMAParameters = "0.8"
+CLIMAParameters = "0.9"
 DocStringExtensions = "0.8, 0.9"
 RootSolvers = "0.2, 0.3, 0.4"
-Thermodynamics = "0.11.5"
+Thermodynamics = "0.12"
 julia = "1.9"
