@@ -69,7 +69,6 @@ function assemble_surface_conditions(prof_int, prof_sfc, ts_int, ts_sfc, z0m, z0
 end
 
 function check_over_dry_states(
-    param_set,
     ::Type{FT},
     profiles_int,
     profiles_sfc,
@@ -80,6 +79,7 @@ function check_over_dry_states(
     tol_neutral,
     gryanik_noniterative::Bool,
 ) where {FT}
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
     @inbounds for (ii, prof_int) in enumerate(profiles_int)
         @inbounds for (jj, prof_sfc) in enumerate(profiles_sfc)
@@ -137,8 +137,7 @@ function check_over_dry_states(
 end
 
 function check_over_moist_states(
-    param_set,
-    FT::DataType,
+    ::Type{FT},
     profiles_int,
     profiles_sfc,
     scheme,
@@ -147,7 +146,8 @@ function check_over_moist_states(
     maxiter,
     tol_neutral,
     gryanik_noniterative::Bool,
-)
+) where {FT}
+    param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
     @inbounds for (ii, prof_int) in enumerate(profiles_int)
         @inbounds for (jj, prof_sfc) in enumerate(profiles_sfc)
@@ -233,7 +233,6 @@ end
                 tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
                 for iteration_option in [true]
                     counter = check_over_dry_states(
-                        param_set,
                         FT,
                         profiles_int,
                         profiles_sfc,
@@ -245,7 +244,6 @@ end
                         iteration_option,
                     )
                     counter = check_over_moist_states(
-                        param_set,
                         FT,
                         profiles_int,
                         profiles_sfc,
