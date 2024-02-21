@@ -63,9 +63,7 @@ struct SurfaceFluxConditions{FT <: Real}
 end
 
 SurfaceFluxConditions(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E) =
-    SurfaceFluxConditions(
-        promote(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)...,
-    )
+    SurfaceFluxConditions(promote(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)...)
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
@@ -294,12 +292,7 @@ function surface_conditions(
     noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    # FIXME: Workaround for julia 1.10 and GPUs.
-    if sc isa Coefficients || sc isa FluxesAndFrictionVelocity
-        L_MO = obukhov_length(param_set, sc, uft, scheme)
-    else
-        L_MO = obukhov_length(param_set, sc, uft, scheme; tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
-    end
+    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
