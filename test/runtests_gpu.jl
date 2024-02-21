@@ -28,7 +28,7 @@ ArrayType = CUDA.CuArray
     b_star,
     κ,
 ) where {FT}
-    ii = @index(Group, Linear)
+    ii = @index(Global)
     thermo_params = SFP.thermodynamics_params(param_set)
     # Assumption on surface density
     ρ_sfc = FT(1.15)
@@ -73,4 +73,8 @@ function test_surfacefluxes_gpu(FT)
     return output
 end
 
-@test test_surfacefluxes_gpu(Float32) ≈ test_surfacefluxes_gpu(Float64)
+out_float32 = test_surfacefluxes_gpu(Float32)
+out_float64 = test_surfacefluxes_gpu(Float64)
+@test !any(x -> x == -99999.99, out_float32)
+@test !any(x -> x == -99999.99, out_float64)
+@test out_float32 ≈ out_float32
