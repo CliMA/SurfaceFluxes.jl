@@ -28,7 +28,7 @@ ArrayType = CUDA.CuArray
     b_star,
     κ,
 ) where {FT}
-    ii = @index(Group, Linear)
+    ii = @index(Global)
     thermo_params = SFP.thermodynamics_params(param_set)
     # Assumption on surface density
     ρ_sfc = FT(1.15)
