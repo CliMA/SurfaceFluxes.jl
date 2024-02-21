@@ -73,4 +73,8 @@ function test_surfacefluxes_gpu(FT)
     return output
 end
 
-@test test_surfacefluxes_gpu(Float32) ≈ test_surfacefluxes_gpu(Float64)
+out_float32 = test_surfacefluxes_gpu(Float32)
+out_float64 = test_surfacefluxes_gpu(Float64)
+@show out_float32
+@show out_float64
+@test out_float32 ≈ out_float64
