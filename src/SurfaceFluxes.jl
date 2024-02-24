@@ -292,7 +292,7 @@ function surface_conditions(
     noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    L_MO = obukhov_length(param_set, sc, uft, scheme; tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
+    L_MO = obukhov_length(param_set, sc, uft, scheme, tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
     Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
@@ -311,11 +311,11 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         sc::AbstractSurfaceConditions,
         uft,
-        scheme;
-        tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-        tol_neutral = SFP.cp_d(param_set) / 100,
-        maxiter::Int = 10
-        soltype::RS.SolutionType = RS.CompactSolution(),
+        scheme,
+        tol,
+        tol_neutral,
+        maxiter,
+        soltype,
     )
 
 Compute and return the Monin-Obukhov lengthscale (LMO).
@@ -394,12 +394,12 @@ function obukhov_length(
     param_set::APS{FT},
     sc::Union{Fluxes, ValuesOnly},
     uft::UF.AUFT,
-    scheme;
-    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    tol_neutral = SFP.cp_d(param_set) / 100,
-    maxiter::Int = 10,
-    soltype::RS.SolutionType = RS.CompactSolution(),
-    noniterative_stable_sol::Bool = true,
+    scheme,
+    tol,
+    tol_neutral,
+    maxiter,
+    soltype,
+    noniterative_stable_sol,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
@@ -454,11 +454,11 @@ function obukhov_length(
     end
 end
 
-function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme; kwargs...)
+function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme, args...)
     return -sc.ustar^3 / SFP.von_karman_const(param_set) / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
 end
 
-function obukhov_length(param_set, sc::Coefficients, uft::UF.AUFT, scheme; kwargs...)
+function obukhov_length(param_set, sc::Coefficients, uft::UF.AUFT, scheme, args...)
     lhf = latent_heat_flux(param_set, sc.Ch, sc, scheme)
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
