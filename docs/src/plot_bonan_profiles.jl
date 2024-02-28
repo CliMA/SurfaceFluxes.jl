@@ -2,7 +2,7 @@ if !("." in LOAD_PATH) # for ease of local testing
     push!(LOAD_PATH, ".")
 end
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 import SurfaceFluxes
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions

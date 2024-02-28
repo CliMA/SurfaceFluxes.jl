@@ -3,7 +3,7 @@ import Plots
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters.SurfaceFluxesParameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 const FT = Float32
 

@@ -3,7 +3,7 @@ using Test
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters.SurfaceFluxesParameters
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 using Statistics
 using Thermodynamics
