@@ -1,7 +1,7 @@
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
-import CLIMAParameters as CP
+import ClimaParams as CP
 import SurfaceFluxes.Parameters as SFP
 
 @testset "Test specific ClimaAtmos outcomes" begin

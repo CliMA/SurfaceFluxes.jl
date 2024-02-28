@@ -28,9 +28,9 @@ SurfaceFluxes.recover_profile
 
 # Parameters
 Convenience constructors are provided for the `SurfaceFluxesParameters` and the various `UniversalFunctions` parameter structs.
-To use them, you must first import CLIMAParameters:
+To use them, you must first import ClimaParams:
 ```julia
-import CLIMAParameters as CP
+import ClimaParams as CP
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
 

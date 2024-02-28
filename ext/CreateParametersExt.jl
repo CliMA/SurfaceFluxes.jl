@@ -10,7 +10,7 @@ import SurfaceFluxes.UniversalFunctions:
     BeljaarsParams,
     ChengParams,
     HoltslagParams
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 function SurfaceFluxesParameters(::Type{FT}, UFParams) where {FT <: AbstractFloat}
     SurfaceFluxesParameters(CP.create_toml_dict(FT), UFParams)

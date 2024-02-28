@@ -9,7 +9,7 @@ import Thermodynamics as TD
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions.BusingerParams
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 ArrayType = CUDA.CuArray
 

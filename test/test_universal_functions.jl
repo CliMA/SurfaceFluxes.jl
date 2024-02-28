@@ -4,7 +4,7 @@ import QuadGK
 
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 FT = Float32
 param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
