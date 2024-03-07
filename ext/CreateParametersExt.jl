@@ -74,6 +74,8 @@ function BusingerParams(toml_dict::CP.AbstractTOMLDict)
         :prandtl_number_0_businger => :Pr_0,
         :coefficient_a_m_businger => :a_m,
         :coefficient_a_h_businger => :a_h,
+        :coefficient_b_m_businger => :b_m,
+        :coefficient_b_h_businger => :b_h,
         :most_stability_parameter_businger => :ζ_a,
         :most_stability_exponent_businger => :γ,
     )

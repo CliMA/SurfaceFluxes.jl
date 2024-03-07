@@ -100,6 +100,8 @@ Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
+    b_m::FT
+    b_h::FT
     ζ_a::FT
     γ::FT
 end
@@ -136,10 +138,16 @@ struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
 
 # Nishizawa2018 Eq. A7
-f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
+function f_momentum(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(sqrt(1 - FT(b_m(uf)) * ζ))
+end
 
 # Nishizawa2018 Eq. A8
-f_heat(uf::Businger, ζ) = sqrt(1 - 9 * ζ)
+function f_heat(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(1 - FT(b_h(uf)) * ζ)
+end
 
 function phi(uf::Businger, ζ, ::MomentumTransport)
     if ζ < 0
@@ -205,7 +213,7 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
             return -_a_m * ζ / 2
         else
             # Nishizawa2018 Eq. A13 (ζ < 0)
-            return -FT(15) * ζ / FT(8)
+            return -FT(b_m(uf)) * ζ / FT(8)
         end
     else
         if ζ < 0
@@ -234,7 +242,7 @@ function Psi(uf::Businger, ζ, tt::HeatTransport)
             return -_a_h * ζ / (2 * _π_group)
         else
             # Nishizawa2018 Eq. A14 (ζ < 0)
-            return -9 * ζ / 4
+            return -FT(b_h(uf)) * ζ / 4
         end
     else
         if ζ >= 0
@@ -245,7 +253,7 @@ function Psi(uf::Businger, ζ, tt::HeatTransport)
             # Nishizawa2018 Eq. A6 (ζ < 0)
             f_h = f_heat(uf, ζ)
             log_term = 2 * log((1 + f_h) / 2)
-            return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+            return log_term + 2 * (1 - f_h) / (FT(b_h(uf)) * ζ) - 1
         end
     end
 end
