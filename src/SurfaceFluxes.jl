@@ -346,8 +346,10 @@ function obukhov_length end
 
 obukhov_length(sfc::SurfaceFluxConditions) = sfc.L_MO
 
-non_zero(v::FT) where {FT} = abs(v) < eps(FT) ? v + sqrt(eps(FT)) : v
-
+function non_zero(v::FT) where {FT}
+    sign_of_v = v == 0 ? 1 : sign(v)
+    return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
+end
 
 function compute_richardson_number(sc::AbstractSurfaceConditions, DSEᵥ_in, DSEᵥ_sfc, grav)
     return (grav * Δz(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_in * (windspeed(sc))^2)
