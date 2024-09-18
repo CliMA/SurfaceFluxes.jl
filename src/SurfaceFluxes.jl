@@ -79,7 +79,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
 end
 
 """
-   StateValues 
+   StateValues
 
 Input container for state variables at either first / interior nodes.
 
@@ -267,7 +267,7 @@ It computes the surface conditions
 based on the Monin-Obukhov similarity functions. Requires
 information about thermodynamic parameters (`param_set`)
 the surface state `sc`, the universal function type and
-the discretisation `scheme`. Default tolerance for 
+the discretisation `scheme`. Default tolerance for
 Monin-Obukhov length is absolute (i.e. has units [m]).
 Returns the RootSolvers `CompactSolution` by default.
 
@@ -356,7 +356,7 @@ function compute_richardson_number(sc::AbstractSurfaceConditions, DSEᵥ_in, DSE
 end
 
 function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions, uft, scheme, ζ)
-    # In this design, this ∂Ri∂ζ function is intended to be an 
+    # In this design, this ∂Ri∂ζ function is intended to be an
     # internal function to support the Newton iteration scheme
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
@@ -410,7 +410,7 @@ function obukhov_length(
     DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     if ΔDSEᵥ >= 0 && noniterative_stable_sol == true # Stable Layer
-        ### Analytical Solution 
+        ### Analytical Solution
         ### Gryanik et al. (2021)
         ### DOI: 10.1029/2021MS002590)
         Ri_b = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav)
@@ -678,15 +678,14 @@ function sensible_heat_flux(param_set, Ch, sc::Union{ValuesOnly, Coefficients}, 
     cp_d = SFP.cp_d(param_set)
     R_d = SFP.R_d(param_set)
     T_0 = SFP.T_0(param_set)
-    cp_m = TD.cp_m(thermo_params, ts_in(sc))
+    cp_m_in = TD.cp_m(thermo_params, ts_in(sc))
+    cp_m_sfc = TD.cp_m(thermo_params, ts_sfc(sc))
     ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     T_in = TD.air_temperature(thermo_params, ts_in(sc))
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    ΔT = T_in - T_sfc
-    hd_sfc = cp_d * (T_sfc - T_0) + R_d * T_0
     ΔΦ = grav * Δz(sc)
-    E = evaporation(param_set, sc, Ch)
-    return -ρ_sfc * Ch * windspeed(sc) * (cp_m * ΔT + ΔΦ) - (hd_sfc) * E
+    ΔDSE = cp_m_in * (T_in - T_0) - cp_m_sfc * (T_sfc - T_0) + ΔΦ
+    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE
 end
 
 """
@@ -721,17 +720,9 @@ Compute and return the latent heat flux
   - scheme: Discretization scheme (currently supports FD and FV)
 """
 function latent_heat_flux(param_set, Ch, sc::Union{ValuesOnly, Coefficients}, scheme)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    grav = SFP.grav(param_set)
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    cp_v = SFP.cp_v(param_set)
     Lv_0 = SFP.LH_v0(param_set)
-    T_0 = SFP.T_0(param_set)
-    T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    hv_sfc = cp_v * (T_sfc - T_0) + Lv_0
-    Φ_sfc = grav * z_sfc(sc)
     E = evaporation(param_set, sc, Ch)
-    lhf = (hv_sfc + Φ_sfc) * E
+    lhf = Lv_0 * E
     return lhf
 end
 
@@ -747,12 +738,8 @@ evaporation is directly calculated from the latent heat flux.
   - Ch: Thermal exchange coefficient
 """
 function evaporation(param_set, sc::Union{Fluxes, FluxesAndFrictionVelocity}, Ch)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    grav = SFP.grav(param_set)
-    T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    hv_sfc = TD.latent_heat_vapor(thermo_params, T_sfc)
-    Φ_sfc = grav * z_sfc(sc)
-    return sc.lhf / (hv_sfc + Φ_sfc)
+    Lv_0 = SFP.LH_v0(param_set)
+    return sc.lhf / Lv_0
 end
 
 """
