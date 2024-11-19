@@ -71,7 +71,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Sensible Heat Flux     = ", sfc.shf)
     println(io, "Latent Heat Flux       = ", sfc.lhf)
     println(io, "Buoyancy Flux          = ", sfc.buoy_flux)
-    println(io, "Friction velocity u⋆   = ", sfc.ustar)
+    println(io, "Friction velocity u★   = ", sfc.ustar)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "evaporation            = ", sfc.evaporation)
@@ -455,6 +455,103 @@ function obukhov_length(
         return non_zero(L_MO)
     end
 end
+
+
+"""
+    refine_similarity_variables(...)
+args
+- estimated_characteristic_scales: (u★, θ★, q★)
+- velocity_scale: uτ
+- similarity_theory : (see similarity functions via UF module)
+- surface_state (compare unwrap methods) 
+- atmos_boundary_layer_height (required for gustiness computation)
+- thermodynamic_parameters ( see thermo parmas unwrap )
+- grav: known from params
+- von_karman_constant
+
+return
+"""
+@inline function refine_similarity_variables(estimated_characteristic_scales, 
+                                             velocity_scale,
+                                             similarity_theory,
+                                             surface_state,
+                                             differences,
+                                             atmos_boundary_layer_height,
+                                             thermodynamics_parameters,
+                                             param_set)
+
+    gravitational_acceleration = SFP.grav(param_set)
+    von_karman_constant = SFP.von_karman_constant(param_set)
+    # "initial" scales because we will recompute them
+    u★= estimated_characteristic_scales.momentum
+    θ★ = estimated_characteristic_scales.temperature
+    q★ = estimated_characteristic_scales.water_vapor
+    uτ = velocity_scale
+
+    # Similarity functions from Edson et al. (2013)
+    # Extract roughness lengths
+    ℓu = z0(sc, UF.MomentumTransport())
+    ℓθ = z0(sc, UF.HeatTransport())
+    ℓq = z0(sc, UF.HeatTransport())
+    β  = similarity_theory.gustiness_parameter # FT(6.5)
+
+    h  = Δz(sc)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    g  = gravitational_acceleration
+    𝒬ₒ = surface_state.ts # thermodynamic state
+
+    # Compute Monin-Obukhov length scale depending on a `buoyancy flux`
+    uft = SFP.universal_func_type(param_set)
+    # TODO: Rename HeatTransport -> ScalarTransport
+    # ζ definition at this point? 
+    ψu = compute_Fₘₕ(sc, ufₛ, ζ, UF.MomentumTransport())
+    ψθ = compute_Fₘₕ(sc, ufₛ, ζ, UF.HeatTransport())
+    ψq = compute_Fₘₕ(sc, ufₛ, ζ, UF.HeatTransport())
+    b★ = compute_bstar(param_set, z/ζ, sc, uft, scheme)
+
+    # Monin-Obhukov characteristic length scale and non-dimensional height
+    ϰ  = von_karman_constant
+    L★ = ifelse(b★ == 0, zero(b★), - u★^2 / (ϰ * b★))
+    
+    #TODO: Compute roughness length scales
+    #As a first example, assume that roughness length is constant
+    ℓu₀ = FT(1e-4)
+    ℓq₀ = FT(1e-3)
+    ℓθ₀ = FT(1e-3)
+
+    # Transfer coefficients at height `h`
+    profile_type = similarity_theory.similarity_profile_type
+#    χu = ϰ / similarity_profile(profile_type, ψu, Δz, ℓu₀, L★)
+#    χθ = ϰ / similarity_profile(profile_type, ψθ, Δz, ℓθ₀, L★)
+#    χq = ϰ / similarity_profile(profile_type, ψq, Δz, ℓq₀, L★)
+
+    χu = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.MomentumTransport(), uft, scheme)
+    χθ = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.HeatTransport(), uft, scheme)
+    χq = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.HeatTransport(), uft, scheme)
+
+    Δu = Δu1(sc)
+    Δv = Δu2(sc)
+    Δθ = Δθ(sc)
+    Δq = Δqt(sc)
+
+    # u★ including gustiness
+    u★ = χu * uτ
+    θ★ = χθ * Δθ
+    q★ = χq * Δq
+
+    # Buoyancy flux characteristic scale for gustiness (Edson 2013)
+    hᵢ = atmos_boundary_layer_height
+    Jᵇ = - u★ * b★
+    Uᴳ = β * cbrt(Jᵇ * hᵢ)
+
+    # New velocity difference accounting for gustiness
+    ΔU = sqrt(Δu^2 + Δv^2 + Uᴳ^2)
+
+    #return SimilarityScales(u★, θ★, q★), ΔU
+    return (u★, θ★, q★, ΔU)
+end
+
+
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme, args...)
     return -sc.ustar^3 / SFP.von_karman_const(param_set) / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
