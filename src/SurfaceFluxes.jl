@@ -475,7 +475,6 @@ return
                                              velocity_scale,
                                              similarity_theory,
                                              surface_state,
-                                             differences,
                                              atmos_boundary_layer_height,
                                              thermodynamics_parameters,
                                              param_set)
@@ -551,7 +550,74 @@ return
     return (u★, θ★, q★, ΔU)
 end
 
+function iterating(Σ★, iteration, maxiter, solver)
+    havent_started = iteration == 0
+    not_converged = norm(Σ★) > solver.tolerance
+    havent_reached_maxiter = iteration < maxiter
+    return havent_started | not_converged | havent_reached_maxiter
+end
 
+function compute_monin_obukhov_fluxes(surface_state,
+                                      atmos_state, 
+                                      atmos_boundary_layer_height,
+                                      param_set)
+    gravitational_acceleration = SFP.grav(param_set)
+    FT = eltype(gravitational_acceleration)
+    von_karman_constant = SFP.von_karman_constant(param_set)
+    thermo_params = SFP.thermodynamics_params(param_set)
+
+    u★ = convert(eltype(Δz), 1e-4)
+    Σ★ = (u★, u★, u★)
+    Uᴳᵢ² = convert(FT, 0.5^2)
+    ΔU = sqrt(Δu^2 + Δv^2 + Uᴳᵢ²)
+
+    # Initialize the solver
+    iteration = 0
+    Σ₀ = Σ★
+
+    while iterating(Σ★ - Σ₀, iteration, maxiter, similarity_theory)
+        Σ₀ = Σ★
+        # Refine both the characteristic scale and the effective
+        # velocity difference ΔU, including gustiness.
+        Σ★, ΔU = refine_similarity_variables(Σ★, ΔU, 
+                                             similarity_theory,
+                                             surface_state,
+                                             differences,
+                                             atmos_boundary_layer_height,
+                                             thermodynamics_parameters,
+                                             gravitational_acceleration,
+                                             von_karman_constant)
+        iteration += 1
+    end
+
+    u★ = Σ★.momentum
+    θ★ = Σ★.temperature
+    q★ = Σ★.water_vapor
+
+    θ★ = θ★ / similarity_theory.turbulent_prandtl_number
+    q★ = q★ / similarity_theory.turbulent_prandtl_number
+
+    # `u★² ≡ sqrt(τx² + τy²)`
+    # We remove the gustiness by dividing by `ΔU`
+    τx = - u★^2 * Δu / ΔU
+    τy = - u★^2 * Δv / ΔU
+
+    𝒬ₐ = atmos_state.ts
+    ρₐ = AtmosphericThermodynamics.air_density(ℂₐ, 𝒬ₐ)
+    cₚ = AtmosphericThermodynamics.cp_m(ℂₐ, 𝒬ₐ) # moist heat capacity
+    ℰv = AtmosphericThermodynamics.latent_heat_vapor(ℂₐ, 𝒬ₐ)
+
+    fluxes = (;
+        sensible_heat = - ρₐ * cₚ * u★ * θ★,
+        latent_heat   = - ρₐ * u★ * q★ * ℰv,
+        water_vapor   = - ρₐ * u★ * q★,
+        x_momentum    = + ρₐ * τx,
+        y_momentum    = + ρₐ * τy,
+    )
+
+    return fluxes
+
+end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme, args...)
     return -sc.ustar^3 / SFP.von_karman_const(param_set) / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
