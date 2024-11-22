@@ -16,6 +16,7 @@
 """
 module SurfaceFluxes
 
+using Statistics:norm
 
 import RootSolvers
 const RS = RootSolvers
@@ -236,6 +237,13 @@ z0(sc::AbstractSurfaceConditions, ::UF.MomentumTransport) = sc.z0m
 
 Δu1(sc::AbstractSurfaceConditions) = sc.state_in.u[1] - sc.state_sfc.u[1]
 Δu2(sc::AbstractSurfaceConditions) = sc.state_in.u[2] - sc.state_sfc.u[2]
+
+θ_in(param_set::APS, sc::AbstractSurfaceConditions) =
+    TD.virtual_temperature(SFP.thermodynamics_params(param_set), ts_in(sc))
+θ_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
+    TD.virtual_temperature(SFP.thermodynamics_params(param_set), ts_sfc(sc))
+Δθ(param_set::APS, sc::AbstractSurfaceConditions) = θ_in(param_set, sc) - θ_sfc(param_set, sc)
+
 
 qt_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_in(sc))
@@ -471,30 +479,32 @@ args
 
 return
 """
-@inline function refine_similarity_variables(estimated_characteristic_scales, 
+function refine_similarity_variables(estimated_characteristic_scales, 
                                              velocity_scale,
-                                             similarity_theory,
-                                             surface_state,
+                                             surface_states,
                                              atmos_boundary_layer_height,
                                              thermodynamics_parameters,
                                              param_set)
 
+    surface_state = surface_states.state_sfc
+    interior_state = surface_states.state_in
+
     gravitational_acceleration = SFP.grav(param_set)
-    von_karman_constant = SFP.von_karman_constant(param_set)
+    von_karman_constant = SFP.von_karman_const(param_set)
     # "initial" scales because we will recompute them
-    u★= estimated_characteristic_scales.momentum
-    θ★ = estimated_characteristic_scales.temperature
-    q★ = estimated_characteristic_scales.water_vapor
+    u★ = estimated_characteristic_scales[1]
+    θ★ = estimated_characteristic_scales[2]
+    q★ = estimated_characteristic_scales[3]
     uτ = velocity_scale
 
     # Similarity functions from Edson et al. (2013)
     # Extract roughness lengths
-    ℓu = z0(sc, UF.MomentumTransport())
-    ℓθ = z0(sc, UF.HeatTransport())
-    ℓq = z0(sc, UF.HeatTransport())
-    β  = similarity_theory.gustiness_parameter # FT(6.5)
+    ℓu = z0(surface_states, UF.MomentumTransport())
+    ℓθ = z0(surface_states, UF.HeatTransport())
+    ℓq = z0(surface_states, UF.HeatTransport())
+    β  = eltype(uτ)(6.5)
 
-    h  = Δz(sc)
+    h  = Δz(surface_states)
     thermo_params = SFP.thermodynamics_params(param_set)
     g  = gravitational_acceleration
     𝒬ₒ = surface_state.ts # thermodynamic state
@@ -503,10 +513,13 @@ return
     uft = SFP.universal_func_type(param_set)
     # TODO: Rename HeatTransport -> ScalarTransport
     # ζ definition at this point? 
-    ψu = compute_Fₘₕ(sc, ufₛ, ζ, UF.MomentumTransport())
-    ψθ = compute_Fₘₕ(sc, ufₛ, ζ, UF.HeatTransport())
-    ψq = compute_Fₘₕ(sc, ufₛ, ζ, UF.HeatTransport())
-    b★ = compute_bstar(param_set, z/ζ, sc, uft, scheme)
+    ζ = eltype(uτ)(1)
+    ufₛ = UF.universal_func(uft, Δz(surface_states) / ζ, SFP.uf_params(param_set))
+    ψu = compute_Fₘₕ(surface_states, ufₛ, ζ, UF.MomentumTransport())
+    ψθ = compute_Fₘₕ(surface_states, ufₛ, ζ, UF.HeatTransport())
+    ψq = compute_Fₘₕ(surface_states, ufₛ, ζ, UF.HeatTransport())
+    scheme = PointValueScheme()
+    b★ = compute_bstar(param_set, Δz(surface_states)/ζ, surface_states, uft, scheme)
 
     # Monin-Obhukov characteristic length scale and non-dimensional height
     ϰ  = von_karman_constant
@@ -514,29 +527,30 @@ return
     
     #TODO: Compute roughness length scales
     #As a first example, assume that roughness length is constant
-    ℓu₀ = FT(1e-4)
-    ℓq₀ = FT(1e-3)
-    ℓθ₀ = FT(1e-3)
+    ℓu₀ = eltype(uτ)(1e-4)
+    ℓq₀ = eltype(uτ)(1e-3)
+    ℓθ₀ = eltype(uτ)(1e-3)
 
     # Transfer coefficients at height `h`
-    profile_type = similarity_theory.similarity_profile_type
+#    profile_type = similarity_theory.similarity_profile_type
 #    χu = ϰ / similarity_profile(profile_type, ψu, Δz, ℓu₀, L★)
 #    χθ = ϰ / similarity_profile(profile_type, ψθ, Δz, ℓθ₀, L★)
 #    χq = ϰ / similarity_profile(profile_type, ψq, Δz, ℓq₀, L★)
 
-    χu = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.MomentumTransport(), uft, scheme)
-    χθ = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.HeatTransport(), uft, scheme)
-    χq = compute_physical_scale_coeff(param_set, sc, Δz/ζ, UF.HeatTransport(), uft, scheme)
+    dz = Δz(surface_states)
+    χu = compute_physical_scale_coeff(param_set, surface_states, dz/ζ, UF.MomentumTransport(), uft, scheme)
+    χθ = compute_physical_scale_coeff(param_set, surface_states, dz/ζ, UF.HeatTransport(), uft, scheme)
+    χq = compute_physical_scale_coeff(param_set, surface_states, dz/ζ, UF.HeatTransport(), uft, scheme)
 
-    Δu = Δu1(sc)
-    Δv = Δu2(sc)
-    Δθ = Δθ(sc)
-    Δq = Δqt(sc)
+    δu = Δu1(surface_states)
+    δv = Δu2(surface_states)
+    δθ = Δθ(param_set, surface_states)
+    δq = Δqt(param_set, surface_states)
 
     # u★ including gustiness
     u★ = χu * uτ
-    θ★ = χθ * Δθ
-    q★ = χq * Δq
+    θ★ = χθ * δθ
+    q★ = χq * δq
 
     # Buoyancy flux characteristic scale for gustiness (Edson 2013)
     hᵢ = atmos_boundary_layer_height
@@ -544,68 +558,82 @@ return
     Uᴳ = β * cbrt(Jᵇ * hᵢ)
 
     # New velocity difference accounting for gustiness
-    ΔU = sqrt(Δu^2 + Δv^2 + Uᴳ^2)
+    ΔU = sqrt(δu^2 + δv^2 + Uᴳ^2)
 
     #return SimilarityScales(u★, θ★, q★), ΔU
-    return (u★, θ★, q★, ΔU)
+    return ((u★, θ★, q★), ΔU)
 end
 
-function iterating(Σ★, iteration, maxiter, solver)
-    havent_started = iteration == 0
-    not_converged = norm(Σ★) > solver.tolerance
-    havent_reached_maxiter = iteration < maxiter
-    return havent_started | not_converged | havent_reached_maxiter
+
+function iterating(Σ★, iteration, maxiter)
+#    havent_started = iteration == 0
+#    not_converged = norm(Σ★) > sqrt(eps(eltype(Σ★)))
+#    havent_reached_maxiter = iteration < maxiter
+#    return havent_started | not_converged | havent_reached_maxiter
+    if iteration < maxiter
+        return true
+    else
+        return false
+    end
 end
 
-function compute_monin_obukhov_fluxes(surface_state,
-                                      atmos_state, 
+function compute_monin_obukhov_fluxes(surface_states,
                                       atmos_boundary_layer_height,
                                       param_set)
+
+    surface_state = surface_states.state_sfc
+    atmos_state = surface_states.state_in
+
+    δu = Δu1(surface_states)
+    δv = Δu2(surface_states)
+    δz = Δz(surface_states)
+    δθ = Δθ(param_set, surface_states)
+    δq = Δqt(param_set, surface_states)
+
     gravitational_acceleration = SFP.grav(param_set)
     FT = eltype(gravitational_acceleration)
-    von_karman_constant = SFP.von_karman_constant(param_set)
+    von_karman_constant = SFP.von_karman_const(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
-
+    velocity_scale = δu 
+    
     u★ = convert(eltype(Δz), 1e-4)
     Σ★ = (u★, u★, u★)
     Uᴳᵢ² = convert(FT, 0.5^2)
-    ΔU = sqrt(Δu^2 + Δv^2 + Uᴳᵢ²)
+    ΔU = sqrt(δu^2 + δv^2 + Uᴳᵢ²)
 
     # Initialize the solver
     iteration = 0
     Σ₀ = Σ★
-
-    while iterating(Σ★ - Σ₀, iteration, maxiter, similarity_theory)
-        Σ₀ = Σ★
+    maxiter = 10
+    while iterating(Σ★ .- Σ₀, iteration, maxiter)
         # Refine both the characteristic scale and the effective
         # velocity difference ΔU, including gustiness.
-        Σ★, ΔU = refine_similarity_variables(Σ★, ΔU, 
-                                             similarity_theory,
-                                             surface_state,
-                                             differences,
+        Σ★, ΔU = refine_similarity_variables(Σ★,
+                                             velocity_scale, 
+                                             surface_states,
                                              atmos_boundary_layer_height,
-                                             thermodynamics_parameters,
-                                             gravitational_acceleration,
-                                             von_karman_constant)
+                                             thermo_params,
+                                             param_set)
         iteration += 1
     end
 
-    u★ = Σ★.momentum
-    θ★ = Σ★.temperature
-    q★ = Σ★.water_vapor
+    u★ = Σ★[1]
+    θ★ = Σ★[2]
+    q★ = Σ★[3]
 
-    θ★ = θ★ / similarity_theory.turbulent_prandtl_number
-    q★ = q★ / similarity_theory.turbulent_prandtl_number
+    turbulent_prandtl_number = FT(1/3)
+    θ★ = θ★ / turbulent_prandtl_number
+    q★ = q★ / turbulent_prandtl_number
 
     # `u★² ≡ sqrt(τx² + τy²)`
     # We remove the gustiness by dividing by `ΔU`
-    τx = - u★^2 * Δu / ΔU
-    τy = - u★^2 * Δv / ΔU
+    τx = - u★^2 * Δu1(surface_states) / ΔU
+    τy = - u★^2 * Δu2(surface_states) / ΔU
 
     𝒬ₐ = atmos_state.ts
-    ρₐ = AtmosphericThermodynamics.air_density(ℂₐ, 𝒬ₐ)
-    cₚ = AtmosphericThermodynamics.cp_m(ℂₐ, 𝒬ₐ) # moist heat capacity
-    ℰv = AtmosphericThermodynamics.latent_heat_vapor(ℂₐ, 𝒬ₐ)
+    ρₐ = TD.air_density(thermo_params, 𝒬ₐ)
+    cₚ = TD.cp_m(thermo_params, 𝒬ₐ) # moist heat capacity
+    ℰv = TD.latent_heat_vapor(thermo_params, 𝒬ₐ)
 
     fluxes = (;
         sensible_heat = - ρₐ * cₚ * u★ * θ★,
@@ -614,9 +642,7 @@ function compute_monin_obukhov_fluxes(surface_state,
         x_momentum    = + ρₐ * τx,
         y_momentum    = + ρₐ * τy,
     )
-
     return fluxes
-
 end
 
 function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme, args...)
