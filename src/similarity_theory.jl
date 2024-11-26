@@ -6,9 +6,9 @@
 Holds the Monin-Obukhov solution state u★, θ★, q★
 """
 struct SimilarityScales{U, T, Q}
-    momentum::U # ustar
-    temperature::T # bstar or theta-star?
-    water_vapor::Q # qstar
+    momentum::U # u★
+    temperature::T # θ★
+    water_vapor::Q # q★
 end
 
 """
@@ -98,8 +98,8 @@ end
                                                   params,
                                                   maxiter)
         
-    # TODO: Unpack params for 𝜅, grav, thermo_params, h_atmos_boundary_layer
-    (; grav, thermo_params, 𝜅, h_atmos_boundary_layer) = params
+    # TODO: Unpack params for 𝜅, grav, thermo_params, h_atmos_boundary_layer, LH_v0
+    (; grav, thermo_params, 𝜅, h_atmos_boundary_layer, LH_v0) = params
     FT = typeof(grav)
     # Initial guess for the similarity scales u★, θ★, q★.
     # Does not really matter if we are sophisticated or not, it converges 
@@ -152,18 +152,24 @@ end
     τy = - u★^2 * Δv / ΔU
 
     atmos_ts = atmos_state.ts
-    ρ_a= AtmosphericThermodynamics.air_density(thermo_params, atmos_ts)
     cp_m = AtmosphericThermodynamics.cp_m(thermo_params, atmos_ts) # moist heat capacity
-    LH_v= AtmosphericThermodynamics.latent_heat_vapor(thermo_params, atmos_ts)
+
+    # Estimate ρ_s using adiabatic extrapolation
+    ρ_a= AtmosphericThermodynamics.air_density(thermo_params, atmos_ts)
+    cp_m = AtmosphericThermodynamics.cv_m(thermo_params, atmos_ts)
+    R_m =  AtmosphericThermodynamics.gas_constant(thermo_params, atmos_ts)
+    θ_a = atmos_state.θ_a
+    θ_s = surface_variable(surface_state.θ_s, surface_args, similarity_scales, atmos_state, params)
+    ρ_s = ρ_a * (θ_s/θ_a)^(cv_m/R_m)
 
     # These currently are not consistent with the dycore paper
-    # Use ρ_s, use ΔDSE (use LH_v0?)
+    # Use ρ_s, use ΔDSE, use LH_v0
     fluxes = (;
-              sensible_heat = - ρ_a * cp_m * u★ * θ★,
-              latent_heat   = - ρ_a * u★ * q★ * LH_v,
-              water_vapor   = - ρ_a * u★ * q★,
-              x_momentum    = + ρ_a * τx,
-              y_momentum    = + ρ_a * τy,
+              sensible_heat = - ρ_s * cp_m * u★ * θ★, # This needs to be the same as -ρ_s Cd |u|_a ΔDSE
+              latent_heat   = - ρ_s * u★ * q★ * LH_v0, # This might be OK
+              water_vapor   = - ρ_s * u★ * q★, # This might be OK
+              x_momentum    = + ρ_s * τx,
+              y_momentum    = + ρ_s * τy,
               r_ae = Δq/(ρ_a * u★ * q★) # Land needs this, and it is not computable internally to land from only the fluxes in coupled simulation.
     )
 
