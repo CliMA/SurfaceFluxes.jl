@@ -46,10 +46,6 @@ surface_state = SurfaceState(
                   (arg𝑎=FT(0.01), arg𝑏=FT(0.01), arg𝑐=z0test),
                 )
 
-compute_similarity_theory_fluxes(similarity_profile, 
-                                 surface_state,
-                                 atmos_state, 
-                                 param_set; maxiter = 10)
 
 # Test function inputs within `args` : see ClimaOcean for uniformity 
 # in unpack methods.
@@ -109,16 +105,21 @@ u★ = χu * uτ
 q★ = χq * Δstate.Δq
 
 # Buoyancy flux similarity scale for gustiness (Edson 2013)
+h_atmos_boundary_layer = FT(100)
 hᵢ = h_atmos_boundary_layer
 Jᵇ = - u★ * b★
 Uᴳ = gustiness * cbrt(Jᵇ * hᵢ)
 
 # New velocity difference accounting for gustiness
-ΔU = sqrt(Δu^2 + Δv^2 + Uᴳ^2)
+ΔU = sqrt(Δstate.Δu^2 + Δstate.Δv^2 + Uᴳ^2)
 
 # TODO: z0test to be redefined with `surface_args`, `similarity_scales` as args
 
-#### With 
+similarity_profile = ufunc
+compute_similarity_theory_fluxes(similarity_profile, 
+                                 surface_state,
+                                 atmos_state, 
+                                 param_set)
 
 #### Diagnostics
 @info atmos_state.args

@@ -1,6 +1,7 @@
 ### REVAMP 
 using Statistics
 import Base: -
+import Statistics:norm
 
 """
     SimilarityScales
@@ -158,8 +159,8 @@ end
     # Compute updated state differences
     (; Δu, Δv, Δθ, Δq, Δh) = state_differences(surface_state, atmos_state, Σ★, params)
 
-    θ★ = θ★ / turbulent_prandtl_number # TODO: get from ClimaParams
-    q★ = q★ / turbulent_prandtl_number # TODO: get from ClimaParams
+    θ★ /= turbulent_prandtl_number # TODO: get from ClimaParams
+    q★ /= turbulent_prandtl_number # TODO: get from ClimaParams
     
     # `u★² ≡ sqrt(τx² + τy²)`
     # We remove the gustiness by dividing by `ΔU`
@@ -197,6 +198,14 @@ end
     return fluxes
 end
 
+@inline function iterating(Σ★, iteration, maxiter, similarity_profile)
+    hasnt_started = iteration == 0
+    tolerance = FT(1)
+    converged = norm(Σ★) < tolerance
+    reached_maxiter = iteration ≥ maxiter
+    return !(converged | reached_maxiter) | hasnt_started
+end
+
 """
     TODO: Refactor OCEAN model expressions to match `SurfaceStates` 
 """
@@ -207,8 +216,14 @@ end
                                              atmos_state,
                                              params)
 
-    (; 𝑔, thermo_params, 𝜅, h_atmos_boundary_layer) = params
-    gustiness = surface_states.gustiness
+    𝑔 = SFP.grav(params)
+    𝜅 = SFP.von_karman_const(params)
+    h_atmos_boundary_layer = atmos_state.h_boundary_layer
+    LH_v0 = SFP.LH_v0(params)
+    thermo_params = params.thermo_params
+    FT = eltype(thermo_params)
+    turbulent_prandtl_number = 1//3 #FIXME: Get from ClimaParams
+    gustiness = atmos_state.gustiness_parameter
     
     # Update the state differences given the new guess for Σ
     (; Δu, Δv, Δθ, Δq, Δh) = state_differences(surface_state, atmos_state, Σ_est, params)
@@ -217,9 +232,9 @@ end
     (; 𝑧0m, 𝑧0θ, 𝑧0q) = surface_state.roughness_lengths
 
     # ??
-    z₀q = surface_variable(roughness_length_q,surface_args,similarity_scales,atmos_state,params)
-    z₀b = surface_variable(roughness_length_θ,surface_args,similarity_scales,atmos_state,params)
-    z₀u = surface_variable(roughness_length_mom,surface_args,similarity_scales,atmos_state,params)
+    #z₀q = surface_variable(roughness_length_q,surface_args,similarity_scales,atmos_state,params)
+    #z₀b = surface_variable(roughness_length_θ,surface_args,similarity_scales,atmos_state,params)
+    #z₀u = surface_variable(roughness_length_mom,surface_args,similarity_scales,atmos_state,params)
 
     # "initial" scales because we will recompute them
     u★ = Σ_est.momentum
@@ -230,7 +245,8 @@ end
     # Compute Monin-Obukhov length scale depending on a `buoyancy flux`
     # TODO: Check buoyancy_scale function definitions and conventions
     
-    b★ = buoyancy_scale(θ★, q★, thermo_params) # compute_bstar(args...)
+    #b★ = buoyancy_scale(θ★, q★, thermo_params) # compute_bstar(args...)
+    b★ = FT(0.1)
     # Monin-Obhukov similarity length scale and non-dimensional height
     L★ = ifelse(b★ == 0, zero(b★), - u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
     ζ = Δh / L★ 
