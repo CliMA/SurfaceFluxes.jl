@@ -63,7 +63,16 @@ end
 function surface_variable(surface_state_var::FT, _...) where {FT <: AbstractFloat}
     return surface_state_var
 end
-    
+
+@inline function buoyancy_scale(θ★, q★, thermo_state, thermo_params, g)
+    𝒯ₐ = TD.virtual_temperature(thermo_params, thermo_state)
+    qₐ = TD.vapor_specific_humidity(thermo_params, thermo_state)
+    ε  = TD.Parameters.molmass_ratio(thermo_params)
+    δ  = ε - 1 # typically equal to 0.608
+    b★ = g / 𝒯ₐ * (θ★ * (1 + δ * qₐ) + δ * 𝒯ₐ * q★)
+    return b★
+end
+
 """
     state_differences(surface_state, atmos_state, similarity_scales, params)
 
@@ -150,7 +159,6 @@ end
                                              atmos_state,
                                              params) 
         iteration += 1
-        @show iteration, Σ★, ΔU
     end
 
     u★ = Σ★.momentum
@@ -244,16 +252,14 @@ end
     θ★ = Σ_est.temperature
     q★ = Σ_est.water_vapor
     uτ = ΔU_est
+    atmos_ρ = atmos_state.args.ρ
+    atmos_ts = TD.PhaseEquil_ρθq(thermo_params,atmos_ρ, atmos_state.θ_a, atmos_state.q_a)
 
     # Compute Monin-Obukhov length scale depending on a `buoyancy flux`
-    # TODO: Check buoyancy_scale function definitions and conventions
-    
-    #b★ = buoyancy_scale(θ★, q★, thermo_params) # compute_bstar(args...)
-    b★ = FT(0.1)
+    b★ = buoyancy_scale(θ★, q★, atmos_ts, thermo_params, 𝑔)
     # Monin-Obhukov similarity length scale and non-dimensional height
     L★ = ifelse(b★ == 0, zero(b★), - u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
     ζ = Δh / L★ 
-    @show ζ
 
     ψm = UF.psi(ufunc, ζ, UF.MomentumTransport())
     ψs = UF.psi(ufunc, ζ, UF.HeatTransport()) # TODO Rename HeatTransport > ScalarTransport

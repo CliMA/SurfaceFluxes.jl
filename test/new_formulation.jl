@@ -70,45 +70,6 @@ u★ = Σ_est.momentum
 θ★ = Σ_est.temperature
 q★ = Σ_est.water_vapor
 uτ = ΔU_est
-## TODO Define methods for buoyancy_scale; current implementation uses `compute_bstar`
-#b★ = buoyancy_scale(θ★, q★, thermo_params)
-b★ = FT(0.2)
-
-## TODO Fix Parameter unpack methods (unify between ClimaOcean and ClimaParams)
-𝑔 = FT(9.81)
-𝜅 = FT(0.4)
-L★ = ifelse(b★ == 0, zero(b★), - u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
-ζ = Δstate.Δh / L★ 
-ψm = UF.psi(ufunc, ζ, UF.MomentumTransport())
-ψs = UF.psi(ufunc, ζ, UF.HeatTransport()) # TODO Rename HeatTransport > ScalarTransport
-ψm₀ = UF.psi(ufunc, 𝑧0m * ζ / Δstate.Δh, UF.MomentumTransport())
-ψh₀ = UF.psi(ufunc, 𝑧0θ * ζ / Δstate.Δh, UF.HeatTransport())
-ψq₀ = UF.psi(ufunc, 𝑧0q(u★,ζ) * ζ / Δstate.Δh, UF.HeatTransport())
-
-# compute rhs in Δχ/u★ = (f(ζ,𝑧0...))
-F_m = log(Δstate.Δh / 𝑧0m) - ψm + ψm₀
-F_h = log(Δstate.Δh / 𝑧0θ) - ψs + ψh₀
-F_q = log(Δstate.Δh / 𝑧0q(u★, ζ)) - ψs + ψq₀
-
-# Review against nishizawa notation
-χu = 𝜅/F_m 
-χθ = 𝜅/F_m
-χq = 𝜅/F_m
-
-u★ = χu * uτ
-θ★ = χθ * Δstate.Δθ
-q★ = χq * Δstate.Δq
-
-# Buoyancy flux similarity scale for gustiness (Edson 2013)
-h_atmos_boundary_layer = FT(100)
-hᵢ = h_atmos_boundary_layer
-Jᵇ = - u★ * b★
-Uᴳ = gustiness * cbrt(Jᵇ * hᵢ)
-
-# New velocity difference accounting for gustiness
-ΔU = sqrt(Δstate.Δu^2 + Δstate.Δv^2 + Uᴳ^2)
-
-# TODO: z0test to be redefined with `surface_args`, `similarity_scales` as args
 
 similarity_profile = ufunc
 similarity_scales = refine_similarity_variables(Σ_est, ΔU, 
@@ -122,11 +83,6 @@ fluxes = compute_similarity_theory_fluxes(similarity_profile,
                                  param_set)
 
 #### Diagnostics
-@info atmos_state.args
-@info Δstate
-@info propertynames(surface_state)
-@info propertynames(atmos_state)
-@info similarity_theory
 @info ufunc
 @info "With ufunc.L = $(ufunc.L) the Monin Obukhov length"
 @info fluxes
