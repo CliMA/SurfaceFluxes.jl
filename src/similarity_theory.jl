@@ -112,7 +112,7 @@ end
                                                   surface_state,
                                                   atmos_state,
                                                   params,
-                                                  maxiter=10)
+                                                  maxiter=100)
         
     # TODO: Unpack params for 𝜅, 𝑔, thermo_params, h_atmos_boundary_layer, LH_v0
     𝑔 = SFP.grav(params)
@@ -145,11 +145,12 @@ end
         # velocity difference ΔU, including gustiness.
         Σ★, ΔU = refine_similarity_variables(Σ★, 
                                              ΔU, 
-                                             similarity_theory,
+                                             similarity_profile,
                                              surface_state,
                                              atmos_state,
                                              params) 
         iteration += 1
+        @show iteration, Σ★, ΔU
     end
 
     u★ = Σ★.momentum
@@ -167,20 +168,22 @@ end
     τx = - u★^2 * Δu / ΔU
     τy = - u★^2 * Δv / ΔU
 
-    atmos_ts = atmos_state.ts
-    cp_m = AtmosphericThermodynamics.cp_m(thermo_params, atmos_ts) # moist heat capacity
+    atmos_ρ = atmos_state.args.ρ
+    atmos_ts = TD.PhaseEquil_ρθq(thermo_params,atmos_ρ, atmos_state.θ_a, atmos_state.q_a)
+    cp_m = TD.cp_m(thermo_params, atmos_ts) # moist heat capacity
 
     # Estimate ρ_s using adiabatic extrapolation
-    # TODO: vapor assumption - assign q_tot at surface following bc prescriptions q_vap_sat(??)
-    ρ_a = AtmosphericThermodynamics.air_density(thermo_params, T, p, q)
-    cp_m = AtmosphericThermodynamics.cv_m(thermo_params, TD.PhasePartition(q))
-    R_m =  AtmosphericThermodynamics.gas_constant(thermo_params, atmos_ts)
+    ρ_a = TD.air_density(thermo_params, atmos_ts)
+    cv_m = TD.cv_m(thermo_params, TD.PhasePartition(atmos_state.q_a))
+    R_m =  TD.gas_constant_air(thermo_params, atmos_ts)
     θ_a = atmos_state.θ_a
-    θ_s = surface_variable(surface_state.θ_s, 
-                           surface_args, 
-                           similarity_scales, 
-                           atmos_state, 
-                           params)
+    # TODO Define `surface_args`
+    #θ_s = surface_variable(surface_state.θ_s, 
+    #                       surface_args, 
+    #                       similarity_scales, 
+    #                       atmos_state, 
+    #                       params)
+    θ_s = surface_state.θ_s
 
     ρ_s = ρ_a * (θ_s/θ_a)^(cv_m/R_m)
 
@@ -200,7 +203,7 @@ end
 
 @inline function iterating(Σ★, iteration, maxiter, similarity_profile)
     hasnt_started = iteration == 0
-    tolerance = FT(1)
+    tolerance = sqrt(eps(FT))
     converged = norm(Σ★) < tolerance
     reached_maxiter = iteration ≥ maxiter
     return !(converged | reached_maxiter) | hasnt_started
@@ -250,6 +253,7 @@ end
     # Monin-Obhukov similarity length scale and non-dimensional height
     L★ = ifelse(b★ == 0, zero(b★), - u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
     ζ = Δh / L★ 
+    @show ζ
 
     ψm = UF.psi(ufunc, ζ, UF.MomentumTransport())
     ψs = UF.psi(ufunc, ζ, UF.HeatTransport()) # TODO Rename HeatTransport > ScalarTransport

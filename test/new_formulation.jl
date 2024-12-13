@@ -23,33 +23,28 @@ thermo_params = param_set.thermo_params
 
 # Assign states
 
-z0test(u★, ζ) = FT(0.01)   
+z0test(u★, ζ) = FT(0.015 * u★^2 / 9.81)
 
 atmos_state = AtmosState(
-                  FT(1),
+                  FT(5),
                   FT(1),
                   FT(0.002),
                   FT(298),
                   FT(15),
                   FT(1), # gustiness needs to be a function of u,v, ustar
                   FT(100),
-                  (arg𝑎=FT(0.01), arg𝑏=FT(0.01), arg𝑐=z0test),
+                  (ρ=FT(1.20), arg𝑏=FT(0.01), arg𝑐=z0test),
                 )
 
 surface_state = SurfaceState(
                   (𝑧0m=FT(0.01), 𝑧0θ=FT(0.01), 𝑧0q=z0test),
                   FT(0),
                   FT(0),
-                  FT(0.002),
-                  FT(299),
+                  FT(0.003),
+                  FT(304),
                   FT(0),
                   (arg𝑎=FT(0.01), arg𝑏=FT(0.01), arg𝑐=z0test),
                 )
-
-
-# Test function inputs within `args` : see ClimaOcean for uniformity 
-# in unpack methods.
-@assert atmos_state.args.arg𝑐(1,2) == FT(0.01)
 
 
 # Line by line debug and test for `refine` function
@@ -116,7 +111,12 @@ Uᴳ = gustiness * cbrt(Jᵇ * hᵢ)
 # TODO: z0test to be redefined with `surface_args`, `similarity_scales` as args
 
 similarity_profile = ufunc
-compute_similarity_theory_fluxes(similarity_profile, 
+similarity_scales = refine_similarity_variables(Σ_est, ΔU, 
+                                     similarity_profile,
+                                     surface_state, 
+                                     atmos_state, param_set)
+
+fluxes = compute_similarity_theory_fluxes(similarity_profile, 
                                  surface_state,
                                  atmos_state, 
                                  param_set)
@@ -129,3 +129,4 @@ compute_similarity_theory_fluxes(similarity_profile,
 @info similarity_theory
 @info ufunc
 @info "With ufunc.L = $(ufunc.L) the Monin Obukhov length"
+@info fluxes
