@@ -85,4 +85,10 @@ fluxes = compute_similarity_theory_fluxes(similarity_profile,
 #### Diagnostics
 @info ufunc
 @info "With ufunc.L = $(ufunc.L) the Monin Obukhov length"
-@info fluxes
+@info fluxes.sensible_heat
+@info fluxes.latent_heat
+@info fluxes.water_vapor
+@info fluxes.x_momentum
+@info fluxes.y_momentum
+@info fluxes.r_ae
+@info fluxes.scale_vars

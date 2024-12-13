@@ -203,7 +203,8 @@ end
               water_vapor   = - ρ_s * u★ * q★, # This might be OK
               x_momentum    = + ρ_s * τx,
               y_momentum    = + ρ_s * τy,
-              r_ae = Δq/(ρ_a * u★ * q★) # Land needs this, and it is not computable internally to land from only the fluxes in coupled simulation.
+              r_ae = Δq/(ρ_a * u★ * q★), # Land needs this, and it is not computable internally to land from only the fluxes in coupled simulation.
+              scale_vars = (u★, θ★, q★),
     )
 
     return fluxes
