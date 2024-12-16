@@ -23,7 +23,12 @@ thermo_params = param_set.thermo_params
 
 # Assign states
 
-z0test(u★, ζ) = FT(0.015 * u★^2 / 9.81)
+function z0test(surface_args, similarity_scales, atmos_state, param_set)
+    u★ = similarity_scales.momentum
+    FT =typeof(u★)
+    return FT(0.015 * u★^2 / 9.81)
+end
+
 
 atmos_state = AtmosState(
                   FT(5),
@@ -72,7 +77,7 @@ q★ = Σ_est.water_vapor
 uτ = ΔU_est
 
 similarity_profile = ufunc
-similarity_scales = refine_similarity_variables(Σ_est, ΔU, 
+similarity_scales = refine_similarity_variables(Σ_est, ΔU_est, 
                                      similarity_profile,
                                      surface_state, 
                                      atmos_state, param_set)

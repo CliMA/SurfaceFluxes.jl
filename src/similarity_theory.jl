@@ -241,12 +241,15 @@ end
     (; Δu, Δv, Δθ, Δq, Δh) = state_differences(surface_state, atmos_state, Σ_est, params)
 
     # Unpack and compute roughness lengths according to the surface model functions
-    (; 𝑧0m, 𝑧0θ, 𝑧0q) = surface_state.roughness_lengths
-
-    # ??
-    #z₀q = surface_variable(roughness_length_q,surface_args,similarity_scales,atmos_state,params)
-    #z₀b = surface_variable(roughness_length_θ,surface_args,similarity_scales,atmos_state,params)
-    #z₀u = surface_variable(roughness_length_mom,surface_args,similarity_scales,atmos_state,params)
+    𝑧0m =surface_variable(surface_state.roughness_lengths.𝑧0m, 
+                         surface_args, 
+                          Σ_est, atmos_state, params)
+    𝑧0θ =surface_variable(surface_state.roughness_lengths.𝑧0θ, 
+                          surface_args, 
+                          Σ_est, atmos_state, params)
+    𝑧0q =surface_variable(surface_state.roughness_lengths.𝑧0q, 
+                          surface_args, 
+                          Σ_est, atmos_state, params)
 
     # "initial" scales because we will recompute them
     u★ = Σ_est.momentum
@@ -264,14 +267,14 @@ end
 
     ψm = UF.psi(ufunc, ζ, UF.MomentumTransport())
     ψs = UF.psi(ufunc, ζ, UF.HeatTransport()) # TODO Rename HeatTransport > ScalarTransport
-    ψm₀ = UF.psi(ufunc, 𝑧0m * ζ / Δstate.Δh, UF.MomentumTransport())
-    ψh₀ = UF.psi(ufunc, 𝑧0θ * ζ / Δstate.Δh, UF.HeatTransport())
-    ψq₀ = UF.psi(ufunc, 𝑧0q(u★,ζ) * ζ / Δstate.Δh, UF.HeatTransport())
+    ψm₀ = UF.psi(ufunc, 𝑧0m * ζ / Δh, UF.MomentumTransport())
+    ψh₀ = UF.psi(ufunc, 𝑧0θ * ζ / Δh, UF.HeatTransport())
+    ψq₀ = UF.psi(ufunc, 𝑧0q * ζ / Δh, UF.HeatTransport())
  
     # compute rhs in Δχ/u★ = (f(ζ,𝑧0...))
-    F_m = log(Δstate.Δh / 𝑧0m) - ψm + ψm₀
-    F_h = log(Δstate.Δh / 𝑧0θ) - ψs + ψh₀
-    F_q = log(Δstate.Δh / 𝑧0q(u★, ζ)) - ψs + ψq₀
+    F_m = log(Δh / 𝑧0m) - ψm + ψm₀
+    F_h = log(Δh / 𝑧0θ) - ψs + ψh₀
+    F_q = log(Δh / 𝑧0q) - ψs + ψq₀
 
     # Review against nishizawa notation
     χu = 𝜅/F_m 
@@ -279,8 +282,8 @@ end
     χq = 𝜅/F_m
 
     u★ = χu * uτ
-    θ★ = χθ * Δstate.Δθ
-    q★ = χq * Δstate.Δq
+    θ★ = χθ * Δθ
+    q★ = χq * Δq
     
     # Buoyancy flux similarity scale for gustiness (Edson 2013)
     hᵢ = h_atmos_boundary_layer
