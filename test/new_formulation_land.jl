@@ -154,6 +154,7 @@ end
 @testset "q_atmos = q_land, T_atmos = T_land, β = 0" begin
     #Surface state
     T_s = T_a
+    # TODO: `surface_state` as arg in `surface_variable` function
     function q_surface(surface_args, similarity_scales, atmos_state, param_set)
         q_a = atmos_state.q_a
         β = surface_args.β
@@ -197,7 +198,6 @@ end
                                               surface_state,
                                               atmos_state, 
                                               param_set)
-    
     @test fluxes.latent_heat ≈ 0
     @test fluxes.sensible_heat ≈ 0
 end
