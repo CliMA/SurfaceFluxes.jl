@@ -6,13 +6,13 @@ const TDPS = TD.Parameters.ThermodynamicsParameters
 import ..UniversalFunctions
 const UF = UniversalFunctions
 
-abstract type AbstractSurfaceFluxesParameters end
+abstract type AbstractSurfaceFluxesParameters{FT} end
 const ASFP = AbstractSurfaceFluxesParameters
 
 Base.broadcastable(ps::ASFP) = tuple(ps)
 
-Base.@kwdef struct SurfaceFluxesParameters{FT, AUFPS <: UF.AbstractUniversalFunctionParameters{FT}, TP} <:
-                   AbstractSurfaceFluxesParameters
+Base.@kwdef struct SurfaceFluxesParameters{FT, AUFPS <: UF.AbstractUniversalFunctionParameters{FT}, TP <: TDPS{FT}} <:
+                   AbstractSurfaceFluxesParameters{FT}
     von_karman_const::FT
     ufp::AUFPS
     thermo_params::TP

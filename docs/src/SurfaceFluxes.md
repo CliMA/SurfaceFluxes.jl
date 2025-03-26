@@ -14,7 +14,7 @@ Here, ${\star}$ subscripts indicate a characteristic physical scale of the varia
 b = g \frac{\mathrm{DSE}_v'}{\mathrm{DSE}_v},
 \end{equation}
 ```
-with $\mathrm{DSE}_v'$ as the perturbation from a reference virtual dry static energy value, $\mathrm{DSE}$. These mean and perturbation quantities are implicit in the model and can be used to compute the relation between $b_{\star}$ and $\phi_{\star}$, where $\phi$ represents a thermoynamic scale variable. Following equations (8) and (9) in [Nishizawa2018](@cite) we write the physical scale for such a variable $\phi$ as:
+with $\mathrm{DSE}_v'$ as the perturbation from a reference virtual dry static energy value, $\mathrm{DSE}_{v}$. These mean and perturbation quantities are implicit in the model and can be used to compute the relation between $b_{\star}$ and $\phi_{\star}$, where $\phi$ represents a thermoynamic scale variable. Following equations (8) and (9) in [Nishizawa2018](@cite) we write the physical scale for such a variable $\phi$ as:
 
 ```math
 \begin{equation}
@@ -140,8 +140,53 @@ u(z) = u_{\star} \frac{F_m(z,z_{0m}, L_O)}{\kappa} + u_{sfc},
 \end{equation}
 ```
 
-with $\phi_{\star}$ and $u_{\star}$ given by (3) and (4) respectively. Here, the same choice of discretization should be used for $F_h$ and $F_m$ as used to obtain the surface conditions. 
+with $\phi_{\star}$ and $u_{\star}$ given by (3) and (4) respectively. Here, the same choice of discretization should be used for $F_h$ and $F_m$ as used to obtain the surface conditions.
 
+#### Iteration Procedure
+
+We start with the definition of the bulk Richardson number in terms of the virtual dry static energy $\mathrm{DSE}____{v}$, 
+```math
+\begin{equation}
+    \mathrm{Ri_{b}} = \frac{g z (\mathrm{DSE_{v,in}} - \mathrm{DSE_{v,sfc})}}{\mathrm{DSE_{v,sfc}} |u(z)|^2}.
+\end{equation}
+```
+
+We further note that $\mathrm{Ri_{b}}$ can be expressed in terms of the stability correction functions as 
+```math
+\begin{equation}
+    \mathrm{Ri_{b}} = \zeta F_{c}(\zeta) F_{m}(\zeta)^{-2},
+\end{equation}
+```
+where
+```math
+\begin{equation}
+    F_{c}(\zeta) = \log (\frac{z}{z_{0c}}) - \psi_{c}(\zeta) + \psi_{c}(\frac{\zeta}{z}), 
+\end{equation}
+```
+and 
+```math
+\begin{equation}
+    F_{m}(\zeta) = \log (\frac{z}{z_{0m}}) - \psi_{m}(\zeta) + \psi_{m}(\frac{\zeta}{z}), 
+\end{equation}
+```
+with $\zeta$ denoting the Monin-Obukhov stability parameter, and subscripts $c, m$ denoting scalar and momentum variables respectively. 
+
+With the following analytical expression for the derivative of $\mathrm{Ri_{b}}$ with respect to the stability parameter $\zeta$, 
+```math
+\begin{equation}
+    \frac{\partial \mathrm{Ri_{b}}}{\partial \zeta} = \frac{\mathrm{Ri_b}}{\zeta} \Big(1 + (\phi_{c}(\zeta) - \phi_{c}(\zeta z_{0c} / z))F_{c}^{-1}(\zeta) - 2(\phi_{m}(\zeta) - \phi_{m}(\zeta z_{0m} / z))F_{m}^{-1}(\zeta) \Big),
+\end{equation}
+```
+we can use Newton's method to iteratively solve for the stability parameter $\zeta$, and therefore the Monin-Obukhov lengthscale. 
+
+### Profile recovery using MOST
+
+Here, we demonstrate the recovered velocity and potential temperature functions in a dry atmosphere example, verifying the plots shown in Fig 6.4 in [Bonan2019](@cite). 
+
+```@example
+include("plot_bonan_profiles.jl")
+```
+![](Bonan_Fig6-4.svg)
 
 ### Roughness Sublayer Models
 

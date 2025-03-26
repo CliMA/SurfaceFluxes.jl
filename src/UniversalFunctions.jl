@@ -100,6 +100,8 @@ Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
+    b_m::FT
+    b_h::FT
     ζ_a::FT
     γ::FT
 end
@@ -136,10 +138,16 @@ struct BusingerType <: AbstractUniversalFunctionType end
 Businger() = BusingerType()
 
 # Nishizawa2018 Eq. A7
-f_momentum(uf::Businger, ζ) = sqrt(sqrt(1 - 15 * ζ))
+function f_momentum(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(sqrt(1 - FT(b_m(uf)) * ζ))
+end
 
 # Nishizawa2018 Eq. A8
-f_heat(uf::Businger, ζ) = sqrt(1 - 9 * ζ)
+function f_heat(uf::Businger, ζ)
+    FT = eltype(uf)
+    return sqrt(1 - FT(b_h(uf)) * ζ)
+end
 
 function phi(uf::Businger, ζ, ::MomentumTransport)
     if ζ < 0
@@ -198,17 +206,15 @@ end
 
 function Psi(uf::Businger, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if abs(ζ) < eps(FT)
-        if ζ >= 0
-            # Nishizawa2018 Eq. A13 (ζ >= 0)
-            _a_m = FT(a_m(uf))
-            return -_a_m * ζ / 2
-        else
-            # Nishizawa2018 Eq. A13 (ζ < 0)
-            return -FT(15) * ζ / FT(8)
-        end
+    if ζ >= 0
+        # Nishizawa2018 Eq. A5 and A13 (ζ >= 0)
+        _a_m = FT(a_m(uf))
+        return -_a_m * ζ / 2
     else
-        if ζ < 0
+        if abs(ζ) < eps(FT)
+            # Nishizawa2018 Eq. A13 (ζ < 0)
+            return -FT(b_m(uf)) * ζ / FT(8)
+        else
             # Nishizawa2018 Eq. A5 (ζ < 0)
             f_m = f_momentum(uf, ζ)
             log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
@@ -216,10 +222,6 @@ function Psi(uf::Businger, ζ, tt::MomentumTransport)
             tan_term = 2 * atan(f_m)
             cubic_term = (1 - f_m^3) / (12 * ζ)
             return log_term - tan_term + π_term - 1 + cubic_term
-        else
-            # Nishizawa2018 Eq. A5 (ζ >= 0)
-            _a_m = FT(a_m(uf))
-            return -_a_m * ζ / 2
         end
     end
 end
@@ -227,25 +229,19 @@ end
 function Psi(uf::Businger, ζ, tt::HeatTransport)
     FT = eltype(uf)
     _a_h = FT(a_h(uf))
-    if abs(ζ) < eps(typeof(uf.L))
-        if ζ >= 0
-            # Nishizawa2018 Eq. A14 (ζ >= 0)
-            _π_group = FT(π_group(uf, tt))
-            return -_a_h * ζ / (2 * _π_group)
-        else
-            # Nishizawa2018 Eq. A14 (ζ < 0)
-            return -9 * ζ / 4
-        end
+    if ζ >= 0
+        # Nishizawa2018 Eq. A6 and A14 (ζ >= 0)
+        _π_group = FT(π_group(uf, tt))
+        return -_a_h * ζ / (2 * _π_group)
     else
-        if ζ >= 0
-            # Nishizawa2018 Eq. A6 (ζ >= 0)
-            _π_group = FT(π_group(uf, tt))
-            return -_a_h * ζ / (2 * _π_group)
+        if abs(ζ) < eps(FT)
+            # Nishizawa2018 Eq. A14 (ζ < 0)
+            return -FT(b_h(uf)) * ζ / 4
         else
             # Nishizawa2018 Eq. A6 (ζ < 0)
             f_h = f_heat(uf, ζ)
             log_term = 2 * log((1 + f_h) / 2)
-            return log_term + 2 * (1 - f_h) / (9 * ζ) - 1
+            return log_term + 2 * (1 - f_h) / (FT(b_h(uf)) * ζ) - 1
         end
     end
 end
@@ -302,7 +298,7 @@ f_heat(uf::Gryanik, ζ) = sqrt(1 - 9 * ζ)
 
 function phi(uf::Gryanik, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Gryanik2020 Eq. 32
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -316,7 +312,7 @@ end
 
 function phi(uf::Gryanik, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Gryanik2020 Eq. 33
         _Pr_0 = FT(Pr_0(uf))
         _a_h = FT(a_h(uf))
@@ -331,7 +327,7 @@ end
 
 function psi(uf::Gryanik, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Gryanik2020 Eq. 34
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -346,7 +342,7 @@ end
 
 function psi(uf::Gryanik, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Gryanik2020 Eq. 35
         _Pr_0 = FT(Pr_0(uf))
         _a_h = FT(a_h(uf))
@@ -363,17 +359,15 @@ function Psi(uf::Gryanik, ζ, tt::MomentumTransport)
     FT = eltype(uf)
     _a_m = FT(a_m(uf))
     _b_m = FT(b_m(uf))
-    if abs(ζ) < eps(FT)
-        if ζ >= 0
-            # TODO: Add limit given default parameter combination a_m, b_m
-            # Volume-averaged form of Gryanik2020 Eq. 34
-            return 3 * (_a_m / _b_m) - FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2)
-        else
+    if ζ >= 0
+        # TODO: Add limit given default parameter combination a_m, b_m
+        # Volume-averaged form of Gryanik2020 Eq. 34
+        return 3 * (_a_m / _b_m) - FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2)
+    else
+        if abs(ζ) < eps(FT)
             # Nishizawa2018 Eq. A13 (ζ < 0)
             return -FT(15) * ζ / FT(8)
-        end
-    else
-        if ζ < 0
+        else
             # Nishizawa2018 Eq. A5 (ζ < 0)
             f_m = f_momentum(uf, ζ)
             log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
@@ -381,9 +375,6 @@ function Psi(uf::Gryanik, ζ, tt::MomentumTransport)
             tan_term = 2 * atan(f_m)
             cubic_term = (1 - f_m^3) / (12 * ζ)
             return log_term - tan_term + π_term - 1 + cubic_term
-        else
-            # Volume-averaged form of Gryanik2020 Eq. 34
-            return FT(3) * (_a_m / _b_m) - FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2)
         end
     end
 end
@@ -393,19 +384,14 @@ function Psi(uf::Gryanik, ζ, tt::HeatTransport)
     _a_h = FT(a_h(uf))
     _b_h = FT(b_h(uf))
     Pr0 = FT(Pr_0(uf))
-    if abs(ζ) < eps(typeof(uf.L))
-        # TODO Apply limits
-        if ζ >= 0
-            # Volume-averaged form of Gryanik2020 Eq. 35
-            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
-        else
+    # TODO Apply limits
+    if ζ >= 0
+        # Volume-averaged form of Gryanik2020 Eq. 35
+        return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
+    else
+        if abs(ζ) < eps(FT)
             # Nishizawa2018 Eq. A14 (ζ < 0)
             return -9 * ζ / 4
-        end
-    else
-        if ζ >= 0
-            # Volume-averaged form of Gryanik2020 Eq. 35
-            return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
         else
             # Nishizawa2018 Eq. A6 (ζ < 0)
             f_h = f_heat(uf, ζ)
@@ -667,7 +653,7 @@ end
 
 function Psi(uf::Cheng, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if abs(ζ) < eps(typeof(uf.L))
+    if abs(ζ) < eps(FT)
         if ζ >= 0
             # Volume-averaged form of Cheng2005 Eq. 23
             # approximated with Nishizawa2018 Eq. B7
@@ -703,7 +689,7 @@ end
 
 function Psi(uf::Cheng, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if abs(ζ) < eps(typeof(uf.L))
+    if abs(ζ) < eps(FT)
         if ζ >= 0
             # Volume-averaged form of Cheng2005 Eq. 21
             # approximated with Nishizawa2018 Eq. B7
@@ -796,7 +782,7 @@ f_heat(uf::Beljaars, ζ) = sqrt(1 - 9 * ζ)
 
 function phi(uf::Beljaars, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Derived from Beljaars1991 Eq. 28
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -817,7 +803,7 @@ end
 
 function phi(uf::Beljaars, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Derived from Beljaars1991 Eq. 32
         _a_h = FT(a_h(uf))
         _b_h = FT(b_h(uf))
@@ -839,7 +825,7 @@ end
 
 function psi(uf::Beljaars, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Beljaars1991 Eq. 28
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -857,7 +843,7 @@ end
 
 function psi(uf::Beljaars, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Beljaars1991 Eq. 32
         _a_h = FT(a_h(uf))
         _b_h = FT(b_h(uf))
@@ -889,7 +875,7 @@ function Psi(uf::Beljaars, ζ, tt::MomentumTransport)
         exp_term2 = (exp(-_d_m * ζ) - 1) / (ζ * _d_m^2)
         exp_term3 = exp(-_d_m * ζ) / _d_m
         return _b_m * (exp_term1 + exp_term2 + exp_term3) - _a_m * ζ / 2
-    elseif abs(ζ) < eps(FT) && ζ < 0
+    elseif abs(ζ) < eps(FT)
         # Nishizawa2018 Eq. A13 (ζ < 0)
         return -FT(15) * ζ / FT(8)
     else
@@ -911,7 +897,7 @@ function Psi(uf::Beljaars, ζ, tt::HeatTransport)
         linear_term = ζ * (_b_h * _c_h / _d_h - 1)
         exp_term2 = _b_h * (1 - exp(-_d_h * ζ) * (_d_h * ζ + 1)) / (_d_h^2)
         return (-1 / ζ) * (sqrt_term + exp_term1 + linear_term + exp_term2)
-    elseif abs(ζ) < eps(FT) && ζ < 0
+    elseif abs(ζ) < eps(FT)
         # Nishizawa2018 Eq. A14 (ζ < 0)
         return -9 * ζ / 4
     else
@@ -979,7 +965,7 @@ f_heat(uf::Holtslag, ζ) = sqrt(1 - 9 * ζ)
 
 function phi(uf::Holtslag, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Derived from Holtslag1988 Eq. 12
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -1000,7 +986,7 @@ end
 
 function phi(uf::Holtslag, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Derived from Holtslag1988 Eq. 12
         _a_h = FT(a_h(uf))
         _b_h = FT(b_h(uf))
@@ -1021,7 +1007,7 @@ end
 
 function psi(uf::Holtslag, ζ, tt::MomentumTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Holtslag1988 Eq. 12
         _a_m = FT(a_m(uf))
         _b_m = FT(b_m(uf))
@@ -1039,7 +1025,7 @@ end
 
 function psi(uf::Holtslag, ζ, tt::HeatTransport)
     FT = eltype(uf)
-    if 0 < ζ
+    if ζ > 0
         # Holtslag1988 Eq. 12
         _a_h = FT(a_h(uf))
         _b_h = FT(b_h(uf))
@@ -1068,7 +1054,7 @@ function Psi(uf::Holtslag, ζ, tt::MomentumTransport)
         exp_term3 = exp(-_d_m * ζ) / _d_m
         return _b_m * (exp_term1 + exp_term2 + exp_term3) - _a_m * ζ / 2
 
-    elseif abs(ζ) < eps(FT) && ζ < 0
+    elseif abs(ζ) < eps(FT)
         # Nishizawa2018 Eq. A13 (ζ < 0)
         return -FT(15) * ζ / FT(8)
 
@@ -1091,7 +1077,7 @@ function Psi(uf::Holtslag, ζ, tt::HeatTransport)
         exp_term3 = exp(-_d_h * ζ) / _d_h
         return _b_h * (exp_term1 + exp_term2 + exp_term3) - _a_h * ζ / 2
 
-    elseif abs(ζ) < eps(FT) && ζ < 0
+    elseif abs(ζ) < eps(FT)
         # Nishizawa2018 Eq. A14 (ζ < 0)
         return -9 * ζ / 4
 
