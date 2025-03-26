@@ -7,10 +7,19 @@ import ArtifactWrappers
 const AW = ArtifactWrappers
 const TD = Thermodynamics
 
+<<<<<<< HEAD
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+FT = Float32;
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+param_set = create_parameters(toml_dict, UF.BusingerType())
+thermo_params = SFP.thermodynamics_params(param_set)
+
+=======
 FT = Float32
 param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
 thermo_params = param_set.thermo_params
 uft = UF.BusingerType()
+>>>>>>> origin/main
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(

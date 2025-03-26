@@ -6,9 +6,21 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import ClimaParams as CP
 
+<<<<<<< HEAD
+import CLIMAParameters
+const CP = CLIMAParameters
+
+include(joinpath(pkgdir(SurfaceFluxes), "parameters", "create_parameters.jl"))
+FT = Float32;
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+param_set = create_parameters(toml_dict, UF.BusingerType())
+
+universal_functions(uft, L) = UF.universal_func(uft, L, create_uf_parameters(toml_dict, uft))
+=======
 FT = Float32
 param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
 thermo_params = param_set.thermo_params
+>>>>>>> origin/main
 
 # TODO: Right now, we test these functions for
 # type stability and correctness in the asymptotic

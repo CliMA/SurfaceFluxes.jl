@@ -37,6 +37,43 @@ const SFP = Parameters
 const APS = SFP.AbstractSurfaceFluxesParameters
 
 abstract type SolverScheme end
+struct FVScheme <: SolverScheme end
+struct FDScheme <: SolverScheme end
+
+using QuadGK
+
+abstract type CanopyType end
+struct SparseCanopy{FT} <: CanopyType
+    d::FT
+    z_star::FT
+end
+struct DenseCanopy{FT} <: CanopyType
+    d::FT
+    z_star::FT
+end
+
+abstract type AbstractRoughnessSublayerType end
+struct NoRSL <: AbstractRoughnessSublayerType end
+struct PhysickRSL <: AbstractRoughnessSublayerType
+    canopy::CanopyType
+end
+struct DeRidderRSL <: AbstractRoughnessSublayerType
+    canopy::CanopyType
+end
+struct HarmonRSL <: AbstractRoughnessSublayerType
+    canopy::CanopyType
+end
+
+# Allow users to skip error on non-convergence
+# by importing:
+# ```julia
+# import SurfaceFluxes
+# SurfaceFluxes.error_on_non_convergence() = false
+# ```
+# Error on convergence must be the default
+# behavior because this can result in printing
+# very large logs resulting in CI to seemingly hang.
+error_on_non_convergence() = true
 struct LayerAverageScheme <: SolverScheme end
 struct PointValueScheme <: SolverScheme end
 
@@ -557,8 +594,9 @@ compute_ustar(param_set, L_MO, sc::Fluxes, uft, scheme) =
 
 compute_ustar(param_set, L_MO, sc::Coefficients, uft, scheme) = sqrt(sc.Cd) * (windspeed(sc))
 
-compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+function compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme)
+    return windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+end
 
 """
     momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -843,16 +881,17 @@ Recover profiles of variable X given values of Z coordinates. Follows Nishizawa 
   - X_sfc: For variable X, values at surface nodes
   - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
   - scheme: Discretization scheme (currently supports FD and FV)
-
-# TODO: add tests
+  - rsl : Roughness Sublayer Formulation (e.g. NoRSL, PhysickRSL, DeRidderRSL)
+  # TODO: add tests
+  # TODO: Verify that all current RSL models fall into this general code pattern, then 𝜙 can be abstracted
 """
 function recover_profile(
     param_set::APS,
     sc::AbstractSurfaceConditions,
     L_MO,
     Z,
-    X_star,
     X_sfc,
+    X_star,
     transport,
     scheme::Union{LayerAverageScheme, PointValueScheme},
 )
@@ -864,6 +903,145 @@ function recover_profile(
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
+    return Σnum * X_star / von_karman_const + X_sfc
+end
+
+
+"""
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, transport, uft, scheme, rsl) 
+
+Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
+Follows Nishizawa equation (21, 22) 
+Canopy modification follows Physick and Garratt (1995) equation (8, 9)
+## Arguments
+  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
+  - sc: Container for surface conditions based on known combination
+        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
+  - L_MO: Monin-Obukhov length
+  - Z: Z coordinate(s) (within surface layer) for which variable values are required
+  - X_sfc: For variable X, values at surface nodes
+  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
+  - uft: A Universal Function type, (returned by, e.g., Businger())
+  - scheme: Discretization scheme (currently supports FD and FV)
+  - rsl : Roughness Sublayer Formulation (e.g. NoRSL, PhysickRSL, DeRidderRSL)
+
+# TODO: add tests
+# TODO: Verify that all current RSL models fall into this general code pattern, then 𝜙 can be abstracted
+"""
+function recover_profile(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    L_MO::FT,
+    Z,
+    X_sfc,
+    X_star,
+    transport,
+    uft::UF.AUFT,
+    scheme::Union{FVScheme, FDScheme},
+    rsl::PhysickRSL,
+) where {FT}
+    z_star = rsl.canopy.z_star
+    d = rsl.canopy.d
+    uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
+    von_karman_const::FT = SFP.von_karman_const(param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    num1 = log((Z - d) / z0(sc, transport))
+    num2 = -UF.psi(uf, (Z - d) / L_MO, transport)
+    num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
+    Σnum = num1 + num2 + num3
+    ### Protoype : QuadGK integration to evaluate the canopy RSL effect given by Physick and Garratt (1995)
+    ### PG95 assume the same 𝜙 function for momentum and scalar (velocity, heat, moisture etc.) variables
+    ### For a model level `Z`, we have the offset coordinate `z = Z-d` over which the functions in PG95 are defined
+
+    # Physick 1995 RSL Term 
+    function ψ_RSL_term(z)
+        if (z < d || z > z_star)
+            return 0
+        end
+
+        function integrand(x)
+            ϕ = UF.phi(uf, (x - d) / L_MO, transport)
+
+            # Physick1995 Eq. 18
+            ϕ_italic = FT(0.5) * exp(log(2) * (x - d) / (z_star - d))
+            return ϕ * (1 - ϕ_italic) / (x - d)
+        end
+
+        integral, error = quadgk(integrand, z, z_star)
+        return integral
+    end
+    rsl_physick = ψ_RSL_term(Z)
+    Σnum += rsl_physick
+
+    return Σnum * X_star / von_karman_const + X_sfc
+end
+
+"""
+    recover_profile(param_set, sc, L_MO, Z, X_sfc, transport, uft, scheme, rsl) 
+
+Recover profiles of variable X given values of Z coordinates, as long as Z > d. 
+Follows Nishizawa equation (21, 22) 
+Canopy modification follows De Ridder (2010) equation (6, 7, 13)
+
+## Arguments
+  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
+  - sc: Container for surface conditions based on known combination
+        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
+  - L_MO: Monin-Obukhov length
+  - Z: Z coordinate(s) (within surface layer) for which variable values are required
+  - X_sfc: For variable X, values at surface nodes
+  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
+  - uft: A Universal Function type, (returned by, e.g., Businger())
+  - scheme: Discretization scheme (currently supports FD and FV)
+  - rsl : Roughness Sublayer Formulation (e.g. NoRSL, PhysickRSL, DeRidderRSL)
+
+# TODO: add tests
+# TODO: Verify that all current RSL models fall into this general code pattern, then 𝜙 can be abstracted
+"""
+function recover_profile(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    L_MO::FT,
+    Z,
+    X_sfc,
+    X_star,
+    transport,
+    uft::UF.AUFT,
+    scheme::Union{FVScheme, FDScheme},
+    rsl::DeRidderRSL,
+) where {FT}
+    z_star = rsl.canopy.z_star
+    d = rsl.canopy.d
+    uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
+    von_karman_const::FT = SFP.von_karman_const(param_set)
+    _π_group = FT(UF.π_group(uf, transport))
+    _π_group⁻¹ = (1 / _π_group)
+    num1 = log((Z - d) / z0(sc, transport))
+    num2 = -UF.psi(uf, (Z - d) / L_MO, transport)
+    num3 = UF.psi(uf, z0(sc, transport) / L_MO, transport)
+    Σnum = num1 + num2 + num3
+
+    ## De Ridder (2010) RSL Term 
+    function ψ_analytic(z)
+        # TODO Move to ClimaParameters
+        # De Ridder Eq. 13
+
+        ν = FT(0.5)
+        if transport isa UF.MomentumTransport
+            μ = FT(2.59) # Momentum, μₕ = 0.95
+        elseif transport isa UF.HeatTransport
+            μ = FT(0.95) # Momentum, μₕ = 0.95
+        end
+        λ = FT(1.5)
+        return UF.phi(uf, z / L_MO * (1 + ν / (μ * z / z_star)), transport) *
+               (1 / λ) *
+               log(1 + (λ / (μ * z / z_star))) *
+               exp(-μ * z / z_star)
+    end
+    rsl_deridder = ψ_analytic(Z - d)
+    Σnum += rsl_deridder
+
     return Σnum * X_star / von_karman_const + X_sfc
 end
 
