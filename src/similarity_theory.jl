@@ -91,6 +91,7 @@ function state_differences(surface_state, atmos_state, similarity_scales, params
     u_s=surface_variable(surface_state.u_s, 
                          surface_args, 
                          similarity_scales, atmos_state, params)
+
     Δu= u_a - u_s
     
     v_a=atmos_state.v_a
@@ -136,6 +137,7 @@ end
     # in about 10 iterations no matter what...
     u★ = FT(1e-4)
     Σ★ = SimilarityScales(u★, u★, u★) 
+    L★ = FT(1)
 
     (; Δu, Δv, Δθ, Δq, Δh) = state_differences(surface_state, atmos_state, Σ★, params)
 
@@ -152,7 +154,7 @@ end
         Σ₀ = Σ★
         # Refine both the similarity scale and the effective
         # velocity difference ΔU, including gustiness.
-        Σ★, ΔU = refine_similarity_variables(Σ★, 
+        (Σ★, ΔU, L★) = refine_similarity_variables(Σ★, 
                                              ΔU, 
                                              similarity_profile,
                                              surface_state,
@@ -160,7 +162,7 @@ end
                                              params) 
         iteration += 1
     end
-
+    
     u★ = Σ★.momentum
     θ★ = Σ★.temperature
     q★ = Σ★.water_vapor
@@ -192,7 +194,8 @@ end
     #                       atmos_state, 
     #                       params)
     θ_s = surface_state.θ_s
-
+    
+    # Extrapolate to get surface density
     ρ_s = ρ_a * (θ_s/θ_a)^(cv_m/R_m)
 
     # These currently are not consistent with the dycore paper
@@ -205,8 +208,8 @@ end
               y_momentum    = + ρ_s * τy,
               r_ae = Δq/(ρ_a * u★ * q★), # Land needs this, and it is not computable internally to land from only the fluxes in coupled simulation.
               scale_vars = (u★, θ★, q★),
+              lmo = L★,
     )
-
     return fluxes
 end
 
@@ -236,11 +239,13 @@ end
     FT = eltype(thermo_params)
     turbulent_prandtl_number = 1//3 #FIXME: Get from ClimaParams
     gustiness = atmos_state.gustiness_parameter
-    
+    ufunc = similarity_profile
+
     # Update the state differences given the new guess for Σ
     (; Δu, Δv, Δθ, Δq, Δh) = state_differences(surface_state, atmos_state, Σ_est, params)
 
     # Unpack and compute roughness lengths according to the surface model functions
+    surface_args = surface_state.args
     𝑧0m =surface_variable(surface_state.roughness_lengths.𝑧0m, 
                          surface_args, 
                           Σ_est, atmos_state, params)
@@ -262,7 +267,7 @@ end
     # Compute Monin-Obukhov length scale depending on a `buoyancy flux`
     b★ = buoyancy_scale(θ★, q★, atmos_ts, thermo_params, 𝑔)
     # Monin-Obhukov similarity length scale and non-dimensional height
-    L★ = ifelse(b★ == 0, zero(b★), - u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
+    L★ = ifelse(b★ == 0, zero(b★),  u★^3 * atmos_state.θ_a / (u★ * θ★ * 𝜅 * 𝑔))
     ζ = Δh / L★ 
 
     ψm = UF.psi(ufunc, ζ, UF.MomentumTransport())
@@ -292,5 +297,5 @@ end
 
     # New velocity difference accounting for gustiness
     ΔU = sqrt(Δu^2 + Δv^2 + Uᴳ^2)
-    return SimilarityScales(u★, θ★, q★), ΔU
+    return (SimilarityScales(u★, θ★, q★), ΔU, L★)
 end

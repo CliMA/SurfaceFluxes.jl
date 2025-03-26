@@ -25,7 +25,6 @@ PyCLES_output_dataset = AW.ArtifactWrapper(
 )
 #! format: on
 PyCLES_output_dataset_path = AW.get_data_folder(PyCLES_output_dataset)
-
 files = ["DYCOMS_RF01.nc", "Bomex.nc", "Rico.nc", "Gabls.nc"];
 for f in files
     @info "Casename: $f"
@@ -108,4 +107,5 @@ for f in files
         sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
     end
     result = SF.surface_conditions(param_set, sc)
+    @show result
 end
