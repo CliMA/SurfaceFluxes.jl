@@ -153,10 +153,6 @@ end
 @testset "Test generated thermodynamic states" begin
     include("test_convergence.jl")
 end
-@testset "Test generated thermodynamic states" begin
-    include("test_convergence.jl")
-end
-
 @testset "Quality assurance" begin
     include("aqua.jl")
 end
