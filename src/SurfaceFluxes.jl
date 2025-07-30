@@ -63,7 +63,9 @@ struct SurfaceFluxConditions{FT <: Real}
 end
 
 SurfaceFluxConditions(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E) =
-    SurfaceFluxConditions(promote(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)...)
+    SurfaceFluxConditions(
+        promote(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)...,
+    )
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
@@ -93,7 +95,11 @@ struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState}
     ts::TS
 end
 
-abstract type AbstractSurfaceConditions{FT <: Real, SVA <: StateValues, SVB <: StateValues} end
+abstract type AbstractSurfaceConditions{
+    FT <: Real,
+    SVA <: StateValues,
+    SVB <: StateValues,
+} end
 
 """
     Fluxes
@@ -124,7 +130,15 @@ function Fluxes(
     z0b::FT;
     gustiness::FT = FT(1),
 ) where {SVA, SVB, FT}
-    return Fluxes{FT, SVA, SVB}(state_in, state_sfc, shf, lhf, z0m, z0b, gustiness)
+    return Fluxes{FT, SVA, SVB}(
+        state_in,
+        state_sfc,
+        shf,
+        lhf,
+        z0m,
+        z0b,
+        gustiness,
+    )
 end
 
 
@@ -139,7 +153,8 @@ initial obukhov length and gustiness.
 
 $(DSE.FIELDS)
 """
-struct FluxesAndFrictionVelocity{FT, SVA, SVB} <: AbstractSurfaceConditions{FT, SVA, SVB}
+struct FluxesAndFrictionVelocity{FT, SVA, SVB} <:
+       AbstractSurfaceConditions{FT, SVA, SVB}
     state_in::SVA
     state_sfc::SVB
     shf::FT
@@ -160,7 +175,16 @@ function FluxesAndFrictionVelocity(
     z0b::FT;
     gustiness::FT = FT(1),
 ) where {SVA, SVB, FT}
-    return FluxesAndFrictionVelocity{FT, SVA, SVB}(state_in, state_sfc, shf, lhf, ustar, z0m, z0b, gustiness)
+    return FluxesAndFrictionVelocity{FT, SVA, SVB}(
+        state_in,
+        state_sfc,
+        shf,
+        lhf,
+        ustar,
+        z0m,
+        z0b,
+        gustiness,
+    )
 end
 
 """
@@ -190,7 +214,14 @@ function Coefficients(
     gustiness::FT = FT(1),
     beta::FT = FT(1),
 ) where {SVA, SVB, FT}
-    return Coefficients{FT, SVA, SVB}(state_in, state_sfc, Cd, Ch, gustiness, beta)
+    return Coefficients{FT, SVA, SVB}(
+        state_in,
+        state_sfc,
+        Cd,
+        Ch,
+        gustiness,
+        beta,
+    )
 end
 
 
@@ -221,7 +252,14 @@ function ValuesOnly(
     gustiness::FT = FT(1),
     beta::FT = FT(1),
 ) where {SVA, SVB, FT}
-    return ValuesOnly{FT, SVA, SVB}(state_in, state_sfc, z0m, z0b, gustiness, beta)
+    return ValuesOnly{FT, SVA, SVB}(
+        state_in,
+        state_sfc,
+        z0m,
+        z0b,
+        gustiness,
+        beta,
+    )
 end
 
 ts_in(sc::AbstractSurfaceConditions) = sc.state_in.ts
@@ -241,7 +279,8 @@ qt_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_in(sc))
 qt_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-Δqt(param_set::APS, sc::AbstractSurfaceConditions) = qt_in(param_set, sc) - qt_sfc(param_set, sc)
+Δqt(param_set::APS, sc::AbstractSurfaceConditions) =
+    qt_in(param_set, sc) - qt_sfc(param_set, sc)
 
 u_in(sc::AbstractSurfaceConditions) = sc.state_in.u
 u_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.u
@@ -292,16 +331,52 @@ function surface_conditions(
     noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.universal_func_type(param_set)
-    L_MO = obukhov_length(param_set, sc, uft, scheme, tol, tol_neutral, maxiter, soltype, noniterative_stable_sol)
+    L_MO = obukhov_length(
+        param_set,
+        sc,
+        uft,
+        scheme,
+        tol,
+        tol_neutral,
+        maxiter,
+        soltype,
+        noniterative_stable_sol,
+    )
     ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
-    Cd = momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
-    Ch = heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
+    Cd = momentum_exchange_coefficient(
+        param_set,
+        L_MO,
+        sc,
+        uft,
+        scheme,
+        tol_neutral,
+    )
+    Ch =
+        heat_exchange_coefficient(param_set, L_MO, sc, uft, scheme, tol_neutral)
     shf = sensible_heat_flux(param_set, Ch, sc, scheme)
     lhf = latent_heat_flux(param_set, Ch, sc, scheme)
-    buoy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
+    buoy_flux = compute_buoyancy_flux(
+        param_set,
+        shf,
+        lhf,
+        ts_in(sc),
+        ts_sfc(sc),
+        scheme,
+    )
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
-    return SurfaceFluxConditions(L_MO, shf, lhf, buoy_flux, ρτxz, ρτyz, ustar, Cd, Ch, E)
+    return SurfaceFluxConditions(
+        L_MO,
+        shf,
+        lhf,
+        buoy_flux,
+        ρτxz,
+        ρτyz,
+        ustar,
+        Cd,
+        Ch,
+        E,
+    )
 end
 
 """
@@ -351,8 +426,14 @@ function non_zero(v::FT) where {FT}
     return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
 end
 
-function compute_richardson_number(sc::AbstractSurfaceConditions, DSEᵥ_in, DSEᵥ_sfc, grav)
-    return (grav * Δz(sc) * (DSEᵥ_in - DSEᵥ_sfc)) / (DSEᵥ_in * (windspeed(sc))^2)
+function compute_richardson_number(
+    sc::AbstractSurfaceConditions,
+    DSEᵥ_in,
+    DSEᵥ_sfc,
+    grav,
+)
+    return (grav * Δz(sc) * (DSEᵥ_in - DSEᵥ_sfc)) /
+           (DSEᵥ_in * (windspeed(sc))^2)
 end
 
 function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions, uft, scheme, ζ)
@@ -374,7 +455,9 @@ function compute_∂Ri∂ζ(param_set, sc::AbstractSurfaceConditions, uft, schem
     ϕₕ₀ = UF.phi(ufₛ, z0h * ζ / dz, UF.HeatTransport())
     F_m = log(dz / z0m) - ψₘ + ψₘ₀
     F_h = log(dz / z0h) - ψₕ + ψₕ₀
-    ∂Ri∂ζ = compute_Ri_b(param_set, sc, uft, scheme, ζ) / ζ * (1 + 1 / F_h * (ϕₕ - ϕₕ₀) - 2 * (ϕₘ - ϕₘ₀) * (1 / F_m))
+    ∂Ri∂ζ =
+        compute_Ri_b(param_set, sc, uft, scheme, ζ) / ζ *
+        (1 + 1 / F_h * (ϕₕ - ϕₕ₀) - 2 * (ϕₘ - ϕₘ₀) * (1 / F_m))
 end
 
 function compute_Ri_b(param_set, sc::AbstractSurfaceConditions, uft, scheme, ζ)
@@ -406,8 +489,13 @@ function obukhov_length(
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
+    DSEᵥ_in =
+        TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(
+        thermo_params,
+        ts_sfc(sc),
+        grav * z_sfc(sc),
+    )
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     if ΔDSEᵥ >= 0 && noniterative_stable_sol == true # Stable Layer
         ### Analytical Solution
@@ -424,7 +512,8 @@ function obukhov_length(
         ψ_ma = UF.psi(ufₐ, ζₐ, UF.MomentumTransport())
         ψ_ha = UF.psi(ufₐ, ζₐ, UF.HeatTransport())
         A =
-            (log(ϵₘ) - ψ_ma)^(2 * (γ - 1)) / (ζₐ^(γ - 1) * (log(ϵₕ) - ψ_ha)^(γ - 1)) *
+            (log(ϵₘ) - ψ_ma)^(2 * (γ - 1)) /
+            (ζₐ^(γ - 1) * (log(ϵₕ) - ψ_ha)^(γ - 1)) *
             ((log(ϵₘ) - ψ_ma)^2 / (log(ϵₕ) - ψ_ha) - C)
         ζₛ = C * Ri_b + A * Ri_b^γ
         ufₛ = UF.universal_func(uft, Δz(sc) / ζₛ, SFP.uf_params(param_set))
@@ -433,7 +522,10 @@ function obukhov_length(
         # Compute exchange coefficients
         κ = SFP.von_karman_const(param_set)
         Cd = κ^2 / (log(ϵₘ)^2) * (1 - ψₘ / log(ϵₘ))^(-2)
-        Ch = κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) * (1 - ψₘ / log(ϵₘ))^(-1) * (1 - ψₕ / Pr₀ / log(ϵₕ))^(-1)
+        Ch =
+            κ^2 / (Pr₀ * log(ϵₘ) * log(ϵₕ)) *
+            (1 - ψₘ / log(ϵₘ))^(-1) *
+            (1 - ψₕ / Pr₀ / log(ϵₕ))^(-1)
         return non_zero(Δz(sc) / ζₛ)
     elseif tol_neutral >= abs(ΔDSEᵥ) # Neutral Layer
         # Large L_MO -> virtual dry static energy suggests neutral boundary layer
@@ -441,7 +533,9 @@ function obukhov_length(
         return L_MO = FT(Inf) * sign(non_zero(ΔDSEᵥ))
     else
         function root_ζ(ζ)
-            f = compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) - compute_Ri_b(param_set, sc, uft, scheme, ζ)
+            f =
+                compute_richardson_number(sc, DSEᵥ_in, DSEᵥ_sfc, grav) -
+                compute_Ri_b(param_set, sc, uft, scheme, ζ)
             return f
         end
         function root_and_deriv_ζ(ζ)
@@ -450,21 +544,47 @@ function obukhov_length(
             return (f, f′)
         end
         ζ₀ = sign(ΔDSEᵥ)
-        sol = RS.find_zero(root_and_deriv_ζ, RS.NewtonsMethod(ζ₀), soltype, tol, maxiter)
+        sol = RS.find_zero(
+            root_and_deriv_ζ,
+            RS.NewtonsMethod(ζ₀),
+            soltype,
+            tol,
+            maxiter,
+        )
         L_MO = Δz(sc) / sol.root
         return non_zero(L_MO)
     end
 end
 
-function obukhov_length(param_set, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme, args...)
-    return -sc.ustar^3 / SFP.von_karman_const(param_set) / non_zero(compute_buoyancy_flux(param_set, sc, scheme))
+function obukhov_length(
+    param_set,
+    sc::FluxesAndFrictionVelocity,
+    uft::UF.AUFT,
+    scheme,
+    args...,
+)
+    return -sc.ustar^3 / SFP.von_karman_const(param_set) /
+           non_zero(compute_buoyancy_flux(param_set, sc, scheme))
 end
 
-function obukhov_length(param_set, sc::Coefficients, uft::UF.AUFT, scheme, args...)
+function obukhov_length(
+    param_set,
+    sc::Coefficients,
+    uft::UF.AUFT,
+    scheme,
+    args...,
+)
     lhf = latent_heat_flux(param_set, sc.Ch, sc, scheme)
     shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
     ustar = sqrt(sc.Cd) * windspeed(sc)
-    buoyancy_flux = compute_buoyancy_flux(param_set, shf, lhf, ts_in(sc), ts_sfc(sc), scheme)
+    buoyancy_flux = compute_buoyancy_flux(
+        param_set,
+        shf,
+        lhf,
+        ts_in(sc),
+        ts_sfc(sc),
+        scheme,
+    )
     return -ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux)
 end
 
@@ -484,8 +604,19 @@ function compute_buoyancy_flux(param_set, shf, lhf, ts_in, ts_sfc, scheme)
     return grav / ρ_sfc * (shf / cp_m / T_in + (ε_vd - 1) * lhf / L_v)
 end
 
-function compute_buoyancy_flux(param_set, sc::Union{FluxesAndFrictionVelocity, Fluxes}, scheme)
-    return compute_buoyancy_flux(param_set, sc.shf, sc.lhf, ts_in(sc), ts_sfc(sc), scheme)
+function compute_buoyancy_flux(
+    param_set,
+    sc::Union{FluxesAndFrictionVelocity, Fluxes},
+    scheme,
+)
+    return compute_buoyancy_flux(
+        param_set,
+        sc.shf,
+        sc.lhf,
+        ts_in(sc),
+        ts_sfc(sc),
+        scheme,
+    )
 end
 
 """
@@ -493,14 +624,32 @@ end
 
 Returns buoyancy star based on known air densities.
 """
-function compute_bstar(param_set, L_MO, sc::AbstractSurfaceConditions, uft::UF.AUFT, scheme)
+function compute_bstar(
+    param_set,
+    L_MO,
+    sc::AbstractSurfaceConditions,
+    uft::UF.AUFT,
+    scheme,
+)
     thermo_params = SFP.thermodynamics_params(param_set)
     uf = UF.universal_func(uft, L_MO, SFP.uf_params(param_set))
     grav = SFP.grav(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(
+        thermo_params,
+        ts_sfc(sc),
+        grav * z_sfc(sc),
+    )
+    DSEᵥ_in =
+        TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     DSEᵥ_star =
-        compute_physical_scale_coeff(param_set, sc, L_MO, UF.HeatTransport(), uft, scheme) * (DSEᵥ_in - DSEᵥ_sfc)
+        compute_physical_scale_coeff(
+            param_set,
+            sc,
+            L_MO,
+            UF.HeatTransport(),
+            uft,
+            scheme,
+        ) * (DSEᵥ_in - DSEᵥ_sfc)
     return grav * DSEᵥ_star / DSEᵥ_in
 end
 
@@ -509,8 +658,13 @@ end
 
 Returns buoyancy star based on known friction velocity  and fluxes.
 """
-compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, scheme) =
-    -compute_buoyancy_flux(param_set, sc, scheme) / sc.ustar
+compute_bstar(
+    param_set,
+    L_MO,
+    sc::FluxesAndFrictionVelocity,
+    uft::UF.AUFT,
+    scheme,
+) = -compute_buoyancy_flux(param_set, sc, scheme) / sc.ustar
 
 """
     compute_bstar(param_set, L_MO, sc, uft, scheme)
@@ -518,7 +672,8 @@ compute_bstar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft::UF.AUFT, sche
 Return buoyancy star based on known fluxes.
 """
 compute_bstar(param_set, L_MO, sc::Fluxes, uft::UF.AUFT, scheme) =
-    -compute_buoyancy_flux(param_set, sc, scheme) / compute_ustar(param_set, L_MO, sc, uft, scheme)
+    -compute_buoyancy_flux(param_set, sc, scheme) /
+    compute_ustar(param_set, L_MO, sc, uft, scheme)
 
 
 """
@@ -550,15 +705,31 @@ Compute given the Monin-Obukhov lengthscale.
 """
 function compute_ustar end
 
-compute_ustar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) = sc.ustar
+compute_ustar(param_set, L_MO, sc::FluxesAndFrictionVelocity, uft, scheme) =
+    sc.ustar
 
 compute_ustar(param_set, L_MO, sc::Fluxes, uft, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+    windspeed(sc) * compute_physical_scale_coeff(
+        param_set,
+        sc,
+        L_MO,
+        UF.MomentumTransport(),
+        uft,
+        scheme,
+    )
 
-compute_ustar(param_set, L_MO, sc::Coefficients, uft, scheme) = sqrt(sc.Cd) * (windspeed(sc))
+compute_ustar(param_set, L_MO, sc::Coefficients, uft, scheme) =
+    sqrt(sc.Cd) * (windspeed(sc))
 
 compute_ustar(param_set, L_MO, sc::ValuesOnly, uft, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(param_set, sc, L_MO, UF.MomentumTransport(), uft, scheme)
+    windspeed(sc) * compute_physical_scale_coeff(
+        param_set,
+        sc,
+        L_MO,
+        UF.MomentumTransport(),
+        uft,
+        scheme,
+    )
 
 """
     momentum_exchange_coefficient(param_set, L_MO, sc, uft, scheme)
@@ -578,8 +749,13 @@ function momentum_exchange_coefficient(
     κ = SFP.von_karman_const(param_set)
     grav = SFP.grav(param_set)
     transport = UF.MomentumTransport()
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(
+        thermo_params,
+        ts_sfc(sc),
+        grav * z_sfc(sc),
+    )
+    DSEᵥ_in =
+        TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     if abs(ΔDSEᵥ) <= tol_neutral
         Cd = (κ / log(Δz(sc) / z0(sc, transport)))^2
@@ -595,7 +771,14 @@ end
 
 Return Cd, the momentum exchange coefficient.
 """
-function momentum_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme, tol_neutral)
+function momentum_exchange_coefficient(
+    param_set,
+    L_MO,
+    sc::Coefficients,
+    uft,
+    scheme,
+    tol_neutral,
+)
     return sc.Cd
 end
 
@@ -617,15 +800,27 @@ function heat_exchange_coefficient(
     transport = UF.HeatTransport()
     κ = SFP.von_karman_const(param_set)
     grav = SFP.grav(param_set)
-    DSEᵥ_sfc = TD.virtual_dry_static_energy(thermo_params, ts_sfc(sc), grav * z_sfc(sc))
-    DSEᵥ_in = TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
+    DSEᵥ_sfc = TD.virtual_dry_static_energy(
+        thermo_params,
+        ts_sfc(sc),
+        grav * z_sfc(sc),
+    )
+    DSEᵥ_in =
+        TD.virtual_dry_static_energy(thermo_params, ts_in(sc), grav * z_in(sc))
     ΔDSEᵥ = DSEᵥ_in - DSEᵥ_sfc
     z0_b = z0(sc, UF.HeatTransport())
     z0_m = z0(sc, UF.MomentumTransport())
     if abs(ΔDSEᵥ) <= tol_neutral
         Ch = κ^2 / (log(Δz(sc) / z0_b) * log(Δz(sc) / z0_m))
     else
-        ϕ_heat = compute_physical_scale_coeff(param_set, sc, L_MO, transport, uft, scheme)
+        ϕ_heat = compute_physical_scale_coeff(
+            param_set,
+            sc,
+            L_MO,
+            transport,
+            uft,
+            scheme,
+        )
         ustar = compute_ustar(param_set, L_MO, sc, uft, scheme)
         Ch = ustar * ϕ_heat / windspeed(sc)
     end
@@ -638,7 +833,14 @@ end
 Return Ch, the heat exchange coefficient given the
 Monin-Obukhov lengthscale.
 """
-function heat_exchange_coefficient(param_set, L_MO, sc::Coefficients, uft, scheme, tol_neutral)
+function heat_exchange_coefficient(
+    param_set,
+    L_MO,
+    sc::Coefficients,
+    uft,
+    scheme,
+    tol_neutral,
+)
     return sc.Ch
 end
 
@@ -672,7 +874,12 @@ Compute and return the sensible heat fluxes
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - scheme: Discretization scheme (currently supports FD and FV)
 """
-function sensible_heat_flux(param_set, Ch, sc::Union{ValuesOnly, Coefficients}, scheme)
+function sensible_heat_flux(
+    param_set,
+    Ch,
+    sc::Union{ValuesOnly, Coefficients},
+    scheme,
+)
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
     cp_d = SFP.cp_d(param_set)
@@ -694,7 +901,12 @@ end
 In cases where surface fluxes are known,
 return the known sensible heat flux.
 """
-function sensible_heat_flux(param_set, Ch, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
+function sensible_heat_flux(
+    param_set,
+    Ch,
+    sc::Union{Fluxes, FluxesAndFrictionVelocity},
+    scheme,
+)
     return sc.shf
 end
 
@@ -704,7 +916,12 @@ end
 In cases where surface fluxes are known,
 return the known latent heat flux.
 """
-function latent_heat_flux(param_set, L_MO, sc::Union{Fluxes, FluxesAndFrictionVelocity}, scheme)
+function latent_heat_flux(
+    param_set,
+    L_MO,
+    sc::Union{Fluxes, FluxesAndFrictionVelocity},
+    scheme,
+)
     return sc.lhf
 end
 
@@ -719,7 +936,12 @@ Compute and return the latent heat flux
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - scheme: Discretization scheme (currently supports FD and FV)
 """
-function latent_heat_flux(param_set, Ch, sc::Union{ValuesOnly, Coefficients}, scheme)
+function latent_heat_flux(
+    param_set,
+    Ch,
+    sc::Union{ValuesOnly, Coefficients},
+    scheme,
+)
     Lv_0 = SFP.LH_v0(param_set)
     E = evaporation(param_set, sc, Ch)
     lhf = Lv_0 * E
@@ -737,7 +959,11 @@ evaporation is directly calculated from the latent heat flux.
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - Ch: Thermal exchange coefficient
 """
-function evaporation(param_set, sc::Union{Fluxes, FluxesAndFrictionVelocity}, Ch)
+function evaporation(
+    param_set,
+    sc::Union{Fluxes, FluxesAndFrictionVelocity},
+    Ch,
+)
     Lv_0 = SFP.LH_v0(param_set)
     return sc.lhf / Lv_0
 end
@@ -789,7 +1015,9 @@ function compute_physical_scale_coeff(
     R_z0 = 1 - z0(sc, transport) / Δz(sc)
     denom1 = log(Δz(sc) / z0(sc, transport))
     denom2 = -UF.Psi(uf, Δz(sc) / uf.L, transport)
-    denom3 = z0(sc, transport) / Δz(sc) * UF.Psi(uf, z0(sc, transport) / uf.L, transport)
+    denom3 =
+        z0(sc, transport) / Δz(sc) *
+        UF.Psi(uf, z0(sc, transport) / uf.L, transport)
     denom4 = R_z0 * (UF.psi(uf, z0(sc, transport) / uf.L, transport) - 1)
     Σterms = denom1 + denom2 + denom3 + denom4
     return von_karman_const / (π_group * Σterms)

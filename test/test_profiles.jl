@@ -101,9 +101,24 @@ for f in files
     if f == "DYCOMS_RF01.nc"
         sc = SF.Fluxes(state_in, state_sfc, FT(15), FT(115), z0m, z0b)
     elseif f == "Bomex.nc"
-        sc = SF.FluxesAndFrictionVelocity(state_in, state_sfc, shf, lhf, FT(0.28), z0m, z0b)
+        sc = SF.FluxesAndFrictionVelocity(
+            state_in,
+            state_sfc,
+            shf,
+            lhf,
+            FT(0.28),
+            z0m,
+            z0b,
+        )
     elseif f == "Rico.nc"
-        sc = SF.Coefficients(state_in, state_sfc, FT(0.001229), FT(0.001094), z0m, z0b)
+        sc = SF.Coefficients(
+            state_in,
+            state_sfc,
+            FT(0.001229),
+            FT(0.001094),
+            z0m,
+            z0b,
+        )
     elseif f == "Gabls.nc"
         sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
     end
