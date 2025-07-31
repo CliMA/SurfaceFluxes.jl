@@ -23,9 +23,6 @@ thermo_params = param_set.thermo_params
                 UF.GryanikParams(FT),
                 UF.GrachevParams(FT),
                 UF.BusingerParams(FT),
-                UF.BeljaarsParams(FT),
-                UF.HoltslagParams(FT),
-                UF.ChengParams(FT),
             )
                 uft = UF.universal_func_type(typeof(ufp))
                 uf = UF.universal_func(uft, L, ufp)
@@ -46,9 +43,6 @@ thermo_params = param_set.thermo_params
                 UF.GryanikParams(FT),
                 UF.GrachevParams(FT),
                 UF.BusingerParams(FT),
-                UF.BeljaarsParams(FT),
-                UF.HoltslagParams(FT),
-                UF.ChengParams(FT),
             )
                 uft = UF.universal_func_type(typeof(ufp))
                 uf = UF.universal_func(uft, L, ufp)
@@ -65,7 +59,7 @@ thermo_params = param_set.thermo_params
         FT = Float32
         ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
         for L in (-FT(10), FT(10))
-            for ufp in (UF.GryanikParams(FT), UF.BusingerParams(FT), UF.BeljaarsParams(FT), UF.HoltslagParams(FT))
+            for ufp in (UF.GryanikParams(FT), UF.BusingerParams(FT))
                 uft = UF.universal_func_type(typeof(ufp))
                 uf = UF.universal_func(uft, L, ufp)
                 for transport in (UF.MomentumTransport(), UF.HeatTransport())
@@ -80,16 +74,19 @@ thermo_params = param_set.thermo_params
         FT = Float32
 
         ϕ_h_ζ∞(uf::UF.Grachev, ζ) = 1 + FT(UF.b_h(uf))
-        ϕ_m_ζ∞(uf::UF.Grachev, ζ) = FT(UF.a_m(uf)) / FT(UF.b_m(uf)) * ζ^FT(1 / 3)
+        ϕ_m_ζ∞(uf::UF.Grachev, ζ) =
+            FT(UF.a_m(uf)) / FT(UF.b_m(uf)) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::UF.Gryanik, ζ) = FT(1) + (FT(ζ) * FT(UF.Pr_0(uf)) * FT(UF.a_h(uf))) / (1 + FT(UF.b_h(uf)) * FT(ζ))
-        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) = FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
+        ϕ_h_ζ∞(uf::UF.Gryanik, ζ) =
+            FT(1) +
+            (FT(ζ) * FT(UF.Pr_0(uf)) * FT(UF.a_h(uf))) /
+            (1 + FT(UF.b_h(uf)) * FT(ζ))
+        ϕ_m_ζ∞(uf::UF.Gryanik, ζ) =
+            FT(UF.a_m(uf) / UF.b_m(uf)^FT(2 / 3)) * ζ^FT(1 / 3)
 
-        ϕ_h_ζ∞(uf::UF.Cheng, ζ) = 1 + FT(UF.a_h(uf))
-        ϕ_m_ζ∞(uf::UF.Cheng, ζ) = 1 + FT(UF.a_m(uf))
 
         for L in (-FT(10), FT(10))
-            for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT), UF.ChengParams(FT))
+            for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
                 uft = UF.universal_func_type(typeof(ufp))
                 uf = UF.universal_func(uft, L, ufp)
                 for ζ in FT(10) .^ (4, 6, 8, 10)
@@ -125,25 +122,41 @@ thermo_params = param_set.thermo_params
     @testset "Test Correctness: ψ(ζ) = ∫ 𝒻(ϕ(ζ′)) dζ′" begin
         FloatType = (Float32, Float64)
         for FT in FloatType
-            ζ_array = (FT(-20), FT(-10), FT(-1), -sqrt(eps(FT)), sqrt(eps(FT)), FT(1), FT(10), FT(20))
+            ζ_array = (
+                FT(-20),
+                FT(-10),
+                FT(-1),
+                -sqrt(eps(FT)),
+                sqrt(eps(FT)),
+                FT(1),
+                FT(10),
+                FT(20),
+            )
             for L in FT(10) .* sign.(ζ_array)
                 for ζ in ζ_array
                     for ufp in (
                         UF.GryanikParams(FT),
                         UF.GrachevParams(FT),
                         UF.BusingerParams(FT),
-                        UF.BeljaarsParams(FT),
-                        UF.HoltslagParams(FT),
-                        UF.ChengParams(FT),
                     )
                         uft = UF.universal_func_type(typeof(ufp))
                         uf = UF.universal_func(uft, L, ufp)
-                        for transport in (UF.MomentumTransport(), UF.HeatTransport())
+                        for transport in
+                            (UF.MomentumTransport(), UF.HeatTransport())
                             # Compute ψ via numerical integration of 𝒻(ϕ(ζ))
-                            ψ_int = QuadGK.quadgk(ζ′ -> (FT(1) - UF.phi(uf, ζ′, transport)) / ζ′, eps(FT), ζ)
+                            ψ_int = QuadGK.quadgk(
+                                ζ′ ->
+                                    (FT(1) - UF.phi(uf, ζ′, transport)) / ζ′,
+                                eps(FT),
+                                ζ,
+                            )
                             # Compute ψ using function definitions of ψ(ζ)
                             ψ = UF.psi(uf, ζ, transport)
-                            @test isapprox(ψ_int[1] - ψ, FT(0), atol = 10sqrt(eps(FT)))
+                            @test isapprox(
+                                ψ_int[1] - ψ,
+                                FT(0),
+                                atol = 10sqrt(eps(FT)),
+                            )
                         end
                     end
                 end

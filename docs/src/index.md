@@ -47,9 +47,6 @@ SFP.SurfaceFluxesParameters(toml_dict, UF.GrachevParams)
 UF.BusingerParams(FT)
 UF.GryanikParams(FT)
 UF.GrachevParams(FT)
-UF.BeljaarsParams(toml_dict)
-UF.ChengParams(toml_dict)
-UF.HoltslagParams(toml_dict)
 ```
 
 ## Universal Functions
@@ -62,9 +59,6 @@ SurfaceFluxes.UniversalFunctions
 SurfaceFluxes.UniversalFunctions.Gryanik
 SurfaceFluxes.UniversalFunctions.Grachev
 SurfaceFluxes.UniversalFunctions.Businger
-SurfaceFluxes.UniversalFunctions.Beljaars
-SurfaceFluxes.UniversalFunctions.Cheng
-SurfaceFluxes.UniversalFunctions.Holtslag
 ```
 
 ```@docs

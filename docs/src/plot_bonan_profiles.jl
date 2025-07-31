@@ -61,10 +61,18 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),
@@ -97,17 +105,39 @@ for il in 1:10
     )
 end
 pl = Plots.@layout [a b; c d]
-p1 = Plots.plot(result_u, data_uz, xlim = (0, 4), ylim = (15, 50), ls = :dashdot, label = "LMO=-10")
-p2 = Plots.plot(result_θ .- θ_sfc, data_uz, xlim = (-8, 0), ylim = (15, 50), ls = :dashdot, label = "LMO=-10")
+p1 = Plots.plot(
+    result_u,
+    data_uz,
+    xlim = (0, 4),
+    ylim = (15, 50),
+    ls = :dashdot,
+    label = "LMO=-10",
+)
+p2 = Plots.plot(
+    result_θ .- θ_sfc,
+    data_uz,
+    xlim = (-8, 0),
+    ylim = (15, 50),
+    ls = :dashdot,
+    label = "LMO=-10",
+)
 
 LMO = FT(-50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),
@@ -139,17 +169,41 @@ for il in 1:10
         ),
     )
 end
-p1 = Plots.plot!(p1, result_u, data_uz, xlim = (0, 4), ylim = (15, 50), ls = :dash, label = "LMO=-50")
-p2 = Plots.plot!(p2, result_θ .- θ_sfc, data_uz, xlim = (-8, 0), ylim = (15, 50), ls = :dash, label = "LMO=-50")
+p1 = Plots.plot!(
+    p1,
+    result_u,
+    data_uz,
+    xlim = (0, 4),
+    ylim = (15, 50),
+    ls = :dash,
+    label = "LMO=-50",
+)
+p2 = Plots.plot!(
+    p2,
+    result_θ .- θ_sfc,
+    data_uz,
+    xlim = (-8, 0),
+    ylim = (15, 50),
+    ls = :dash,
+    label = "LMO=-50",
+)
 
 LMO = FT(-1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),
@@ -212,10 +266,18 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),
@@ -247,17 +309,39 @@ for il in 1:10
         ),
     )
 end
-p3 = Plots.plot(result_u, data_uz, xlim = (0, 4), ylim = (15, 50), ls = :dashdot, label = "LMO=30")
-p4 = Plots.plot(result_θ .- θ_sfc, data_uz, xlim = (0, 2), ylim = (15, 50), ls = :dashdot, label = "LMO=30")
+p3 = Plots.plot(
+    result_u,
+    data_uz,
+    xlim = (0, 4),
+    ylim = (15, 50),
+    ls = :dashdot,
+    label = "LMO=30",
+)
+p4 = Plots.plot(
+    result_θ .- θ_sfc,
+    data_uz,
+    xlim = (0, 2),
+    ylim = (15, 50),
+    ls = :dashdot,
+    label = "LMO=30",
+)
 
 LMO = FT(50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),
@@ -289,17 +373,41 @@ for il in 1:10
         ),
     )
 end
-p3 = Plots.plot!(p3, result_u, data_uz, xlim = (0, 4), ylim = (15, 50), ls = :dash, label = "LMO=50")
-p4 = Plots.plot!(p4, result_θ .- θ_sfc, data_uz, xlim = (0, 2), ylim = (15, 50), ls = :dash, label = "LMO=50")
+p3 = Plots.plot!(
+    p3,
+    result_u,
+    data_uz,
+    xlim = (0, 4),
+    ylim = (15, 50),
+    ls = :dash,
+    label = "LMO=50",
+)
+p4 = Plots.plot!(
+    p4,
+    result_θ .- θ_sfc,
+    data_uz,
+    xlim = (0, 2),
+    ylim = (15, 50),
+    ls = :dash,
+    label = "LMO=50",
+)
 
 LMO = FT(1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_in, FT(θ_sfc + bonan_data_dθz[il, 1]))
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
+        thermo_params,
+        p_in,
+        FT(θ_sfc + bonan_data_dθz[il, 1]),
+    )
     ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
     sc = SF.ValuesOnly(
-        SF.StateValues(FT(bonan_data_duz[il, 2] - canopy_disp), (FT(bonan_data_duz[il, 1]), FT(0)), ts_int_test),
+        SF.StateValues(
+            FT(bonan_data_duz[il, 2] - canopy_disp),
+            (FT(bonan_data_duz[il, 1]), FT(0)),
+            ts_int_test,
+        ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
         FT(0.0816),

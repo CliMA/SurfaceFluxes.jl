@@ -55,19 +55,65 @@ function test_surfacefluxes_gpu(FT)
     fill!(output, FT(-99999.99))
 
     ndrange = (data_length,)
-    z = ArrayType([FT(29.432779269303), FT(30.0497139076724), FT(31.6880000418153), FT(34.1873479240475)])
-    θ = ArrayType([FT(268.559120403867), FT(269.799228886728), FT(277.443023238556), FT(295.79192777341)])
-    θ_sfc = ArrayType([FT(273.42369841804), FT(272.551410044203), FT(278.638168565727), FT(298.133068766049)])
-    z0 = ArrayType([FT(5.86144925739178e-05), FT(0.0001), FT(0.000641655193293549), FT(3.23383768877187e-05)])
-    speed = ArrayType([FT(2.9693638452068), FT(2.43308757772094), FT(5.69418282305367), FT(9.5608693754561)])
-    u_star = ArrayType([FT(0.109462510724615), FT(0.0932942802513508), FT(0.223232887323184), FT(0.290918439028557)])
-    b_star =
-        ArrayType([FT(0.00690834676781433), FT(0.00428178089592372), FT(0.00121229800895103), FT(0.00262353784027441)])
+    z = ArrayType([
+        FT(29.432779269303),
+        FT(30.0497139076724),
+        FT(31.6880000418153),
+        FT(34.1873479240475),
+    ])
+    θ = ArrayType([
+        FT(268.559120403867),
+        FT(269.799228886728),
+        FT(277.443023238556),
+        FT(295.79192777341),
+    ])
+    θ_sfc = ArrayType([
+        FT(273.42369841804),
+        FT(272.551410044203),
+        FT(278.638168565727),
+        FT(298.133068766049),
+    ])
+    z0 = ArrayType([
+        FT(5.86144925739178e-05),
+        FT(0.0001),
+        FT(0.000641655193293549),
+        FT(3.23383768877187e-05),
+    ])
+    speed = ArrayType([
+        FT(2.9693638452068),
+        FT(2.43308757772094),
+        FT(5.69418282305367),
+        FT(9.5608693754561),
+    ])
+    u_star = ArrayType([
+        FT(0.109462510724615),
+        FT(0.0932942802513508),
+        FT(0.223232887323184),
+        FT(0.290918439028557),
+    ])
+    b_star = ArrayType([
+        FT(0.00690834676781433),
+        FT(0.00428178089592372),
+        FT(0.00121229800895103),
+        FT(0.00262353784027441),
+    ])
     κ = SFP.von_karman_const(param_set)
 
     backend = KernelAbstractions.get_backend(output)
     kernel! = test_surface_conditions_kernel!(backend)
-    event = kernel!(param_set, output, z, θ, θ_sfc, z0, speed, u_star, b_star, κ, ndrange = ndrange)
+    event = kernel!(
+        param_set,
+        output,
+        z,
+        θ,
+        θ_sfc,
+        z0,
+        speed,
+        u_star,
+        b_star,
+        κ,
+        ndrange = ndrange,
+    )
 
     KernelAbstractions.synchronize(backend)
     return output
