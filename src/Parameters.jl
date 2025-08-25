@@ -33,9 +33,7 @@ for var in fieldnames(TDPS)
 end
 
 # Thermodynamics derived parameters
-molmass_ratio(ps::ASFP) = TD.Parameters.molmass_ratio(thermodynamics_params(ps))
-R_d(ps::ASFP) = TD.Parameters.R_d(thermodynamics_params(ps))
-cp_d(ps::ASFP) = TD.Parameters.cp_d(thermodynamics_params(ps))
+Rv_over_Rd(ps::ASFP) = TD.Parameters.Rv_over_Rd(thermodynamics_params(ps))
 
 Pr_0(ps::SurfaceFluxesParameters) = Pr_0(uf_params(ps))
 a_m(ps::SurfaceFluxesParameters) = a_m(uf_params(ps))
