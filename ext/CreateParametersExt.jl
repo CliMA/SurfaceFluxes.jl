@@ -16,10 +16,9 @@ function SurfaceFluxesParameters(
     SurfaceFluxesParameters(CP.create_toml_dict(FT), UFParams)
 end
 
-function SurfaceFluxesParameters(toml_dict::CP.AbstractTOMLDict, UFParams)
+function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {FT}
     name_map = (; :von_karman_constant => :von_karman_const)
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    FT = CP.float_type(toml_dict)
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
@@ -32,7 +31,7 @@ end
 BusingerParams(::Type{FT}) where {FT <: AbstractFloat} =
     BusingerParams(CP.create_toml_dict(FT))
 
-function BusingerParams(toml_dict::CP.AbstractTOMLDict)
+function BusingerParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :prandtl_number_0_businger => :Pr_0,
         :coefficient_a_m_businger => :a_m,
@@ -43,14 +42,13 @@ function BusingerParams(toml_dict::CP.AbstractTOMLDict)
         :most_stability_exponent_businger => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    FT = CP.float_type(toml_dict)
     return BusingerParams{FT}(; parameters...)
 end
 
 GryanikParams(::Type{FT}) where {FT <: AbstractFloat} =
     GryanikParams(CP.create_toml_dict(FT))
 
-function GryanikParams(toml_dict::CP.AbstractTOMLDict)
+function GryanikParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :prandtl_number_0_gryanik => :Pr_0,
         :coefficient_a_m_gryanik => :a_m,
@@ -61,14 +59,13 @@ function GryanikParams(toml_dict::CP.AbstractTOMLDict)
         :most_stability_exponent_gryanik => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    FT = CP.float_type(toml_dict)
     return GryanikParams{FT}(; parameters...)
 end
 
 GrachevParams(::Type{FT}) where {FT <: AbstractFloat} =
     GrachevParams(CP.create_toml_dict(FT))
 
-function GrachevParams(toml_dict::CP.AbstractTOMLDict)
+function GrachevParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :prandtl_number_0_grachev => :Pr_0,
         :coefficient_a_m_grachev => :a_m,
@@ -80,7 +77,6 @@ function GrachevParams(toml_dict::CP.AbstractTOMLDict)
         :most_stability_exponent_grachev => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    FT = CP.float_type(toml_dict)
     return GrachevParams{FT}(; parameters...)
 end
 
