@@ -1,7 +1,7 @@
 name = "SurfaceFluxes"
 uuid = "49b00bb7-8bd4-4f2b-b78c-51cd0450215f"
 authors = ["Climate Modeling Alliance"]
-version = "0.12.2"
+version = "0.12.3"
 
 [deps]
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
@@ -16,7 +16,7 @@ ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
 CreateParametersExt = "ClimaParams"
 
 [compat]
-ClimaParams = "0.10, 0.11, 0.12"
+ClimaParams = "1"
 DocStringExtensions = "0.8, 0.9"
 RootSolvers = "0.4, 1.0"
 Thermodynamics = "0.14"
