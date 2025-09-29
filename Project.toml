@@ -1,7 +1,7 @@
 name = "SurfaceFluxes"
 uuid = "49b00bb7-8bd4-4f2b-b78c-51cd0450215f"
 authors = ["Climate Modeling Alliance"]
-version = "0.12.3"
+version = "0.13.0"
 
 [deps]
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"

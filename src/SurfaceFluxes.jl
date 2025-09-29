@@ -882,8 +882,7 @@ function sensible_heat_flux(
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
-    cp_d = SFP.cp_d(param_set)
-    R_d = SFP.R_d(param_set)
+    cp_v = SFP.cp_v(param_set)
     T_0 = SFP.T_0(param_set)
     cp_m_in = TD.cp_m(thermo_params, ts_in(sc))
     cp_m_sfc = TD.cp_m(thermo_params, ts_sfc(sc))
@@ -892,7 +891,9 @@ function sensible_heat_flux(
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
     ΔΦ = grav * Δz(sc)
     ΔDSE = cp_m_in * (T_in - T_0) - cp_m_sfc * (T_sfc - T_0) + ΔΦ
-    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE
+    Φ_sfc = grav * z_sfc(sc)
+    E = evaporation(param_set, sc, Ch)
+    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE + (cp_v * (T_sfc - T_0) + Φ_sfc) * E
 end
 
 """
