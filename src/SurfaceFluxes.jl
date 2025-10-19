@@ -894,7 +894,7 @@ function sensible_heat_flux(
     ΔDSE = cp_m_in * (T_in - T_0) - cp_m_sfc * (T_sfc - T_0) + ΔΦ
     Φ_sfc = grav * z_sfc(sc)
     E = evaporation(param_set, sc, Ch)
-    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
+    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE #+ (hv_sfc + Φ_sfc - LH_v0) * E
 end
 
 """
