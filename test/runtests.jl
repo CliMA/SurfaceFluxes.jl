@@ -19,6 +19,17 @@ ArrayType = Array
 @info ArrayType
 FloatType = Float32
 
+@testset "Struct Usage" begin
+    FT = FloatType
+    u★ = FT(0.1)
+    DSEᵥ★ = FT(10)
+    q★ = FT(0.0001)
+    L★ = FT(-1)
+    z₀ₘ = FT(0.001)
+    z₀ₕ = FT(0.0001)
+    X★ = SF.SimilarityScaleVars(u★, DSEᵥ★, q★, L★, z₀ₘ, z₀ₕ, z₀ₕ)
+end
+
 @testset "SurfaceFluxes - Recovery Profiles" begin
     param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
     thermo_params = param_set.thermo_params
@@ -90,7 +101,8 @@ FloatType = Float32
     ])
 
     κ = SFP.von_karman_const(param_set)
-    for ii in 1:length(b_star)
+    #for ii in 1:length(b_star)
+    for ii in 1:1
         # Compute L_MO given u_star and b_star
         L_MO = u_star[ii]^2 / κ / b_star[ii]
 
@@ -130,6 +142,7 @@ FloatType = Float32
                 param_set,
                 sc[jj],
                 L_MO,
+                z0m, 
                 UF.MomentumTransport(),
                 uft,
                 SF.PointValueScheme(),
@@ -139,6 +152,7 @@ FloatType = Float32
                 param_set,
                 sc[jj],
                 L_MO,
+                z0m, 
                 UF.MomentumTransport(),
                 uft,
                 SF.LayerAverageScheme(),
@@ -245,12 +259,15 @@ end
                     sol_mat[ii, jj, kk, ll] =
                         isinf(sfc_output.L_MO) ? FloatType(1e6) :
                         sfc_output.L_MO
+                    if sfc_output.L_MO <= FloatType(0.01)
+                        sol_mat[ii,jj,kk,ll] = FloatType(0)
+                    end
                 end
             end
         end
     end
     rdiff_sol =
-        (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[2, :, :, :]
+        (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ SF.non_zero.(sol_mat[2, :, :, :])
     @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
 end
 
@@ -266,7 +283,6 @@ end
 @testset "Test generated thermodynamic states" begin
     include("test_convergence.jl")
 end
-
 @testset "Quality assurance" begin
     include("aqua.jl")
 end

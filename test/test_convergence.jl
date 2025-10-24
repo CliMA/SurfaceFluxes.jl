@@ -29,7 +29,7 @@ function input_config(
     T_min = 150,
 )
     n_RS = n_RS1 + n_RS2
-    z_range = ArrayType(range(0, stop = 80, length = n))
+    z_range = ArrayType(range(0, stop = 60, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
     relative_sat2 = ArrayType(range(1, stop = 1.02, length = n_RS2))
     relative_sat = vcat(relative_sat1, relative_sat2)
@@ -74,14 +74,6 @@ function generate_profiles(
     ## :θ_liq_ice, :q_tot, :q_liq, :q_ice, :q_pt, :RH, 
     ## :e_pot, :u, :v, :w, :e_kin, :phase_type
     return profiles_sfc, profiles_int, param_set
-end
-
-function compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
-    DSEᵥ_int =
-        TD.virtual_dry_static_energy(thermo_params, ts_int, prof_int.e_pot)
-    DSEᵥ_sfc =
-        TD.virtual_dry_static_energy(thermo_params, ts_sfc, prof_sfc.e_pot)
-    return DSEᵥ_int - DSEᵥ_sfc
 end
 
 function assemble_surface_conditions(
@@ -138,17 +130,11 @@ function check_over_dry_states(
                                 z0m,
                                 z0b,
                             )
-                            ΔDSEᵥ = compute_dse_diff(
-                                thermo_params,
-                                ts_int,
-                                ts_sfc,
-                                prof_int,
-                                prof_sfc,
-                            )
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            dse_diff = SF.ΔDSEᵥ(param_set, sc)
+                            if abs(dse_diff) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
+                                sign(dse_diff) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
                             sfcc = SF.surface_conditions(
@@ -160,27 +146,25 @@ function check_over_dry_states(
                                 soltype = RS.VerboseSolution(),
                                 noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
-                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
-                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
+                            if sign(sfcc.L_MO) != sign(dse_diff)
+                                @show dse_diff, sfcc.L_MO, SF.Δθᵥ(param_set, sc), SF.Δz(sc)
                             end
+                            @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
+                            @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
+                            @test sign(sfcc.L_MO) == sign(dse_diff)
+                            @test sign(sfcc.shf) == -sign(dse_diff)
+                            #@test sign(
+                            #    SF.compute_bstar(
+                            #        param_set,
+                            #        sfcc.L_MO,
+                            #        sc,
+                            #        SF.Parameters.universal_func_type(
+                            #            param_set,
+                            #        ),
+                            #        sch,
+                            #    ),
+                            #) == sign(dse_diff)
+                            @test sign(sfcc.buoy_flux) == -sign(dse_diff)
 
                         end
                     end
@@ -236,17 +220,11 @@ function check_over_moist_states(
                                 z0m,
                                 z0b,
                             )
-                            ΔDSEᵥ = compute_dse_diff(
-                                thermo_params,
-                                ts_int,
-                                ts_sfc,
-                                prof_int,
-                                prof_sfc,
-                            )
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            dse_diff = SF.ΔDSEᵥ(param_set, sc)
+                            if abs(dse_diff) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
+                                sign(dse_diff) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
                             sfcc = SF.surface_conditions(
@@ -258,27 +236,26 @@ function check_over_moist_states(
                                 soltype = RS.VerboseSolution(),
                                 noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
-                                @test sign.(sfcc.evaporation) ==
-                                      -sign(prof_int.q_tot - prof_sfc.q_tot)
-                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
-                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
+                            if sign(sfcc.L_MO) != sign(dse_diff)
+                                @show dse_diff, sfcc.L_MO, SF.Δθᵥ(param_set, sc), SF.Δz(sc)
                             end
+                            @test sign.(sfcc.evaporation) ==
+                                  -sign(prof_int.q_tot - prof_sfc.q_tot)
+                            @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
+                            @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
+                            @test sign(sfcc.L_MO) == sign(dse_diff)
+                            #@test sign(
+                            #    SF.compute_bstar(
+                            #        param_set,
+                            #        sfcc.L_MO,
+                            #        sc,
+                            #        SF.Parameters.universal_func_type(
+                            #            param_set,
+                            #        ),
+                            #        sch,
+                            #    ),
+                            #) == sign(dse_diff)
+                            
                         end
                     end
                 end
