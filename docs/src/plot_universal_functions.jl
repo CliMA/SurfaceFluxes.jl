@@ -27,10 +27,8 @@ function save_ϕ_figs(
 )
     Plots.plot()
     for ufp in ufps
-        uft = UF.universal_func_type(typeof(ufp))
-        uf = UF.universal_func(uft, L, ufp)
-        ϕ_m = UF.phi.(uf, ζ, UF.MomentumTransport())
-        label = "$(typeof(uf).name)"
+        ϕ_m = UF.phi.(ufp, ζ, UF.MomentumTransport())
+        label = "$(typeof(ufp))"
         Plots.plot!(
             ζ,
             ϕ_m;
@@ -45,10 +43,8 @@ function save_ϕ_figs(
     Plots.savefig("$(fig_prefix)_phi_m.svg")
     Plots.plot()
     for ufp in ufps
-        uft = UF.universal_func_type(typeof(ufp))
-        uf = UF.universal_func(uft, L, ufp)
-        ϕ_h = UF.phi.(uf, ζ, UF.HeatTransport())
-        label = "$(typeof(uf).name)"
+        ϕ_h = UF.phi.(ufp, ζ, UF.HeatTransport())
+        label = "$(typeof(ufp))"
         Plots.plot!(
             ζ,
             ϕ_h;
@@ -72,10 +68,8 @@ function save_ψ_figs(
 )
     Plots.plot()
     for ufp in ufps
-        uft = UF.universal_func_type(typeof(ufp))
-        uf = UF.universal_func(uft, L, ufp)
-        ψ_m = UF.psi.(uf, ζ, UF.MomentumTransport())
-        label = "$(typeof(uf).name)"
+        ψ_m = UF.psi.(ufp, ζ, UF.MomentumTransport())
+        label = "$(typeof(ufp))"
         Plots.plot!(
             ζ,
             ψ_m;
@@ -90,10 +84,8 @@ function save_ψ_figs(
     Plots.savefig("$(fig_prefix)_psi_m.svg")
     Plots.plot()
     for ufp in ufps
-        uft = UF.universal_func_type(typeof(ufp))
-        uf = UF.universal_func(uft, L, ufp)
-        ψ_h = UF.psi.(uf, ζ, UF.HeatTransport())
-        label = "$(typeof(uf).name)"
+        ψ_h = UF.psi.(ufp, ζ, UF.HeatTransport())
+        label = "$(typeof(ufp))"
         Plots.plot!(
             ζ,
             ψ_h;
@@ -131,7 +123,6 @@ save_ϕ_figs(
     yaxis = :log10,
     fig_prefix = "Gryanik3",
 )
-
 
 # Businger Plots
 save_ϕ_figs(

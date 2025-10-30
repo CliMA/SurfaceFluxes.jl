@@ -173,9 +173,6 @@ function check_over_dry_states(
                                         param_set,
                                         sfcc.L_MO,
                                         sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
                                         sch,
                                     ),
                                 ) == sign(ΔDSEᵥ)
@@ -272,9 +269,6 @@ function check_over_moist_states(
                                         param_set,
                                         sfcc.L_MO,
                                         sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
                                         sch,
                                     ),
                                 ) == sign(ΔDSEᵥ)
