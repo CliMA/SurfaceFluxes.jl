@@ -10,7 +10,6 @@ const TD = Thermodynamics
 FT = Float32
 param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
 thermo_params = param_set.thermo_params
-uft = UF.BusingerType()
 
 #! format: off
 PyCLES_output_dataset = AW.ArtifactWrapper(
