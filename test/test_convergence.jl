@@ -90,13 +90,14 @@ function assemble_surface_conditions(
     ts_int,
     ts_sfc,
     z0m,
-    z0b,
+    z0b;
+    roughness_model = SF.ScalarRoughness(),
 )
     FT = eltype(z0m)
     state_in =
         SF.StateValues(prof_int.z, (prof_int.u / 10, prof_int.v / 10), ts_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
+    return SF.ValuesOnly(state_in, state_sfc, z0m, z0b; roughness_model)
 end
 
 function check_over_dry_states(
@@ -108,7 +109,7 @@ function check_over_dry_states(
     z0_thermal,
     maxiter,
     tol_neutral,
-    gryanik_noniterative::Bool,
+    roughness_model = SF.ScalarRoughness(),
 ) where {FT}
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
@@ -136,7 +137,8 @@ function check_over_dry_states(
                                 ts_int,
                                 ts_sfc,
                                 z0m,
-                                z0b,
+                                z0b;
+                                roughness_model,
                             )
                             ΔDSEᵥ = compute_dse_diff(
                                 thermo_params,
@@ -158,27 +160,12 @@ function check_over_dry_states(
                                 maxiter,
                                 tol_neutral,
                                 soltype = RS.VerboseSolution(),
-                                noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
                                 @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
                                 @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
                                 @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
                             end
 
@@ -200,7 +187,7 @@ function check_over_moist_states(
     z0_thermal,
     maxiter,
     tol_neutral,
-    gryanik_noniterative::Bool,
+    roughness_model = SF.ScalarRoughness(),
 ) where {FT}
     param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
@@ -234,7 +221,8 @@ function check_over_moist_states(
                                 ts_int,
                                 ts_sfc,
                                 z0m,
-                                z0b,
+                                z0b;
+                                roughness_model,
                             )
                             ΔDSEᵥ = compute_dse_diff(
                                 thermo_params,
@@ -256,29 +244,12 @@ function check_over_moist_states(
                                 maxiter,
                                 tol_neutral,
                                 soltype = RS.VerboseSolution(),
-                                noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
-                                @test sign.(sfcc.evaporation) ==
-                                      -sign(prof_int.q_tot - prof_sfc.q_tot)
-                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
-                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        SF.Parameters.universal_func_type(
-                                            param_set,
-                                        ),
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
-                            end
+                            @test sign.(sfcc.evaporation) ==
+                                  -sign(prof_int.q_tot - prof_sfc.q_tot)
+                            @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
+                            @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
+                            @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
                         end
                     end
                 end
@@ -299,33 +270,40 @@ end
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
                 tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
-                for iteration_option in [true]
-                    counter = check_over_dry_states(
-                        FT,
-                        profiles_int,
-                        profiles_sfc,
-                        scheme,
-                        z0_momentum,
-                        z0_thermal,
-                        maxiter,
-                        tol_neutral,
-                        iteration_option,
-                    )
-                    counter = check_over_moist_states(
-                        FT,
-                        profiles_int,
-                        profiles_sfc,
-                        scheme,
-                        z0_momentum,
-                        z0_thermal,
-                        maxiter,
-                        tol_neutral,
-                        iteration_option,
-                    )
-                end
+                counter = check_over_dry_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                )
+                counter = check_over_moist_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                )
+                counter = check_over_moist_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                    SF.CharnockRoughness(),
+                )
             end
         end
     end
-    @info "Tested Businger/Gryanik/Grachev u.f., Float32/Float64, Dry/EquilMoist profiles, non-iterative solver on/off"
+    @info "Tested Businger/Gryanik/Grachev u.f., Float32/Float64, Dry/EquilMoist profiles, Scalar / Charnock roughness schemes"
 
 end

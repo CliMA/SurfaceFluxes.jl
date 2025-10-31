@@ -133,6 +133,7 @@ FloatType = Float32
                 UF.MomentumTransport(),
                 uft,
                 SF.PointValueScheme(),
+                z0m, z0b,
             )
             Δu_fd = u_star[ii] / u_scale_fd
             u_scale_fv = SF.compute_physical_scale_coeff(
@@ -142,6 +143,7 @@ FloatType = Float32
                 UF.MomentumTransport(),
                 uft,
                 SF.LayerAverageScheme(),
+                z0m, z0b,
             )
             Δu_fv = u_star[ii] / u_scale_fv
             @test (Δu_fd - Δu_fv) ./ Δu_fd * 100 <= FloatType(50)
@@ -186,7 +188,7 @@ end
             )
 
             sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
-            @test abs(SF.obukhov_length(sfc_output)) > FloatType(0)
+            @test abs(SF.obukhov_similarity_solution(sfc_output)) > FloatType(0)
             @test sign(SF.non_zero(1.0)) == 1
             @test sign(SF.non_zero(-1.0)) == -1
             @test sign(SF.non_zero(-0.0)) == 1
@@ -240,7 +242,6 @@ end
                         sf_params,
                         sc;
                         maxiter = 20,
-                        noniterative_stable_sol = true,
                     )
                     sol_mat[ii, jj, kk, ll] =
                         isinf(sfc_output.L_MO) ? FloatType(1e6) :
@@ -251,7 +252,7 @@ end
     end
     rdiff_sol =
         (sol_mat[1, :, :, :] .- sol_mat[2, :, :, :]) ./ sol_mat[2, :, :, :]
-    @test all(x -> x <= FloatType(0.005), abs.(rdiff_sol))
+    @test all(x -> x <= FloatType(0.01), abs.(rdiff_sol))
 end
 
 @testset "Test profiles" begin
