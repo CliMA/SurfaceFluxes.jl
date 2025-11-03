@@ -48,13 +48,13 @@ L_MO = u★^2/𝜅/b★
 ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
 ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ, qt_in)
 state_sfc =
-       SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
+    SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
 state_in =
-       SF.StateValues(z, (FT(speed), FT(0)), ts_in)
+    SF.StateValues(z, (FT(speed), FT(0)), ts_in)
 
 z0m = z0
 z0b = FT(0.00011)
 
-sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b, roughness_model=SF.CharnockRoughness())
+sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b, roughness_model = SF.CharnockRoughness())
 #sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b, roughness_model=SF.ScalarRoughness())
 #SF.obukhov_iteration(X★, sc,uft, scheme, param_set)

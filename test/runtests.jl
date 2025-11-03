@@ -142,7 +142,7 @@ end
                 param_set,
                 sc[jj],
                 L_MO,
-                z0m, 
+                z0m,
                 UF.MomentumTransport(),
                 uft,
                 SF.PointValueScheme(),
@@ -152,7 +152,7 @@ end
                 param_set,
                 sc[jj],
                 L_MO,
-                z0m, 
+                z0m,
                 UF.MomentumTransport(),
                 uft,
                 SF.LayerAverageScheme(),
@@ -260,7 +260,7 @@ end
                         isinf(sfc_output.L_MO) ? FloatType(1e6) :
                         sfc_output.L_MO
                     if sfc_output.L_MO <= FloatType(0.01)
-                        sol_mat[ii,jj,kk,ll] = FloatType(0)
+                        sol_mat[ii, jj, kk, ll] = FloatType(0)
                     end
                 end
             end
