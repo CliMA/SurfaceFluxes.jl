@@ -135,8 +135,7 @@ include("test_utils.jl")
                     scheme,
                 )
             end
-            u_scale_fd = compute_wrapper(sc[jj], SF.PointValueScheme())#, scheme)
-            u_scale_fd = 2.0f0
+            u_scale_fd = compute_wrapper(sc[jj], SF.PointValueScheme())
             Δu_fd = u_star[ii] / u_scale_fd
             u_scale_fv = compute_wrapper(sc[jj],
                 SF.LayerAverageScheme(),
