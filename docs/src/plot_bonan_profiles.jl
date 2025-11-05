@@ -13,7 +13,6 @@ import Plots
 FT = Float32
 param_set = SurfaceFluxesParameters(FT, UniversalFunctions.BusingerParams)
 thermo_params = param_set.thermo_params
-uft = UniversalFunctions.universal_func_type(typeof(param_set.ufp))
 
 # Define surface parameters. Note that recovery parameters purely depend on LMO, scale variables and Δ(interior - surface) 
 # for each variable

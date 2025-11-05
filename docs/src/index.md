@@ -56,9 +56,9 @@ SurfaceFluxes.UniversalFunctions
 ```
 
 ```@docs
-SurfaceFluxes.UniversalFunctions.Gryanik
-SurfaceFluxes.UniversalFunctions.Grachev
-SurfaceFluxes.UniversalFunctions.Businger
+SurfaceFluxes.UniversalFunctions.GryanikParams
+SurfaceFluxes.UniversalFunctions.GrachevParams
+SurfaceFluxes.UniversalFunctions.BusingerParams
 ```
 
 ```@docs

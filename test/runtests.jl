@@ -22,7 +22,6 @@ FloatType = Float32
 @testset "SurfaceFluxes - Recovery Profiles" begin
     param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
     thermo_params = param_set.thermo_params
-    uft = UF.universal_func_type(typeof(param_set.ufp))
     ρ_sfc = FloatType(1.15)
     ρ_in = FloatType(1.13)
     qt_sfc = FloatType(0.01)
@@ -131,7 +130,6 @@ FloatType = Float32
                 sc[jj],
                 L_MO,
                 UF.MomentumTransport(),
-                uft,
                 SF.PointValueScheme(),
                 z0m, z0b,
             )
@@ -141,7 +139,6 @@ FloatType = Float32
                 sc[jj],
                 L_MO,
                 UF.MomentumTransport(),
-                uft,
                 SF.LayerAverageScheme(),
                 z0m, z0b,
             )

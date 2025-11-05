@@ -25,9 +25,6 @@ thermodynamics_params(ps::SurfaceFluxesParameters) = ps.thermo_params
 uf_params(ps::SurfaceFluxesParameters) = ps.ufp
 von_karman_const(ps::SurfaceFluxesParameters) = ps.von_karman_const
 
-universal_func_type(::SurfaceFluxesParameters{FT, AUFPS}) where {FT, AUFPS} =
-    UF.universal_func_type(AUFPS)
-
 for var in fieldnames(TDPS)
     @eval $var(ps::ASFP) = TD.Parameters.$var(thermodynamics_params(ps))
 end
