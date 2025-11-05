@@ -3,6 +3,7 @@ import SurfaceFluxes.UniversalFunctions as UF
 import Thermodynamics as TD
 import ClimaParams as CP
 import SurfaceFluxes.Parameters as SFP
+include("test_utils.jl")
 
 @testset "Test specific ClimaAtmos outcomes" begin
     FT = Float32
@@ -155,6 +156,6 @@ import SurfaceFluxes.Parameters as SFP
     state_sfc = SF.StateValues(FT(0), u_sfc, ts_sfc)
     state_in = SF.StateValues(Δz, u_in, ts_in)
     sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
-    result = SF.surface_conditions(param_set, sc)
+    result = surface_conditions_wrapper(param_set, sc)
     @test result.L_MO > FT(0)
 end

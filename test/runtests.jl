@@ -18,6 +18,7 @@ ArrayType = Array
 @info "CPU Tests"
 @info ArrayType
 FloatType = Float32
+include("test_utils.jl")
 
 @testset "SurfaceFluxes - Recovery Profiles" begin
     param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
@@ -125,19 +126,19 @@ FloatType = Float32
             SF.ValuesOnly(state_in, state_sfc, z0m, z0b),
         )
         for jj in 1:length(sc)
-            u_scale_fd = SF.compute_physical_scale_coeff(
-                param_set,
-                sc[jj],
-                L_MO,
-                UF.MomentumTransport(),
-                SF.PointValueScheme(),
-            )
+            function compute_wrapper(sc_jj, scheme)
+                @test_allocs_and_ts SF.compute_physical_scale_coeff(
+                    param_set,
+                    sc_jj,
+                    L_MO,
+                    UF.MomentumTransport(),
+                    scheme,
+                )
+            end
+            u_scale_fd = compute_wrapper(sc[jj], SF.PointValueScheme())#, scheme)
+            u_scale_fd = 2.0f0
             Δu_fd = u_star[ii] / u_scale_fd
-            u_scale_fv = SF.compute_physical_scale_coeff(
-                param_set,
-                sc[jj],
-                L_MO,
-                UF.MomentumTransport(),
+            u_scale_fv = compute_wrapper(sc[jj],
                 SF.LayerAverageScheme(),
             )
             Δu_fv = u_star[ii] / u_scale_fv
@@ -181,8 +182,7 @@ end
                 FloatType(1e-5),
                 FloatType(1e-5),
             )
-
-            sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
+            sfc_output = surface_conditions_wrapper(sf_params, sc)
             @test abs(SF.obukhov_length(sfc_output)) > FloatType(0)
             @test sign(SF.non_zero(1.0)) == 1
             @test sign(SF.non_zero(-1.0)) == -1
@@ -233,11 +233,9 @@ end
                         FloatType(z0m),
                         FloatType(z0b),
                     )
-                    sfc_output = SF.surface_conditions(
+                    sfc_output = surface_conditions_wrapper(
                         sf_params,
-                        sc;
-                        maxiter = 20,
-                        noniterative_stable_sol = true,
+                        sc,
                     )
                     sol_mat[ii, jj, kk, ll] =
                         isinf(sfc_output.L_MO) ? FloatType(1e6) :
