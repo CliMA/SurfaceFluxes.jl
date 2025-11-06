@@ -469,6 +469,19 @@ function surface_conditions(
     )
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
+    sfc_results = SurfaceFluxConditions(
+        L_MO,
+        shf,
+        lhf,
+        buoy_flux,
+        ρτxz,
+        ρτyz,
+        ustar,
+        Cd,
+        Ch,
+        E,
+    )
+    Main.@infiltrate
     return SurfaceFluxConditions(
         L_MO,
         shf,
@@ -630,13 +643,14 @@ function obukhov_similarity_solution(
             sc.roughness_model,
             solution_state)
         # Capture the values from this iteration
-        solution_state.ustar = u★
-        solution_state.z0m = 𝓏0
+        solution_state.ustar = non_zero(u★)
+        solution_state.z0m = non_zero(𝓏0)
         return f1 - f2
     end
     function root_u★(u★)
         f1 = windspeed(sc)
-        f2 = non_zero(u★) / 𝜅 * log(Δz(sc) / compute_charnock_roughness(param_set, u★))
+        f2 = non_zero(u★) / 𝜅 * 
+             log(Δz(sc) / non_zero(compute_charnock_roughness(param_set, u★)))
         return f1 - f2
     end
 
@@ -650,7 +664,7 @@ function obukhov_similarity_solution(
             maxiter,
         )
         ζ = sol.root
-        L_MO = Δz(sc) / ζ
+        L_MO = Δz(sc) / non_zero(ζ)
         return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
     else
         # Iterative Solution where ζ < 0 (Unstable BL)
@@ -662,7 +676,7 @@ function obukhov_similarity_solution(
             maxiter,
         )
         ζ = sol.root
-        L_MO = Δz(sc) / ζ
+        L_MO = Δz(sc) / non_zero(ζ)
         return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
     end
 end
@@ -841,11 +855,10 @@ function momentum_exchange_coefficient(
     z0b,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
-    κ = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     grav = SFP.grav(param_set)
-    transport = UF.MomentumTransport()
     if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
-        Cd = (κ / log(Δz(sc) / z0m))^2
+        Cd = (𝜅 / log(Δz(sc) / z0m))^2
     else
         ustar = compute_ustar(param_set, L_MO, sc,  scheme, z0m, z0b)
         Cd = ustar^2 / windspeed(sc)^2
@@ -888,7 +901,7 @@ Compute heat exchange coefficient (Ch).
 # Returns
 Heat exchange coefficient Ch (dimensionless).
 
-For neutral conditions: Ch = κ² / (log(Δz/z0b) * log(Δz/z0m)).
+For neutral conditions: Ch = 𝜅² / (log(Δz/z0b) * log(Δz/z0m)).
 For stable/unstable: Ch = (u★ * φ_heat) / windspeed, where φ_heat is from universal functions.
 """
 function heat_exchange_coefficient(
@@ -901,17 +914,16 @@ function heat_exchange_coefficient(
     z0b,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
-    transport = UF.HeatTransport()
-    κ = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     grav = SFP.grav(param_set)
     if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
-        Ch = κ^2 / (log(Δz(sc) / z0b) * log(Δz(sc) / z0m))
+        Ch = 𝜅^2 / (log(Δz(sc) / z0b) * log(Δz(sc) / z0m))
     else
         ϕ_heat = compute_physical_scale_coeff(
             param_set,
             sc,
             L_MO,
-            transport,
+            UF.HeatTransport(),
             scheme,
             z0m,
             z0b,
@@ -1123,12 +1135,11 @@ function compute_physical_scale_coeff(
     sc::Union{ValuesOnly, Fluxes, FluxesAndFrictionVelocity},
     L_MO,
     transport,
-    
     scheme::LayerAverageScheme,
     z0m,
     z0b,
 )
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     π_group = UF.π_group(SFP.uf_params(param_set), transport)
 
     # Determine which z0 to use based on transport type
@@ -1140,7 +1151,7 @@ function compute_physical_scale_coeff(
     denom3 = z0_val / Δz(sc) * UF.Psi(SFP.uf_params(param_set), z0_val / L_MO, transport)
     denom4 = R_z0 * (UF.psi(SFP.uf_params(param_set), z0_val / L_MO, transport) - 1)
     Σterms = denom1 + denom2 + denom3 + denom4
-    return von_karman_const / (π_group * Σterms)
+    return 𝜅 / (π_group * Σterms)
 end
 
 
@@ -1173,7 +1184,7 @@ function compute_physical_scale_coeff(
     z0m,
     z0b,
 )
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     π_group = UF.π_group(SFP.uf_params(param_set), transport)
     # Determine which z0 to use based on transport type
     z0_val = transport isa UF.MomentumTransport ? z0m : z0b
@@ -1181,7 +1192,7 @@ function compute_physical_scale_coeff(
     denom2 = -UF.psi(SFP.uf_params(param_set), Δz(sc) / L_MO, transport)
     denom3 = UF.psi(SFP.uf_params(param_set), z0_val / L_MO, transport)
     Σterms = denom1 + denom2 + denom3
-    return von_karman_const / (π_group * Σterms)
+    return 𝜅 / (π_group * Σterms)
 end
 
 """
@@ -1214,12 +1225,12 @@ function recover_profile(
     transport,
     scheme::Union{LayerAverageScheme, PointValueScheme},
 )
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     num1 = log(Z / z0(sc, transport))
     num2 = -UF.psi(SFP.uf_params(param_set), Z / L_MO, transport)
     num3 = UF.psi(SFP.uf_params(param_set), z0(sc, transport) / L_MO, transport)
     Σnum = num1 + num2 + num3
-    return Σnum * X_star / von_karman_const + X_sfc
+    return Σnum * X_star / 𝜅 + X_sfc
 end
 
 # For backwards compatibility with package extensions
