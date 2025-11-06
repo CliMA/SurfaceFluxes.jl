@@ -90,7 +90,7 @@ thermo_params = param_set.thermo_params
         for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
             for transport in (UF.HeatTransport(), UF.MomentumTransport())
                 Ψ_0 = UF.psi(ufp, FT(0), transport)
-                @test isapprox(Ψ_0, FT(0))
+                @test isapprox(Ψ_0, FT(0), atol = eps(FT))
             end
         end
     end

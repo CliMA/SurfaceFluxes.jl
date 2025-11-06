@@ -130,9 +130,6 @@ end
 
 function psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
         # Businger1971 Eq. A3 (ζ < 0)
         f_m = f_momentum(p, ζ)
@@ -147,9 +144,6 @@ end
 
 function psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
         # Businger1971 Eq. A4 (ζ < 0)
         f_h = f_heat(p, ζ)
@@ -265,9 +259,6 @@ end
 
 function psi(p::GryanikParams, ζ, tt::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Gryanik2020 Eq. 34
         _a_m = FT(a_m(p))
@@ -283,9 +274,6 @@ end
 
 function psi(p::GryanikParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Gryanik2020 Eq. 35
         _Pr_0 = FT(Pr_0(p))
@@ -399,9 +387,6 @@ end
 
 function psi(p::GrachevParams, ζ, tt::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 12
         _a_m = FT(a_m(p))
@@ -427,9 +412,6 @@ end
 
 function psi(p::GrachevParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 13
         _Pr_0 = FT(Pr_0(p))
