@@ -15,6 +15,7 @@ using RootSolvers
 const RS = RootSolvers
 
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
+include("test_utils.jl")
 
 abstract type TestProfiles end
 struct DryProfiles <: TestProfiles end
@@ -153,7 +154,7 @@ function check_over_dry_states(
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
-                            sfcc = SF.surface_conditions(
+                            sfcc = surface_conditions_wrapper(
                                 param_set,
                                 sc,
                                 sch;
@@ -237,7 +238,7 @@ function check_over_moist_states(
                                 sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
-                            sfcc = SF.surface_conditions(
+                            sfcc = surface_conditions_wrapper(
                                 param_set,
                                 sc,
                                 sch;
@@ -263,6 +264,7 @@ end
     for FT in [Float32, Float64]
         for uf_params in [UF.BusingerParams, UF.GryanikParams, UF.GrachevParams]
             for profile_type in [DryProfiles(), MoistEquilProfiles()]
+                param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
                 profiles_sfc, profiles_int =
                     generate_profiles(FT, profile_type; uf_params)
                 scheme = [SF.LayerAverageScheme(), SF.PointValueScheme()]

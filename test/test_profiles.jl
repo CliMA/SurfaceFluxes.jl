@@ -6,6 +6,7 @@ import Thermodynamics
 import ArtifactWrappers
 const AW = ArtifactWrappers
 const TD = Thermodynamics
+include("test_utils.jl")
 
 FT = Float32
 param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
@@ -119,5 +120,5 @@ for f in files
     elseif f == "Gabls.nc"
         sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b, roughness_model = SF.CharnockRoughness())
     end
-    result = SF.surface_conditions(param_set, sc)
+    result = surface_conditions_wrapper(param_set, sc)
 end
