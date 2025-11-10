@@ -481,7 +481,6 @@ function surface_conditions(
         Ch,
         E,
     )
-    Main.@infiltrate
     return SurfaceFluxConditions(
         L_MO,
         shf,
