@@ -635,24 +635,14 @@ function obukhov_similarity_solution(
 
     # Capture the final values during iteration
     solution_state = MOSTSolutionState(FT(0.1), FT(0.001))
-    if ΔDSEᵥ(param_set, sc) > FT(0) 
-        @info "------ Begin Iter ---------" 
-        @info ΔDSEᵥ(param_set, sc), tol_neutral
-    else 
-        nothing 
-    end
     function root_ζ(ζ)
         f1 = compute_richardson_number(sc,
             DSEᵥ_in(param_set, sc),
             DSEᵥ_sfc(param_set, sc),
             grav)
-        @info "State Based Ri" f1
         f2, u★, 𝓏0 = compute_Ri_b(param_set, sc,  scheme, ζ,
             sc.roughness_model,
             solution_state)
-        @info "Obukhov Estimate Ri" f2
-        @info "-----Δf----------------" f1 - f2, ζ
-        @info "***********************"
         # Capture the values from this iteration
         solution_state.ustar = non_zero(u★)
         solution_state.z0m = non_zero(𝓏0)
@@ -669,28 +659,26 @@ function obukhov_similarity_solution(
         # Iterative Solution where ζ ≥ 0 (Stable BL)
         sol = RS.find_zero(
             root_ζ,
-            #RS.BrentsMethod(-eps(FT), FT(1e8)),
-            RS.SecantMethod(FT(0), FT(1e10)),
+            RS.SecantMethod(FT(0), FT(100)),
             soltype,
             tol,
-            100,
+            maxiter,
         )
         ζ = sol.root
         L_MO = Δz(sc) / non_zero(ζ)
         return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
     else
-       # # Iterative Solution where ζ < 0 (Unstable BL)
-       # sol = RS.find_zero(
-       #     root_ζ,
-       #     RS.BrentsMethod(FT(-1e6), eps(FT)),
-       #     soltype,
-       #     tol,
-       #     100,
-       # )
-       # ζ = sol.root
-       # L_MO = Δz(sc) / non_zero(ζ)
-       # return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
-         return (eps(FT), solution_state.z0m, solution_state.ustar)
+        # Iterative Solution where ζ < 0 (Unstable BL)
+        sol = RS.find_zero(
+            root_ζ,
+            RS.BrentsMethod(FT(-1e6), eps(FT)),
+            soltype,
+            tol,
+            maxiter,
+        )
+        ζ = sol.root
+        L_MO = Δz(sc) / non_zero(ζ)
+        return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
     end
 end
 
