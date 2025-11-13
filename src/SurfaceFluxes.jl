@@ -425,7 +425,7 @@ function surface_conditions(
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    maxiter::Int = 10,
+    maxiter::Int = 5,
     soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
     L_MO, z0m, ustar = obukhov_similarity_solution(
@@ -813,6 +813,15 @@ compute_ustar(param_set, L_MO, sc::Coefficients,  scheme, args...) =
 function compute_ustar(param_set, L_MO, sc::ValuesOnly,  scheme, z0m = nothing, z0b = nothing)
     z0m_val = z0m === nothing ? z0(sc, UF.MomentumTransport()) : z0m
     z0b_val = z0b === nothing ? z0(sc, UF.HeatTransport()) : z0b
+    star = windspeed(sc) * compute_physical_scale_coeff(
+        param_set,
+        sc,
+        L_MO,
+        UF.MomentumTransport(),
+        scheme,
+        z0m_val,
+        z0b_val,
+    )
     windspeed(sc) * compute_physical_scale_coeff(
         param_set,
         sc,
