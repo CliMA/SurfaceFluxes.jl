@@ -578,12 +578,12 @@ end
 function compute_Ri_b(param_set, sc::AbstractSurfaceConditions,  scheme, ζ, ::ScalarRoughness, solution_state)
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
+    ζ = non_zero(ζ)
     𝓏0m = z0(sc, UF.MomentumTransport())
     𝓏0b = z0(sc, UF.HeatTransport())
-    ufₛ = SFP.uf_params(param_set)
     u★ = compute_ustar(param_set, Δz(sc) / ζ, sc,  scheme, 𝓏0m, 𝓏0b)
-    F_m = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0m, UF.MomentumTransport())
-    F_h = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0b, UF.HeatTransport())
+    F_m = compute_Fₘₕ(sc, ufparams, ζ, 𝓏0m, UF.MomentumTransport())
+    F_h = compute_Fₘₕ(sc, ufparams, ζ, 𝓏0b, UF.HeatTransport())
     return (ζ * F_h / F_m^2, u★, 𝓏0m)
 end
 function compute_Ri_b(param_set, sc::AbstractSurfaceConditions,  scheme, ζ, ::CharnockRoughness, solution_state)
@@ -591,9 +591,11 @@ function compute_Ri_b(param_set, sc::AbstractSurfaceConditions,  scheme, ζ, ::C
     ufparams = SFP.uf_params(param_set)
     u★ = solution_state.ustar
     𝓏0m = compute_charnock_roughness(param_set, u★)
+    𝓏0b = z0(sc, UF.HeatTransport())
     ufₛ = SFP.uf_params(param_set)
+    ζ = non_zero(ζ)
     F_m = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0m, UF.MomentumTransport())
-    F_h = compute_Fₘₕ(sc, ufₛ, ζ, sc.z0b, UF.HeatTransport())
+    F_h = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0b, UF.HeatTransport())
     return (ζ * F_h / F_m^2, u★, 𝓏0m)
 end
 
@@ -633,14 +635,24 @@ function obukhov_similarity_solution(
 
     # Capture the final values during iteration
     solution_state = MOSTSolutionState(FT(0.1), FT(0.001))
+    if ΔDSEᵥ(param_set, sc) > FT(0) 
+        @info "------ Begin Iter ---------" 
+        @info ΔDSEᵥ(param_set, sc), tol_neutral
+    else 
+        nothing 
+    end
     function root_ζ(ζ)
         f1 = compute_richardson_number(sc,
             DSEᵥ_in(param_set, sc),
             DSEᵥ_sfc(param_set, sc),
             grav)
+        @info "State Based Ri" f1
         f2, u★, 𝓏0 = compute_Ri_b(param_set, sc,  scheme, ζ,
             sc.roughness_model,
             solution_state)
+        @info "Obukhov Estimate Ri" f2
+        @info "-----Δf----------------" f1 - f2, ζ
+        @info "***********************"
         # Capture the values from this iteration
         solution_state.ustar = non_zero(u★)
         solution_state.z0m = non_zero(𝓏0)
@@ -654,29 +666,31 @@ function obukhov_similarity_solution(
     end
 
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        # Iterative Solution where ζ > 0 (Stable BL)
+        # Iterative Solution where ζ ≥ 0 (Stable BL)
         sol = RS.find_zero(
             root_ζ,
-            RS.BrentsMethod(FT(0), FT(1e6)),
+            #RS.BrentsMethod(-eps(FT), FT(1e8)),
+            RS.SecantMethod(FT(0), FT(1e10)),
             soltype,
             tol,
-            maxiter,
+            100,
         )
         ζ = sol.root
         L_MO = Δz(sc) / non_zero(ζ)
         return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
     else
-        # Iterative Solution where ζ < 0 (Unstable BL)
-        sol = RS.find_zero(
-            root_ζ,
-            RS.BrentsMethod(FT(-1e6), FT(0)),
-            soltype,
-            tol,
-            maxiter,
-        )
-        ζ = sol.root
-        L_MO = Δz(sc) / non_zero(ζ)
-        return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
+       # # Iterative Solution where ζ < 0 (Unstable BL)
+       # sol = RS.find_zero(
+       #     root_ζ,
+       #     RS.BrentsMethod(FT(-1e6), eps(FT)),
+       #     soltype,
+       #     tol,
+       #     100,
+       # )
+       # ζ = sol.root
+       # L_MO = Δz(sc) / non_zero(ζ)
+       # return (non_zero(L_MO), solution_state.z0m, solution_state.ustar)
+         return (eps(FT), solution_state.z0m, solution_state.ustar)
     end
 end
 
@@ -764,7 +778,6 @@ end
         param_set::AbstractSurfaceFluxesParameters,
         L_MO,
         sc::AbstractSurfaceConditions,
-        
         scheme,
         args...
     )
