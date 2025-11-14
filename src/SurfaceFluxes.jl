@@ -596,6 +596,7 @@ function compute_Ri_b(param_set, sc::AbstractSurfaceConditions,  scheme, ζ, ::C
     ζ = non_zero(ζ)
     F_m = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0m, UF.MomentumTransport())
     F_h = compute_Fₘₕ(sc, ufₛ, ζ, 𝓏0b, UF.HeatTransport())
+    u★ = compute_ustar(param_set, Δz(sc) / ζ, sc,  scheme, 𝓏0m, 𝓏0b)
     return (ζ * F_h / F_m^2, u★, 𝓏0m)
 end
 
