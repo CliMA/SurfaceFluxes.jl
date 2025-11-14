@@ -116,11 +116,9 @@ for f in files
             state_sfc,
             FT(0.001229),
             FT(0.001094),
-            z0m,
-            z0b,
         )
     elseif f == "Gabls.nc"
-        sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
+        sc = SF.ValuesOnly(state_in, state_sfc, z0m, z0b, roughness_model = SF.CharnockRoughness())
     end
     result = surface_conditions_wrapper(param_set, sc)
 end
