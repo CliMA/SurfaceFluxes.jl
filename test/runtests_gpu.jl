@@ -192,10 +192,8 @@ out_float32 = test_surfacefluxes_gpu(Float32)
 out_float64 = test_surfacefluxes_gpu(Float64)
 @test !any(x -> x == -99999.99, out_float32)
 @test !any(x -> x == -99999.99, out_float64)
-@test out_float32 ≈ out_float32
 
 out_float32 = test_surfacefluxes_gpu_broadcast(Float32)
 out_float64 = test_surfacefluxes_gpu_broadcast(Float64)
 @test !any(x -> x == -99999.99, out_float32)
 @test !any(x -> x == -99999.99, out_float64)
-@test out_float32 ≈ out_float32
