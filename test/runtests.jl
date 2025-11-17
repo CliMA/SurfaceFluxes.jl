@@ -1,6 +1,6 @@
 # Central test runner for SurfaceFluxes.jl:
 #   - sets up common test configuration (random seed, array type, float type),
-#   - defines small utilities used by the tests (e.g. device selection),
+#   - defines small utilities used by the tests,
 #   - and groups the individual test files into named `@testset`s.
 
 using Test
@@ -8,20 +8,12 @@ using Test
 import Random
 Random.seed!(1234)  # Ensure deterministic tests
 
-import KernelAbstractions: CPU
-
 import Thermodynamics as TD
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions.BusingerParams
 import ClimaParams as CP  # Load CreateParametersExt so `SurfaceFluxesParameters` accepts types
-
-# Device and array type configuration
-#
-# The `device` function is used by some tests (including those in the included
-# files) to abstract over CPU vs GPU execution.
-device(::T) where {T <: Array} = CPU()
 
 const ArrayType = Array
 const FloatType = Float32  # Default scalar type used in several tests

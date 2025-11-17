@@ -1,6 +1,5 @@
 using Test
 using CUDA
-using KernelAbstractions
 
 import Thermodynamics as TD
 import SurfaceFluxes as SF
@@ -20,9 +19,8 @@ else
     @info "GPU Compatibility Tests"
     @info ArrayType
 
-    # Small synthetic dataset shared by both the kernel-launch test and the
-    # broadcasted test. Values are taken from the CPU regression setup so the CPU
-    # reference solution is well defined.
+    # Small synthetic dataset for the broadcasted test. Values are taken from the
+    # CPU regression setup so the CPU reference solution is well defined.
     const RAW_GPU_DATA = (
         z = (29.432779269303, 30.0497139076724, 31.6880000418153, 34.1873479240475),
         theta = (268.559120403867, 269.799228886728, 277.443023238556, 295.79192777341),
@@ -58,70 +56,7 @@ else
         return reference
     end
 
-    # Minimal wrapper kernel: each GPU thread reconstructs the thermodynamic states
-    # and runs `surface_conditions`, storing only the Monin–Obukhov length.
-    @kernel function surface_conditions_kernel!(
-        param_set,
-        output,
-        z,
-        θ,
-        θ_sfc,
-        z0,
-        speed,
-        κ,
-        ρ_sfc,
-        ρ_in,
-        qt_sfc,
-        qt_in,
-    )
-        ii = @index(Global)
-        thermo_params = SFP.thermodynamics_params(param_set)
-        ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc[ii], qt_sfc)
-        ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ[ii], qt_in)
-        state_sfc = SF.StateValues(zero(eltype(z0)), (zero(eltype(z0)), zero(eltype(z0))), ts_sfc)
-        state_in = SF.StateValues(z[ii], (speed[ii], zero(eltype(z0))), ts_in)
-        sc = SF.ValuesOnly(state_in, state_sfc, z0[ii], eltype(z0)(0.001))
-        output[ii] = SF.surface_conditions(param_set, sc).L_MO
-    end
-
-    # Launch the KernelAbstractions kernel and compare its output to the CPU
-    # reference.
-    function run_gpu_kernel_test(FT)
-        param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
-        data = problem_data(FT)
-        reference = cpu_reference_L_MO(FT, param_set, data)
-
-        z = ArrayType(data.z)
-        θ = ArrayType(data.theta)
-        θ_sfc = ArrayType(data.theta_sfc)
-        z0 = ArrayType(data.z0)
-        speed = ArrayType(data.speed)
-
-        output = ArrayType{FT}(undef, length(data.z))
-        fill!(output, FT(-99999.99))
-
-        backend = KernelAbstractions.get_backend(output)
-        kernel! = surface_conditions_kernel!(backend)
-        kernel!(
-            param_set,
-            output,
-            z,
-            θ,
-            θ_sfc,
-            z0,
-            speed,
-            SFP.von_karman_const(param_set),
-            FT(1.15),
-            FT(1.13),
-            FT(0.01),
-            FT(0.009);
-            ndrange = (length(data.z),),
-        )
-        KernelAbstractions.synchronize(backend)
-        return Array(output), reference
-    end
-
-    # Exercise the GPU broadcast path (no explicit kernel) and compare with CPU.
+    # Exercise the GPU broadcast path and compare with CPU.
     function run_gpu_broadcast_test(FT)
         param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
         data = problem_data(FT)
@@ -149,14 +84,6 @@ else
         sc = SF.ValuesOnly.(state_in, state_sfc, z0, z0b)
         gpu_outputs = map(sfc -> SF.surface_conditions(param_set, sfc).L_MO, sc)
         return Array(gpu_outputs), reference
-    end
-
-    @testset "GPU kernel surface_conditions" begin
-        for FT in (Float32, Float64)
-            gpu_vals, reference = run_gpu_kernel_test(FT)
-            @test all(isfinite, gpu_vals)
-            @test isapprox(gpu_vals, reference; rtol = FT(1e-5), atol = FT(1e-6))
-        end
     end
 
     @testset "GPU broadcast surface_conditions" begin
