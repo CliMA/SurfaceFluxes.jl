@@ -404,7 +404,7 @@ function surface_conditions(
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = true,
 ) where {FT}
-    uft = SFP.universal_func_type(param_set)
+    uft = SFP.uf_params(param_set)
     X★ = obukhov_similarity_solution(
         param_set,
         sc,
@@ -433,7 +433,6 @@ function surface_conditions(
             L_MO,
             ustar,
             sc,
-            uft,
             scheme,
             tol_neutral,
         )
@@ -473,7 +472,7 @@ function surface_conditions(
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = true,
 ) where {FT}
-    uft = SFP.universal_func_type(param_set)
+    uft = SFP.uf_params(param_set)
     L_MO, _ = obukhov_similarity_solution(
         param_set,
         sc,
@@ -524,7 +523,7 @@ function surface_conditions(
     soltype::RS.SolutionType = RS.CompactSolution(),
     noniterative_stable_sol::Bool = true,
 ) where {FT}
-    uft = SFP.universal_func_type(param_set)
+    uft = SFP.uf_params(param_set)
     ustar = sqrt(sc.Cd) * windspeed(sc)
     L_MO, _ = obukhov_similarity_solution(param_set, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(
@@ -1116,7 +1115,6 @@ end
 
 sfc_param_set(FT, UFT) = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 thermo_params(param_set) = SFP.thermodynamics_params(param_set)
-uft(param_set) = UF.universal_func_type(param_set)
 
 struct SimilarityScaleVars
     u★::Any
@@ -1148,12 +1146,11 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     approximate_interface_state,
     atmosphere_state,
     surface_state,
-    uft::UF.AUFT,
     scheme::SolverScheme,
     param_set::APS)
 
     # Stability function type and problem parameters
-    uft = SFP.universal_func_type(param_set)
+    uft = SFP.uf_params(param_set)
     𝜅 = SFP.von_karman_const(param_set)
     ufp = SFP.uf_params(param_set)
     𝑔 = SFP.grav(param_set)
@@ -1180,7 +1177,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
 
     ## Stability functions for momentum, heat, and vapor
-    uf = UF.universal_func(uft, Δz(sc)/L★, ufp)
+    uf = SFP.uf_params(param_set)
 
     ## Compute Monin--Obukhov length scale depending on a `buoyancy flux`
     b★ = buoyancy_scale(DSEᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
@@ -1197,17 +1194,16 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     ψ = UF.psi(uf, ζ, UF.MomentumTransport())
     ## Compute new values for the scale parameters given the relation
     χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
-    #TODO#### ^^ Upto this line <success>  on GPU
-    #χθ = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
-    #χq = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
+    χθ = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
+    χq = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
 
-    ## Recompute
-    #u★ = χu * U
-    #DSEᵥ★ = χθ * ΔDSEᵥ_diff
-    #q★ = χq * Δq
+    # Recompute
+    u★ = χu * U
+    DSEᵥ★ = χθ * ΔDSEᵥ_diff
+    q★ = χq * Δq
 
-    #return SimilarityScaleVars(u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
-    return approximate_interface_state
+    return SimilarityScaleVars(u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
+    #return approximate_interface_state
 end
 
 function obukhov_iteration(X★, sc,
@@ -1223,28 +1219,26 @@ function obukhov_iteration(X★, sc,
         X★,
         ts₁,
         ts₀,
-        uft,
         scheme,
         param_set)
-    #for ii = 1:maxiter
-    #       X★₀ = X★
-    #       X★ = iterate_interface_fluxes(sc,
-    #                                   DSEᵥ₀, q₀,
-    #                                   X★₀,
-    #                                   ts₁,
-    #                                   ts₀,
-    #                                   uft,
-    #                                   scheme,
-    #                                   param_set)
-    #       # Generalize and define a method for the norm evaluation
-    #       if abs(X★.u★ - X★₀.u★) <= tol &&  
-    #          abs(X★.L★ - X★₀.L★) <= 100tol &&
-    #          abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) <= tol 
-    #              return X★
-    #       else
-    #              continue
-    #       end
-    #end
+    for ii = 1:maxiter
+           X★₀ = X★
+           X★ = iterate_interface_fluxes(sc,
+                                       DSEᵥ₀, q₀,
+                                       X★₀,
+                                       ts₁,
+                                       ts₀,
+                                       scheme,
+                                       param_set)
+           # Generalize and define a method for the norm evaluation
+           if abs(X★.u★ - X★₀.u★) <= tol &&  
+              abs(X★.L★ - X★₀.L★) <= 100tol &&
+              abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) <= tol 
+                  return X★
+           else
+                  continue
+           end
+    end
     return X★
 end
 
