@@ -1170,7 +1170,6 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     DSEᵥ★ = approximate_interface_state.DSEᵥ★
     q★ = Δq == eltype(𝑔)(0) ? approximate_interface_state.q★ : eltype(𝑔)(0)
 
-
     L★ = approximate_interface_state.L★
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
@@ -1203,12 +1202,12 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     q★ = χq * Δq
 
     return SimilarityScaleVars(u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
-    #return approximate_interface_state
 end
 
 function obukhov_iteration(X★, sc,
     uft, scheme, param_set,
-    tol = sqrt(eps(eltype(X★.u★))), maxiter = 30)
+    tol = sqrt(eps(eltype(X★.u★))), maxiter = 10
+)
     DSEᵥ₀ = DSEᵥ_sfc(param_set, sc)
     q₀ = qt_sfc(param_set, sc)
     ts₀ = ts_sfc(sc)
@@ -1230,9 +1229,10 @@ function obukhov_iteration(X★, sc,
                                        ts₀,
                                        scheme,
                                        param_set)
-           # Generalize and define a method for the norm evaluation
+           # TODO: Generalize and define a method for the norm evaluation given
+           # standard properties in X★ (e.g. u, T, q)
            if abs(X★.u★ - X★₀.u★) <= tol &&  
-              abs(X★.L★ - X★₀.L★) <= 100tol &&
+              abs(X★.L★ - X★₀.L★) <= tol &&
               abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) <= tol 
                   return X★
            else
