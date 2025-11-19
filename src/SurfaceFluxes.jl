@@ -642,13 +642,13 @@ function obukhov_similarity_solution(
         X★₀ = SimilarityScaleVars(FT(δ), FT(δ), FT(δ),
             FT(10),
             FT(0.0001), FT(0.0001), FT(0.0001))
-        X★ = obukhov_iteration(X★₀, sc, uft, scheme, param_set)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set)
         return X★
     else
         X★₀ = SimilarityScaleVars(FT(δ), FT(δ), FT(δ),
             FT(-10),
             FT(0.0001), FT(0.0001), FT(0.0001))
-        X★ = obukhov_iteration(X★₀, sc, uft, scheme, param_set)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set)
         return X★
     end
 end
@@ -742,10 +742,10 @@ Compute given the Monin-Obukhov lengthscale.
 """
 function compute_ustar end
 
-compute_ustar(param_set, L_MO, 𝓁, sc::FluxesAndFrictionVelocity, uft, scheme) =
+compute_ustar(param_set, L_MO, 𝓁, sc::FluxesAndFrictionVelocity, scheme) =
     sc.ustar
 
-compute_ustar(param_set, L_MO, 𝓁, sc::Fluxes, uft, scheme) =
+compute_ustar(param_set, L_MO, 𝓁, sc::Fluxes, scheme) =
     windspeed(sc) * compute_physical_scale_coeff(
         param_set,
         sc,
@@ -755,10 +755,10 @@ compute_ustar(param_set, L_MO, 𝓁, sc::Fluxes, uft, scheme) =
         scheme,
     )
 
-compute_ustar(param_set, L_MO, 𝓁, sc::Coefficients, uft, scheme) =
+compute_ustar(param_set, L_MO, 𝓁, sc::Coefficients, scheme) =
     sqrt(sc.Cd) * (windspeed(sc))
 
-compute_ustar(param_set, L_MO, 𝓁, sc::ValuesOnly, uft, scheme) =
+compute_ustar(param_set, L_MO, 𝓁, sc::ValuesOnly, scheme) =
     windspeed(sc) * compute_physical_scale_coeff(
         param_set,
         sc,
@@ -788,7 +788,7 @@ function momentum_exchange_coefficient(
     if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
         Cd = (κ / log(Δz(sc) / 𝓁))^2
     else
-        ustar = compute_ustar(param_set, L_MO, 𝓁, sc, uft, scheme)
+        ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
         Cd = ustar^2 / windspeed(sc)^2
     end
     return Cd
@@ -840,7 +840,7 @@ function heat_exchange_coefficient(
             transport,
             scheme,
         )
-        ustar = compute_ustar(param_set, L_MO, 𝓁u, sc, uft, scheme)
+        ustar = compute_ustar(param_set, L_MO, 𝓁u, sc, scheme)
         Ch = ustar * ϕ_heat / windspeed(sc)
     end
     return Ch
@@ -1205,7 +1205,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 end
 
 function obukhov_iteration(X★, sc,
-    uft, scheme, param_set,
+    scheme, param_set,
     tol = sqrt(eps(eltype(X★.u★))), maxiter = 10
 )
     DSEᵥ₀ = DSEᵥ_sfc(param_set, sc)
