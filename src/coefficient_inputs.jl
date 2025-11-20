@@ -15,7 +15,7 @@ function obukhov_similarity_solution(
         ts_sfc(sc),
         scheme,
     )
-    return (L★=-ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux), u★=ustar)
+    return (L★ = -ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux), u★ = ustar)
 end
 
 compute_ustar(param_set, L_MO, 𝓁, sc::Coefficients, scheme) =

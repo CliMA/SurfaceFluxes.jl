@@ -248,15 +248,15 @@ function obukhov_similarity_solution(
     𝓁q₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.HeatTransport())
     # Initial guesses for MOST iterative solution
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        X★₀ = (u★=u★₀, DSEᵥ★=FT(δ), q★=FT(δ),
-            L★=FT(10),
-            𝓁u=𝓁u₀, 𝓁θ=𝓁θ₀, 𝓁q=𝓁q₀)
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), q★ = FT(δ),
+            L★ = FT(10),
+            𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
-        X★₀ = (u★=u★₀, DSEᵥ★=FT(δ), q★=FT(δ),
-            L★=FT(-10),
-            𝓁u=FT(0.0001), 𝓁θ=FT(0.0001), 𝓁q=FT(0.0001))
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), q★ = FT(δ),
+            L★ = FT(-10),
+            𝓁u = FT(0.0001), 𝓁θ = FT(0.0001), 𝓁q = FT(0.0001))
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     end
@@ -269,7 +269,7 @@ function obukhov_similarity_solution(
     args...,
 )
     return (L★ = -sc.ustar^3 / SFP.von_karman_const(param_set) /
-            non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
+                 non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
 end
 
 """
@@ -646,12 +646,12 @@ end
     iterate_interface_fluxes()
 """
 function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
-    q_surface, 
+    q_surface,
     approximate_interface_state,
     atmosphere_state,
     surface_state,
     scheme::SolverScheme,
-    param_set::APS
+    param_set::APS,
 )
 
     # Stability function type and problem parameters
@@ -699,35 +699,35 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     DSEᵥ★ = χθ * Δdseᵥ
     q★ = χq * Δq
 
-    return (u★=u★, DSEᵥ★=DSEᵥ★, q★=q★, L★=L★, 𝓁u=𝓁u, 𝓁θ=𝓁θ, 𝓁q=𝓁q)
+    return (u★ = u★, DSEᵥ★ = DSEᵥ★, q★ = q★, L★ = L★, 𝓁u = 𝓁u, 𝓁θ = 𝓁θ, 𝓁q = 𝓁q)
 end
 
-function obukhov_iteration(X★, 
-                           sc,
-                           scheme, 
-                           param_set,
-                           tol,
-                           maxiter = 10
+function obukhov_iteration(X★,
+    sc,
+    scheme,
+    param_set,
+    tol,
+    maxiter = 10,
 )
     FT = eltype(X★)
     q₀ = qt_sfc(param_set, sc)
-    for ii = 1:maxiter
+    for ii in 1:maxiter
         X★₀ = X★
         X★ = iterate_interface_fluxes(sc,
-                                    qt_sfc,   
-                                    X★₀,
-                                    ts_in(sc),
-                                    ts_sfc(sc),
-                                    scheme,
-                                    param_set)
+            qt_sfc,
+            X★₀,
+            ts_in(sc),
+            ts_sfc(sc),
+            scheme,
+            param_set)
         local_tol = sqrt(eps(FT))
-        if (X★.L★ - X★₀.L★) ≤ local_tol &&   
-           (X★.u★ - X★₀.u★) ≤ local_tol &&   
-           (X★.q★ - X★₀.q★) ≤ local_tol &&   
+        if (X★.L★ - X★₀.L★) ≤ local_tol &&
+           (X★.u★ - X★₀.u★) ≤ local_tol &&
+           (X★.q★ - X★₀.q★) ≤ local_tol &&
            (X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ local_tol
-             break
+            break
         elseif ii == maxiter
-             break
+            break
         end
     end
     return X★

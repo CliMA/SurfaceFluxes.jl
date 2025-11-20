@@ -33,4 +33,3 @@ function recover_profile(
     Σnum = num1 + num2 + num3
     return Σnum * X_star / 𝜅 + X_sfc
 end
-
