@@ -38,6 +38,13 @@ include("types.jl")
 include("utilities.jl")
 include("roughness_models.jl")
 include("coefficient_inputs.jl")
+include("evaporation_methods.jl")
+include("latent_heat_methods.jl")
+include("sensible_heat_methods.jl")
+include("momentum_exchange_coefficient_methods.jl")
+include("heat_exchange_coefficient_methods.jl")
+include("friction_velocity_methods.jl")
+include("buoyancy_flux_methods.jl")
 include("profile_recovery.jl")
 
 """
@@ -247,149 +254,6 @@ function obukhov_similarity_solution(
                  non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
 end
 
-"""
-    compute_buoyancy_flux(param_set, shf, lhf, ts_in, ts_sfc, scheme)
-
-Returns the buoyancy flux when the surface fluxes are known.
-"""
-function compute_buoyancy_flux(param_set, shf, lhf, ts_in, ts_sfc, scheme)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    grav = SFP.grav(param_set)
-    ε_vd = SFP.Rv_over_Rd(param_set)
-    cp_m = TD.cp_m(thermo_params, ts_in)
-    L_v = TD.latent_heat_vapor(thermo_params, ts_in)
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc)
-    T_in = TD.air_temperature(thermo_params, ts_in)
-    return grav / ρ_sfc * (shf / cp_m / T_in + (ε_vd - 1) * lhf / L_v)
-end
-
-function compute_buoyancy_flux(
-    param_set,
-    sc::Union{FluxesAndFrictionVelocity, Fluxes},
-    scheme,
-)
-    return compute_buoyancy_flux(
-        param_set,
-        sc.shf,
-        sc.lhf,
-        ts_in(sc),
-        ts_sfc(sc),
-        scheme,
-    )
-end
-
-"""
-    compute_ustar(
-        param_set::AbstractSurfaceFluxesParameters,
-        L_MO,
-        𝓁,
-        sc::AbstractSurfaceCondition,
-        scheme,
-    )
-
-Return the friction velocity. This method is dispatched
-by the surface condition:
-
-## `sc::FluxesAndFrictionVelocity`
-
-Friction velocity is known.
-
-## `sc::Fluxes`
-
-Compute given the Monin-Obukhov lengthscale.
-
-## `sc::Coefficients`
-
-Compute given the exchange coefficients.
-
-## `sc::ValuesOnly`
-Compute given the Monin-Obukhov lengthscale.
-"""
-function compute_ustar end
-
-compute_ustar(param_set, L_MO, 𝓁, sc::FluxesAndFrictionVelocity, scheme) =
-    sc.ustar
-
-compute_ustar(param_set, L_MO, 𝓁, sc::Fluxes, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(
-        param_set,
-        sc,
-        L_MO,
-        𝓁,
-        UF.MomentumTransport(),
-        scheme,
-    )
-compute_ustar(param_set, L_MO, 𝓁, sc::ValuesOnly, scheme) =
-    windspeed(sc) * compute_physical_scale_coeff(
-        param_set,
-        sc,
-        L_MO,
-        𝓁,
-        UF.MomentumTransport(),
-        scheme,
-    )
-
-"""
-    momentum_exchange_coefficient(param_set, L_MO, sc, scheme)
-
-Compute and return Cd, the momentum exchange coefficient, given the
-Monin-Obukhov lengthscale.
-"""
-function momentum_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
-    scheme,
-    tol_neutral,
-)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    κ = SFP.von_karman_const(param_set)
-    𝓁 = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
-        Cd = (κ / log(Δz(sc) / 𝓁))^2
-    else
-        ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
-        Cd = ustar^2 / windspeed(sc)^2
-    end
-    return Cd
-end
-
-"""
-    heat_exchange_coefficient(param_set, L_MO, sc, scheme, tol_neutral)
-
-Compute and return Ch, the heat exchange coefficient given the
-Monin-Obukhov lengthscale.
-"""
-function heat_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
-    scheme,
-    tol_neutral,
-)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    transport = UF.HeatTransport()
-    κ = SFP.von_karman_const(param_set)
-    𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
-    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
-        Ch = κ^2 / (log(Δz(sc) / 𝓁θ) * log(Δz(sc) / 𝓁u))
-    else
-        ϕ_heat = compute_physical_scale_coeff(
-            param_set,
-            sc,
-            L_MO,
-            𝓁θ,
-            transport,
-            scheme,
-        )
-        ustar = compute_ustar(param_set, L_MO, 𝓁u, sc, scheme)
-        Ch = ustar * ϕ_heat / windspeed(sc)
-    end
-    return Ch
-end
 
 """
     momentum_fluxes(param_set, Cd, sc, scheme)
@@ -408,130 +272,6 @@ function momentum_fluxes(param_set, Cd, sc::AbstractSurfaceConditions, scheme)
     ρτxz = -ρ_sfc * Cd * Δu1(sc) * windspeed(sc)
     ρτyz = -ρ_sfc * Cd * Δu2(sc) * windspeed(sc)
     return (ρτxz, ρτyz)
-end
-
-"""
-    sensible_heat_flux(param_set, Ch, sc, scheme)
-
-Compute and return the sensible heat fluxes
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - Ch: Thermal exchange coefficient
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - scheme: Discretization scheme (currently supports FD and FV)
-"""
-function sensible_heat_flux(
-    param_set,
-    Ch,
-    sc::Union{ValuesOnly},
-    scheme,
-)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    grav = SFP.grav(param_set)
-    T_0 = SFP.T_0(param_set)
-    LH_v0 = SFP.LH_v0(param_set)
-    cp_m_in = TD.cp_m(thermo_params, ts_in(sc))
-    cp_m_sfc = TD.cp_m(thermo_params, ts_sfc(sc))
-    T_in = TD.air_temperature(thermo_params, ts_in(sc))
-    T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    hv_sfc = TD.specific_enthalpy_vapor(thermo_params, T_sfc)
-    ΔΦ = grav * Δz(sc)
-    ΔDSE = cp_m_in * (T_in - T_0) - cp_m_sfc * (T_sfc - T_0) + ΔΦ
-    Φ_sfc = grav * z_sfc(sc)
-    E = evaporation(param_set, sc, Ch)
-    return -ρ_sfc * Ch * windspeed(sc) * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
-end
-
-"""
-    sensible_heat_flux(param_set, Ch, sc, scheme)
-
-In cases where surface fluxes are known,
-return the known sensible heat flux.
-"""
-function sensible_heat_flux(
-    param_set,
-    Ch,
-    sc::Union{Fluxes, FluxesAndFrictionVelocity},
-    scheme,
-)
-    return sc.shf
-end
-
-"""
-    latent_heat_flux(param_set, Ch, sc, scheme)
-
-In cases where surface fluxes are known,
-return the known latent heat flux.
-"""
-function latent_heat_flux(
-    param_set,
-    Ch,
-    sc::Union{Fluxes, FluxesAndFrictionVelocity},
-    scheme,
-)
-    return sc.lhf
-end
-
-"""
-    latent_heat_flux(param_set, Ch, sc, scheme)
-
-Compute and return the latent heat flux
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - Ch: Thermal exchange coefficient
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - scheme: Discretization scheme (currently supports FD and FV)
-"""
-function latent_heat_flux(
-    param_set,
-    Ch,
-    sc::Union{ValuesOnly},
-    scheme,
-)
-    LH_v0 = SFP.LH_v0(param_set)
-    E = evaporation(param_set, sc, Ch)
-    lhf = LH_v0 * E
-    return lhf
-end
-
-"""
-    evaporation(param_set, sc, Ch)
-
-Compute and return the evaporation. When `sc` is `Fluxes` or `FluxesAndFrictionVelocity`,
-evaporation is directly calculated from the latent heat flux.
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - Ch: Thermal exchange coefficient
-"""
-function evaporation(
-    param_set,
-    sc::Union{Fluxes, FluxesAndFrictionVelocity},
-    Ch,
-)
-    LH_v0 = SFP.LH_v0(param_set)
-    return sc.lhf / LH_v0
-end
-
-"""
-    evaporation(param_set, sc, Ch)
-
-Compute and return the evaporation. When `sc` is `ValuesOnly` or `Coefficients`, a `beta` factor
-is used to represent the resistance of the surface.
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - Ch: Thermal exchange coefficient
-"""
-function evaporation(param_set, sc::Union{ValuesOnly}, Ch)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
-    return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc) * sc.beta
 end
 
 """
@@ -569,7 +309,6 @@ function compute_physical_scale_coeff(
     Σterms = denom1 + denom2 + denom3 + denom4
     return 𝜅 / (π_group * Σterms)
 end
-
 
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, ::PointValueScheme)
