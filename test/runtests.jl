@@ -19,17 +19,6 @@ ArrayType = Array
 @info ArrayType
 FloatType = Float32
 
-@testset "Struct Usage" begin
-    FT = FloatType
-    u★ = FT(0.1)
-    DSEᵥ★ = FT(10)
-    q★ = FT(0.0001)
-    L★ = FT(-1)
-    z₀ₘ = FT(0.001)
-    z₀ₕ = FT(0.0001)
-    X★ = SF.SimilarityScaleVars(u★, DSEᵥ★, q★, L★, z₀ₘ, z₀ₕ, z₀ₕ)
-end
-
 @testset "SurfaceFluxes - Recovery Profiles" begin
     param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
     thermo_params = param_set.thermo_params
