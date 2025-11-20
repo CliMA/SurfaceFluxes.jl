@@ -369,9 +369,8 @@ end
         sc::SurfaceFluxes.AbstractSurfaceConditions,
         scheme::SurfaceFluxes.SolverScheme = PointValueScheme();
         tol_neutral = SFP.cp_d(param_set) / 100,
-        tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
+        tol = sqrt(eps(FT)),
         maxiter::Int = 10,
-        soltype::RS.SolutionType = RS.CompactSolution(),
     )
 
 The main user facing function of the module.
@@ -397,9 +396,8 @@ function surface_conditions(
     sc::AbstractSurfaceConditions,
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
-    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
+    tol = sqrt(eps(FT)),
     maxiter::Int = 30,
-    soltype::RS.SolutionType = RS.CompactSolution(),
 ) where {FT}
     uft = SFP.uf_params(param_set)
     X★ = obukhov_similarity_solution(
@@ -409,7 +407,6 @@ function surface_conditions(
         tol,
         tol_neutral,
         maxiter,
-        soltype,
     )
     L_MO = X★.L★
     ustar = X★.u★
@@ -463,20 +460,17 @@ function surface_conditions(
     sc::FluxesAndFrictionVelocity,
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
-    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    maxiter::Int = 30,
-    soltype::RS.SolutionType = RS.CompactSolution(),
+    tol::FT = sqrt(eps(FT))
+    maxiter::Int = 10,
 ) where {FT}
     uft = SFP.uf_params(param_set)
     X★ = obukhov_similarity_solution(
         param_set,
         sc,
-        uft,
         scheme,
         tol,
         tol_neutral,
         maxiter,
-        soltype,
     )
     ustar = sc.ustar
     Cd = momentum_exchange_coefficient(param_set, L_MO, ustar, sc, uft, scheme, tol_neutral)
@@ -512,9 +506,8 @@ function surface_conditions(
     sc::Coefficients,
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
-    tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
-    maxiter::Int = 30,
-    soltype::RS.SolutionType = RS.CompactSolution(),
+    tol = sqrt(eps(FT)),
+    maxiter::Int = 10,
 ) where {FT}
     uft = SFP.uf_params(param_set)
     ustar = sqrt(sc.Cd) * windspeed(sc)
@@ -575,7 +568,6 @@ end
         tol,
         tol_neutral,
         maxiter,
-        soltype,
     )
 
 Compute and return the Monin-Obukhov lengthscale (LMO).
@@ -624,7 +616,6 @@ function obukhov_similarity_solution(
     tol,
     tol_neutral,
     maxiter,
-    soltype,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
@@ -937,7 +928,7 @@ return the known latent heat flux.
 """
 function latent_heat_flux(
     param_set,
-    L_MO,
+    Ch,
     sc::Union{Fluxes, FluxesAndFrictionVelocity},
     scheme,
 )
@@ -1197,23 +1188,13 @@ function obukhov_iteration(X★,
 )
     FT = eltype(X★)
     q₀ = qt_sfc(param_set, sc)
-    ts₀ = ts_sfc(sc)
-    ts₁ = ts_in(sc)
-    X★₀ = X★
-    X★ = iterate_interface_fluxes(sc,
-        q₀,
-        X★,
-        ts₁,
-        ts₀,
-        scheme,
-        param_set)
     for ii = 1:maxiter
         X★₀ = X★
         X★ = iterate_interface_fluxes(sc,
                                     qt_sfc,   
                                     X★₀,
-                                    ts₁,
-                                    ts₀,
+                                    ts_in(sc),
+                                    ts_sfc(sc),
                                     scheme,
                                     param_set)
         local_tol = sqrt(eps(FT))
