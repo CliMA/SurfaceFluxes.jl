@@ -74,6 +74,7 @@ Result struct of type SurfaceFluxConditions contains:
   - ustar:  Friction velocity
   - Cd:     Momentum Exchange Coefficient
   - Ch:     Thermal Exchange Coefficient
+  - z₀:     Aerodynamic roughness lengths
 """
 function surface_conditions(
     param_set::APS{FT},
@@ -230,13 +231,13 @@ function obukhov_similarity_solution(
     𝓁q₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.HeatTransport())
     # Initial guesses for MOST iterative solution
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), q★ = FT(δ),
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★=FT(δ), q★ = FT(δ),
             L★ = FT(10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
-        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), q★ = FT(δ),
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★=FT(δ), q★ = FT(δ),
             L★ = FT(-10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
@@ -343,16 +344,13 @@ function compute_physical_scale_coeff(
     return 𝜅 / (π_group * Σterms)
 end
 
-@inline function buoyancy_scale(DSEᵥ★, q★, thermo_params, ts, 𝑔)
+@inline function buoyancy_scale(θᵥ★, q★, thermo_params, ts, 𝑔)
     FT = eltype(𝑔)
-    𝒯ₐ = TD.virtual_temperature(thermo_params, ts)
+    Tᵥ = TD.virtual_temperature(thermo_params, ts)
     qₐ = TD.vapor_specific_humidity(thermo_params, ts)
     ε = TD.Parameters.Rv_over_Rd(thermo_params)
-    cp_v = TD.Parameters.cp_v(thermo_params)
     δ = ε - FT(1)
-    # Convert DSEᵥ★ (energy scale) to temperature scale for buoyancy calculation
-    θ★_equiv = DSEᵥ★ / cp_v
-    b★ = 𝑔 / 𝒯ₐ * (θ★_equiv * (1 + δ * qₐ) + δ * 𝒯ₐ * q★)
+    b★ = 𝑔 / Tᵥ * (θᵥ★ * (1 + δ * qₐ) + δ * Tᵥ * q★)
     return FT(b★)
 end
 
@@ -380,6 +378,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     qₛ = qt_sfc(param_set, sc)
     Δq = Δqt(param_set, sc)
     DSEᵥ★ = approximate_interface_state.DSEᵥ★
+    θᵥ★ = approximate_interface_state.θᵥ★
     q★ = Δq == eltype(𝑔)(0) ? approximate_interface_state.q★ : eltype(𝑔)(0)
     L★ = approximate_interface_state.L★
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
@@ -394,23 +393,26 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 
     ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
     ### The windspeed function accounts for a wind-gust parameter.
-    b★ = buoyancy_scale(DSEᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
+    b★ = buoyancy_scale(θᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
     L★ = ifelse(b★ == 0, sign(ΔDSEᵥ(param_set, sc)) * FT(Inf), u★^2 / (𝜅 * b★))
     ## The new L★ estimate is then used to update all scale variables
     ## with stability correction functions (compute_Fₘₕ)
     ζ = Δz(sc) / L★
 
     ### Compute new values for the scale parameters given the relation
+    ### Following MOST, χ/χ★ = ψ(ζ, 𝓁, z)
     χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
     χDSEᵥ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
     χq = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
+    χθᵥ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
 
     ## Re-compute scale variables
     u★ = χu * ΔU
     DSEᵥ★ = χDSEᵥ * ΔDSEᵥ(param_set, sc) 
     q★ = χq * Δq
+    θᵥ★ = χθᵥ * Δθᵥ(param_set, sc)
 
-    return (;u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
+    return (;u★, DSEᵥ★, q★, L★, θᵥ★, 𝓁u, 𝓁θ, 𝓁q)
 end
 
 function obukhov_iteration(X★,
@@ -431,11 +433,10 @@ function obukhov_iteration(X★,
             ts_sfc(sc),
             scheme,
             param_set)
-        local_tol = sqrt(eps(FT))
-        if (X★.L★ - X★₀.L★) ≤ local_tol &&
-           (X★.u★ - X★₀.u★) ≤ local_tol &&
-           (X★.q★ - X★₀.q★) ≤ local_tol &&
-           (X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ local_tol
+        if abs(X★.L★ - X★₀.L★) ≤ tol &&
+           abs(X★.u★ - X★₀.u★) ≤ tol &&
+           abs(X★.q★ - X★₀.q★) ≤ tol &&
+           abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ tol
             break
         end
     end
