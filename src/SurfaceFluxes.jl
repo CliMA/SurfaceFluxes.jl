@@ -1144,9 +1144,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 )
 
     # Stability function type and problem parameters
-    uft = SFP.uf_params(param_set)
     𝜅 = SFP.von_karman_const(param_set)
-    ufp = SFP.uf_params(param_set)
     𝑔 = SFP.grav(param_set)
     FT = eltype(𝑔)
 
@@ -1202,6 +1200,7 @@ function obukhov_iteration(X★,
     maxiter = 10
 )
     DSEᵥ₀ = DSEᵥ_sfc(param_set, sc)
+    FT = eltype(DSEᵥ₀)
     q₀ = qt_sfc(param_set, sc)
     ts₀ = ts_sfc(sc)
     ts₁ = ts_in(sc)
@@ -1214,15 +1213,23 @@ function obukhov_iteration(X★,
         scheme,
         param_set)
     for ii = 1:maxiter
-           X★₀ = X★
-           X★ = iterate_interface_fluxes(sc,
-                                       DSEᵥ₀, q₀,
-                                       X★₀,
-                                       ts₁,
-                                       ts₀,
-                                       scheme,
-                                       param_set)
-            #TODO Stopping Criteria
+        X★₀ = X★
+        X★ = iterate_interface_fluxes(sc,
+                                    DSEᵥ₀, q₀,
+                                    X★₀,
+                                    ts₁,
+                                    ts₀,
+                                    scheme,
+                                    param_set)
+        local_tol = sqrt(eps(FT))
+        if (X★.L★ - X★₀.L★) ≤ local_tol &&   
+           (X★.u★ - X★₀.u★) ≤ local_tol &&   
+           (X★.q★ - X★₀.q★) ≤ local_tol &&   
+           (X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ local_tol
+             break
+        elseif ii == maxiter
+             break
+        end
     end
     return X★
 end
