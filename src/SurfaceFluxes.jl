@@ -460,7 +460,7 @@ function surface_conditions(
     sc::FluxesAndFrictionVelocity,
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
-    tol::FT = sqrt(eps(FT))
+    tol::FT = sqrt(eps(FT)),
     maxiter::Int = 10,
 ) where {FT}
     uft = SFP.uf_params(param_set)
