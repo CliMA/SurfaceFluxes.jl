@@ -433,9 +433,9 @@ function sensible_heat_flux(
     LH_v0 = SFP.LH_v0(param_set)
     cp_m_in = TD.cp_m(thermo_params, ts_in(sc))
     cp_m_sfc = TD.cp_m(thermo_params, ts_sfc(sc))
-    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     T_in = TD.air_temperature(thermo_params, ts_in(sc))
     T_sfc = TD.air_temperature(thermo_params, ts_sfc(sc))
+    ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     hv_sfc = TD.specific_enthalpy_vapor(thermo_params, T_sfc)
     ΔΦ = grav * Δz(sc)
     ΔDSE = cp_m_in * (T_in - T_0) - cp_m_sfc * (T_sfc - T_0) + ΔΦ
@@ -628,53 +628,50 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     scheme::SolverScheme,
     param_set::APS,
 )
-
-    # Stability function type and problem parameters
+    ### Parameter sets
+    uf = SFP.uf_params(param_set)
+    thermo_params = SFP.thermodynamics_params(param_set)
     𝜅 = SFP.von_karman_const(param_set)
     𝑔 = SFP.grav(param_set)
     FT = eltype(𝑔)
-
-    thermo_params = SFP.thermodynamics_params(param_set)
-
-    qₛ = qt_sfc(param_set, sc)
-    Δq = Δqt(param_set, sc)
-
+    
     ## "Initial" approximate scales because we will recompute them
     ## Updated values of these will populate the resulting named-tuple
     u★ = approximate_interface_state.u★
+    qₛ = qt_sfc(param_set, sc)
+    Δq = Δqt(param_set, sc)
     DSEᵥ★ = approximate_interface_state.DSEᵥ★
     q★ = Δq == eltype(𝑔)(0) ? approximate_interface_state.q★ : eltype(𝑔)(0)
     L★ = approximate_interface_state.L★
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
     𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
+    Tₛ = surface_temperature(param_set, sc, (;u★, q★))
 
-    ### Stability functions for momentum, heat, and vapor
-    uf = SFP.uf_params(param_set)
+    # Surface Quantities and state differences
+    surface_args = sc.state_sfc.args
+    Δdseᵥ = ΔDSEᵥ(param_set, sc)
+    ΔU = sqrt(windspeed(sc)^2)
 
     ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
     ### The windspeed function accounts for a wind-gust parameter.
     b★ = buoyancy_scale(DSEᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
-    U = sqrt(windspeed(sc)^2)
-    Δdseᵥ = ΔDSEᵥ(param_set, sc)
     L★ = ifelse(b★ == 0, sign(ΔDSEᵥ(param_set, sc)) * FT(Inf), u★^2 / (𝜅 * b★))
     ## The new L★ estimate is then used to update all scale variables
     ## with stability correction functions (compute_Fₘₕ)
     ζ = Δz(sc) / L★
-    ζ₀ = 𝓁u * ζ / Δz(sc)
-    Pr = UF.Pr_0(uf)
 
     ### Compute new values for the scale parameters given the relation
     χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
-    χθ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
+    χDSEᵥ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
     χq = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
 
-    ## Recompute
-    u★ = χu * U
-    DSEᵥ★ = χθ * Δdseᵥ
+    ## Re-compute scale variables
+    u★ = χu * ΔU
+    DSEᵥ★ = χDSEᵥ * ΔDSEᵥ(param_set, sc) 
     q★ = χq * Δq
 
-    return (u★ = u★, DSEᵥ★ = DSEᵥ★, q★ = q★, L★ = L★, 𝓁u = 𝓁u, 𝓁θ = 𝓁θ, 𝓁q = 𝓁q)
+    return (;u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
 end
 
 function obukhov_iteration(X★,
@@ -685,11 +682,11 @@ function obukhov_iteration(X★,
     maxiter = 10,
 )
     FT = eltype(X★)
-    q₀ = qt_sfc(param_set, sc)
-    for ii in 1:maxiter
+    qₛ = surface_specific_humidity(param_set, sc)
+    for iter in 1:maxiter
         X★₀ = X★
         X★ = iterate_interface_fluxes(sc,
-            qt_sfc,
+            qₛ,
             X★₀,
             ts_in(sc),
             ts_sfc(sc),
@@ -700,8 +697,6 @@ function obukhov_iteration(X★,
            (X★.u★ - X★₀.u★) ≤ local_tol &&
            (X★.q★ - X★₀.q★) ≤ local_tol &&
            (X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ local_tol
-            break
-        elseif ii == maxiter
             break
         end
     end

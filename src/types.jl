@@ -24,7 +24,6 @@ struct DynamicSurfaceTemperature <: SurfaceTemperatureModel end
 
 ### Input Variable Containers
 
-
 """
    StateValues
 
@@ -34,10 +33,14 @@ Input container for state variables at either first / interior nodes.
 
 $(DSE.FIELDS)
 """
-struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState}
+struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState, NT}
     z::FT
     u::A
     ts::TS
+    args::NT
+end
+function StateValues(z::FT, u::A, ts::TS; args::NT = nothing) where {FT, A, TS, NT}
+    return StateValues{FT, A, TS, NT}(z,u,ts,args)
 end
 
 ### Input Containers for surface condtions
