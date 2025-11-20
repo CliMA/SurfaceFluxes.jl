@@ -352,17 +352,16 @@ function compute_z0(u★, sfc_param_set,
 end
 function compute_z0(u★, sfc_param_set,
     sc::Coefficients, ::ScalarRoughness, ::UF.MomentumTransport)
-    return compute_z0(u★, sfc_param_set, sc, CharnockRoughness(), UF.MomentumTransport())
+    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.MomentumTransport())
 end
 function compute_z0(u★, sfc_param_set,
     sc::Coefficients, ::ScalarRoughness, ::UF.HeatTransport)
-    return compute_z0(u★, sfc_param_set, sc, CharnockRoughness(), UF.MomentumTransport())
+    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.MomentumTransport())
 end
 function compute_z0(u★, sfc_param_set,
     sc, ::ScalarRoughness, ::UF.HeatTransport)
     return sc.z0b
 end
-
 
 """
     surface_conditions(
@@ -373,7 +372,6 @@ end
         tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
         maxiter::Int = 10,
         soltype::RS.SolutionType = RS.CompactSolution(),
-        noniterative_stable_sol::Bool=true,
     )
 
 The main user facing function of the module.
@@ -402,7 +400,6 @@ function surface_conditions(
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
     maxiter::Int = 30,
     soltype::RS.SolutionType = RS.CompactSolution(),
-    noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.uf_params(param_set)
     X★ = obukhov_similarity_solution(
@@ -413,7 +410,6 @@ function surface_conditions(
         tol_neutral,
         maxiter,
         soltype,
-        noniterative_stable_sol,
     )
     L_MO = X★.L★
     ustar = X★.u★
@@ -470,7 +466,6 @@ function surface_conditions(
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
     maxiter::Int = 30,
     soltype::RS.SolutionType = RS.CompactSolution(),
-    noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.uf_params(param_set)
     X★ = obukhov_similarity_solution(
@@ -482,7 +477,6 @@ function surface_conditions(
         tol_neutral,
         maxiter,
         soltype,
-        noniterative_stable_sol,
     )
     ustar = sc.ustar
     Cd = momentum_exchange_coefficient(param_set, L_MO, ustar, sc, uft, scheme, tol_neutral)
@@ -521,7 +515,6 @@ function surface_conditions(
     tol::RS.AbstractTolerance = RS.RelativeSolutionTolerance(FT(0.01)),
     maxiter::Int = 30,
     soltype::RS.SolutionType = RS.CompactSolution(),
-    noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.uf_params(param_set)
     ustar = sqrt(sc.Cd) * windspeed(sc)
@@ -632,12 +625,14 @@ function obukhov_similarity_solution(
     tol_neutral,
     maxiter,
     soltype,
-    noniterative_stable_sol,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     δ = sign(ΔDSEᵥ(param_set, sc))
+    𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
+    𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
+    𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     if ΔDSEᵥ(param_set, sc) >= FT(0)
         X★₀ = (u★ = FT(δ), DSEᵥ★=FT(δ), q★=FT(δ),
             L★=FT(10),
