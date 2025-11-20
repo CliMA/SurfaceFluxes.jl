@@ -15,6 +15,7 @@ using RootSolvers
 const RS = RootSolvers
 
 import Thermodynamics.TestedProfiles: input_config, PhaseEquilProfiles
+include("test_utils.jl")
 
 abstract type TestProfiles end
 struct DryProfiles <: TestProfiles end
@@ -29,7 +30,7 @@ function input_config(
     T_min = 150,
 )
     n_RS = n_RS1 + n_RS2
-    z_range = ArrayType(range(0, stop = 60, length = n))
+    z_range = ArrayType(range(0, stop = 80, length = n))
     relative_sat1 = ArrayType(range(0, stop = 1, length = n_RS1))
     relative_sat2 = ArrayType(range(1, stop = 1.02, length = n_RS2))
     relative_sat = vcat(relative_sat1, relative_sat2)
@@ -76,19 +77,28 @@ function generate_profiles(
     return profiles_sfc, profiles_int, param_set
 end
 
+function compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
+    DSEᵥ_int =
+        TD.virtual_dry_static_energy(thermo_params, ts_int, prof_int.e_pot)
+    DSEᵥ_sfc =
+        TD.virtual_dry_static_energy(thermo_params, ts_sfc, prof_sfc.e_pot)
+    return DSEᵥ_int - DSEᵥ_sfc
+end
+
 function assemble_surface_conditions(
     prof_int,
     prof_sfc,
     ts_int,
     ts_sfc,
     z0m,
-    z0b,
+    z0b;
+    roughness_model = SF.ScalarRoughness(),
 )
     FT = eltype(z0m)
     state_in =
         SF.StateValues(prof_int.z, (prof_int.u / 10, prof_int.v / 10), ts_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly(state_in, state_sfc, z0m, z0b)
+    return SF.ValuesOnly(state_in, state_sfc, z0m, z0b; roughness_model)
 end
 
 function check_over_dry_states(
@@ -100,7 +110,7 @@ function check_over_dry_states(
     z0_thermal,
     maxiter,
     tol_neutral,
-    gryanik_noniterative::Bool,
+    roughness_model = SF.ScalarRoughness(),
 ) where {FT}
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
@@ -128,37 +138,36 @@ function check_over_dry_states(
                                 ts_int,
                                 ts_sfc,
                                 z0m,
-                                z0b,
+                                z0b;
+                                roughness_model,
                             )
-                            dse_diff = SF.ΔDSEᵥ(param_set, sc)
-                            if abs(dse_diff) <= tol_neutral
+                            ΔDSEᵥ = compute_dse_diff(
+                                thermo_params,
+                                ts_int,
+                                ts_sfc,
+                                prof_int,
+                                prof_sfc,
+                            )
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(dse_diff) == 1 ? counter[1] += 1 :
+                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
-                            sfcc = SF.surface_conditions(
+                            sfcc = surface_conditions_wrapper(
                                 param_set,
                                 sc,
                                 sch;
                                 maxiter,
                                 tol_neutral,
                             )
-                            if abs(SF.ΔDSEᵥ(param_set, sc)) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(SF.ΔDSEᵥ(param_set, sc))
-                                @test sign(sfcc.shf) == -sign(SF.ΔDSEᵥ(param_set, sc))
-                                @test sign(sfcc.buoy_flux) == -sign(SF.ΔDSEᵥ(param_set, sc))
+                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
+                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
+                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
                             end
-                            @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
-                            @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                            @test sign(sfcc.L_MO) == sign(dse_diff)
-                            @test sign(sfcc.shf) == -sign(dse_diff)
-                            @test sign(sfcc.buoy_flux) == -sign(dse_diff)
 
                         end
                     end
@@ -178,7 +187,7 @@ function check_over_moist_states(
     z0_thermal,
     maxiter,
     tol_neutral,
-    gryanik_noniterative::Bool,
+    roughness_model = SF.ScalarRoughness(),
 ) where {FT}
     param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
     counter = [0, 0, 0] # Stable, Unstable, Neutral
@@ -212,34 +221,34 @@ function check_over_moist_states(
                                 ts_int,
                                 ts_sfc,
                                 z0m,
-                                z0b,
+                                z0b;
+                                roughness_model,
                             )
-                            dse_diff = SF.ΔDSEᵥ(param_set, sc)
-                            if abs(dse_diff) <= tol_neutral
+                            ΔDSEᵥ = compute_dse_diff(
+                                thermo_params,
+                                ts_int,
+                                ts_sfc,
+                                prof_int,
+                                prof_sfc,
+                            )
+                            if abs(ΔDSEᵥ) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(dse_diff) == 1 ? counter[1] += 1 :
+                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
-                            sfcc = SF.surface_conditions(
+                            sfcc = surface_conditions_wrapper(
                                 param_set,
                                 sc,
                                 sch;
                                 maxiter,
                                 tol_neutral,
                             )
-                            if abs(SF.ΔDSEᵥ(param_set, sc)) <= tol_neutral
-                                @test sign.(sfcc.evaporation) ==
-                                      -sign(prof_int.q_tot - prof_sfc.q_tot)
-                                @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
-                                @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(SF.ΔDSEᵥ(param_set, sc))
-                            end
                             @test sign.(sfcc.evaporation) ==
                                   -sign(prof_int.q_tot - prof_sfc.q_tot)
                             @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                             @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                            @test sign(sfcc.L_MO) == sign(dse_diff)
+                            @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
                         end
                     end
                 end
@@ -249,10 +258,11 @@ function check_over_moist_states(
     return counter
 end
 
-@testset "Check convergence (dry thermodynamic states): Stable/Unstable" begin
+@testset "Check convergence (dry/moist thermodynamic states): Stable/Unstable" begin
     for FT in [Float32, Float64]
         for uf_params in [UF.BusingerParams, UF.GryanikParams, UF.GrachevParams]
             for profile_type in [DryProfiles(), MoistEquilProfiles()]
+                param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
                 profiles_sfc, profiles_int =
                     generate_profiles(FT, profile_type; uf_params)
                 scheme = [SF.LayerAverageScheme(), SF.PointValueScheme()]
@@ -260,33 +270,39 @@ end
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
                 tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
-                for iteration_option in [true]
-                    counter = check_over_dry_states(
-                        FT,
-                        profiles_int,
-                        profiles_sfc,
-                        scheme,
-                        z0_momentum,
-                        z0_thermal,
-                        maxiter,
-                        tol_neutral,
-                        iteration_option,
-                    )
-                    counter = check_over_moist_states(
-                        FT,
-                        profiles_int,
-                        profiles_sfc,
-                        scheme,
-                        z0_momentum,
-                        z0_thermal,
-                        maxiter,
-                        tol_neutral,
-                        iteration_option,
-                    )
-                end
+                counter = check_over_dry_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                )
+                counter = check_over_moist_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                )
+                counter = check_over_dry_states(
+                    FT,
+                    profiles_int,
+                    profiles_sfc,
+                    scheme,
+                    z0_momentum,
+                    z0_thermal,
+                    maxiter,
+                    tol_neutral,
+                    SF.CharnockRoughness(),
+                )
             end
         end
     end
-    @info "Tested Businger/Gryanik/Grachev u.f., Float32/Float64, Dry/EquilMoist profiles, non-iterative solver on/off"
-
+    @info "Tested Businger/Gryanik/Grachev u.f., Float32/Float64, Dry/EquilMoist profiles, Scalar / Charnock roughness schemes"
 end
