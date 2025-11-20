@@ -8,7 +8,7 @@ macro test_allocs_and_ts(expression)
     return quote
         local ex() = $(esc(expression))
         ex() # compile
-        @test (@allocated ex()) <= 32 # allocations
+        @test (@allocated ex()) == 0 # allocations
         @test_opt ex() # type instabilities
         ex() # return evaluated expression
     end

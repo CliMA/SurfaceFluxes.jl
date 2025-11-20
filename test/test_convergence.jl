@@ -77,14 +77,6 @@ function generate_profiles(
     return profiles_sfc, profiles_int, param_set
 end
 
-function compute_dse_diff(thermo_params, ts_int, ts_sfc, prof_int, prof_sfc)
-    DSEᵥ_int =
-        TD.virtual_dry_static_energy(thermo_params, ts_int, prof_int.e_pot)
-    DSEᵥ_sfc =
-        TD.virtual_dry_static_energy(thermo_params, ts_sfc, prof_sfc.e_pot)
-    return DSEᵥ_int - DSEᵥ_sfc
-end
-
 function assemble_surface_conditions(
     prof_int,
     prof_sfc,
@@ -141,17 +133,10 @@ function check_over_dry_states(
                                 z0b;
                                 roughness_model,
                             )
-                            ΔDSEᵥ = compute_dse_diff(
-                                thermo_params,
-                                ts_int,
-                                ts_sfc,
-                                prof_int,
-                                prof_sfc,
-                            )
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            if abs(SF.Δθᵥ(param_set, sc)) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
+                                sign(SF.Δθᵥ(param_set, sc)) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
                             sfcc = surface_conditions_wrapper(
@@ -161,12 +146,12 @@ function check_over_dry_states(
                                 maxiter,
                                 tol_neutral,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            if abs(SF.Δθᵥ(param_set, sc)) <= tol_neutral
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
-                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
+                                @test sign(sfcc.L_MO) == sign(SF.Δθᵥ(param_set, sc))
+                                @test sign(sfcc.shf) == -sign(SF.Δθᵥ(param_set, sc))
+                                @test sign(sfcc.buoy_flux) == -sign(SF.Δθᵥ(param_set, sc))
                             end
 
                         end
@@ -224,17 +209,10 @@ function check_over_moist_states(
                                 z0b;
                                 roughness_model,
                             )
-                            ΔDSEᵥ = compute_dse_diff(
-                                thermo_params,
-                                ts_int,
-                                ts_sfc,
-                                prof_int,
-                                prof_sfc,
-                            )
-                            if abs(ΔDSEᵥ) <= tol_neutral
+                            if abs(SF.Δθᵥ(param_set, sc)) <= tol_neutral
                                 counter[3] += 1
                             else
-                                sign(ΔDSEᵥ) == 1 ? counter[1] += 1 :
+                                sign(SF.Δθᵥ(param_set, sc)) == 1 ? counter[1] += 1 :
                                 counter[2] += 1
                             end
                             sfcc = surface_conditions_wrapper(
@@ -248,7 +226,7 @@ function check_over_moist_states(
                                   -sign(prof_int.q_tot - prof_sfc.q_tot)
                             @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                             @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                            @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
+                            @test sign(sfcc.L_MO) == sign(SF.Δθᵥ(param_set, sc))
                         end
                     end
                 end
@@ -269,7 +247,7 @@ end
                 z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
-                tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
+                tol_neutral = FT(0.01)
                 counter = check_over_dry_states(
                     FT,
                     profiles_int,

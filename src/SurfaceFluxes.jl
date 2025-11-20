@@ -388,7 +388,6 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 
     # Surface Quantities and state differences
     surface_args = sc.state_sfc.args
-    Δdseᵥ = ΔDSEᵥ(param_set, sc)
     ΔU = sqrt(windspeed(sc)^2)
 
     ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
@@ -400,7 +399,6 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     ζ = Δz(sc) / L★
 
     ### Compute new values for the scale parameters given the relation
-    ### Following MOST, χ/χ★ = ψ(ζ, 𝓁, z)
     χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
     χDSEᵥ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
     χq = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
