@@ -472,9 +472,8 @@ function surface_conditions(
         tol_neutral,
         maxiter,
     )
-    ustar = sc.ustar
-    Cd = momentum_exchange_coefficient(param_set, L_MO, ustar, sc, uft, scheme, tol_neutral)
-    Ch = heat_exchange_coefficient(param_set, L_MO, ustar, sc, uft, scheme, tol_neutral)
+    Cd = momentum_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme, tol_neutral)
+    Ch = heat_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme, tol_neutral)
     shf = sc.shf
     lhf = sc.lhf
     buoy_flux = compute_buoyancy_flux(
@@ -488,13 +487,13 @@ function surface_conditions(
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
     return SurfaceFluxConditions(
-        L_MO,
+        X★.L★,
         shf,
         lhf,
         buoy_flux,
         ρτxz,
         ρτyz,
-        ustar,
+        X★.u★,
         Cd,
         Ch,
         E,
@@ -517,7 +516,6 @@ function surface_conditions(
         nothing,
         nothing,
         sc,
-        uft,
         scheme,
         tol_neutral,
     )
@@ -527,7 +525,6 @@ function surface_conditions(
             nothing,
             nothing,
             sc,
-            uft,
             scheme,
             tol_neutral,
         )
@@ -544,13 +541,13 @@ function surface_conditions(
     ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
     E = evaporation(param_set, sc, Ch)
     return SurfaceFluxConditions(
-        L_MO,
+        X★.L★,
         shf,
         lhf,
         buoy_flux,
         ρτxz,
         ρτyz,
-        ustar,
+        X★.u★,
         Cd,
         Ch,
         E,
@@ -647,8 +644,8 @@ function obukhov_similarity_solution(
     scheme,
     args...,
 )
-    return (-sc.ustar^3 / SFP.von_karman_const(param_set) /
-            non_zero(compute_buoyancy_flux(param_set, sc, scheme)), sc.ustar)
+    return (L★ = -sc.ustar^3 / SFP.von_karman_const(param_set) /
+            non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
 end
 
 function obukhov_similarity_solution(
@@ -668,7 +665,7 @@ function obukhov_similarity_solution(
         ts_sfc(sc),
         scheme,
     )
-    return (-ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux), ustar)
+    return (L★=-ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux), u★=ustar)
 end
 
 """

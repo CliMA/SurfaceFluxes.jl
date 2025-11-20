@@ -143,42 +143,21 @@ function check_over_dry_states(
                                 sch;
                                 maxiter,
                                 tol_neutral,
-                                soltype = RS.VerboseSolution(),
-                                noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
+                            if abs(SF.ΔDSEᵥ(param_set, sc)) <= tol_neutral &&
                                gryanik_noniterative == false
                                 @test isinf(sfcc.L_MO)
                             else
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.shf) == -sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
-                                @test sign(sfcc.buoy_flux) == -sign(ΔDSEᵥ)
+                                @test sign(sfcc.L_MO) == sign(SF.ΔDSEᵥ(param_set, sc))
+                                @test sign(sfcc.shf) == -sign(SF.ΔDSEᵥ(param_set, sc))
+                                @test sign(sfcc.buoy_flux) == -sign(SF.ΔDSEᵥ(param_set, sc))
                             end
                             @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                             @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
                             @test sign(sfcc.L_MO) == sign(dse_diff)
                             @test sign(sfcc.shf) == -sign(dse_diff)
-                            #@test sign(
-                            #    SF.compute_bstar(
-                            #        param_set,
-                            #        sfcc.L_MO,
-                            #        sc,
-                            #        SF.Parameters.universal_func_type(
-                            #            param_set,
-                            #        ),
-                            #        sch,
-                            #    ),
-                            #) == sign(dse_diff)
                             @test sign(sfcc.buoy_flux) == -sign(dse_diff)
 
                         end
@@ -248,44 +227,19 @@ function check_over_moist_states(
                                 sch;
                                 maxiter,
                                 tol_neutral,
-                                soltype = RS.VerboseSolution(),
-                                noniterative_stable_sol = gryanik_noniterative,
                             )
-                            if abs(ΔDSEᵥ) <= tol_neutral &&
-                               gryanik_noniterative == false
-                                @test isinf(sfcc.L_MO)
-                            else
+                            if abs(SF.ΔDSEᵥ(param_set, sc)) <= tol_neutral
                                 @test sign.(sfcc.evaporation) ==
                                       -sign(prof_int.q_tot - prof_sfc.q_tot)
                                 @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                                 @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
-                                @test sign(sfcc.L_MO) == sign(ΔDSEᵥ)
-                                @test sign(
-                                    SF.compute_bstar(
-                                        param_set,
-                                        sfcc.L_MO,
-                                        sc,
-                                        sch,
-                                    ),
-                                ) == sign(ΔDSEᵥ)
+                                @test sign(sfcc.L_MO) == sign(SF.ΔDSEᵥ(param_set, sc))
                             end
                             @test sign.(sfcc.evaporation) ==
                                   -sign(prof_int.q_tot - prof_sfc.q_tot)
                             @test sign.(sfcc.ρτxz) == -sign(prof_int.u)
                             @test sign.(sfcc.ρτyz) == -sign(prof_int.v)
                             @test sign(sfcc.L_MO) == sign(dse_diff)
-                            #@test sign(
-                            #    SF.compute_bstar(
-                            #        param_set,
-                            #        sfcc.L_MO,
-                            #        sc,
-                            #        SF.Parameters.universal_func_type(
-                            #            param_set,
-                            #        ),
-                            #        sch,
-                            #    ),
-                            #) == sign(dse_diff)
-
                         end
                     end
                 end

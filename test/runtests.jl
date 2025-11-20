@@ -186,7 +186,7 @@ end
             )
 
             sfc_output = SF.surface_conditions(sf_params, sc; maxiter = 20)
-            @test abs(SF.obukhov_length(sfc_output)) > FloatType(0)
+            @test abs(sfc_output.L_MO) > FloatType(0)
             @test sign(SF.non_zero(1.0)) == 1
             @test sign(SF.non_zero(-1.0)) == -1
             @test sign(SF.non_zero(-0.0)) == 1
@@ -240,7 +240,6 @@ end
                         sf_params,
                         sc;
                         maxiter = 20,
-                        noniterative_stable_sol = true,
                     )
                     sol_mat[ii, jj, kk, ll] =
                         isinf(sfc_output.L_MO) ? FloatType(1e6) :

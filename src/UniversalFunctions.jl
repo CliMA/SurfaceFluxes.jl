@@ -178,7 +178,7 @@ function Psi(p::BusingerParams, ζ, ::MomentumTransport)
     end
 end
 
-function Psi(p::BusingerParams, ζ, ::HeatTransport)
+function Psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
     _a_h = FT(a_h(p))
     if ζ >= 0
