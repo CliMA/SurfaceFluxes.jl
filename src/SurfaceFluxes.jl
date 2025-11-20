@@ -630,17 +630,19 @@ function obukhov_similarity_solution(
     ufparams = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     δ = sign(ΔDSEᵥ(param_set, sc))
-    𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
+    u★₀ = FT(0.1)
+    𝓁u₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.MomentumTransport())
+    𝓁θ₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.HeatTransport())
+    𝓁q₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.HeatTransport())
+    # Initial guesses for MOST iterative solution
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        X★₀ = (u★ = FT(δ), DSEᵥ★=FT(δ), q★=FT(δ),
+        X★₀ = (u★=u★₀, DSEᵥ★=FT(δ), q★=FT(δ),
             L★=FT(10),
-            𝓁u=FT(0.0001), 𝓁θ=FT(0.0001), 𝓁q=FT(0.0001))
+            𝓁u=𝓁u₀, 𝓁θ=𝓁θ₀, 𝓁q=𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
-        X★₀ = (u★ = FT(δ), DSEᵥ★=FT(δ), q★=FT(δ),
+        X★₀ = (u★=u★₀, DSEᵥ★=FT(δ), q★=FT(δ),
             L★=FT(-10),
             𝓁u=FT(0.0001), 𝓁θ=FT(0.0001), 𝓁q=FT(0.0001))
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
@@ -1130,7 +1132,7 @@ end
     iterate_interface_fluxes()
 """
 function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
-    DSEᵥ₀, qₛ,
+    q_surface, 
     approximate_interface_state,
     atmosphere_state,
     surface_state,
@@ -1149,35 +1151,34 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     Δq = Δqt(param_set, sc)
 
     ## "Initial" approximate scales because we will recompute them
-    ## Get these from the model properties directly, given
-    ## some initial guess for L★ and u★
+    ## Updated values of these will populate the resulting named-tuple
     u★ = approximate_interface_state.u★
     DSEᵥ★ = approximate_interface_state.DSEᵥ★
     q★ = Δq == eltype(𝑔)(0) ? approximate_interface_state.q★ : eltype(𝑔)(0)
-
     L★ = approximate_interface_state.L★
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
     𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
 
-    ## Stability functions for momentum, heat, and vapor
+    ### Stability functions for momentum, heat, and vapor
     uf = SFP.uf_params(param_set)
 
-    ### Compute Monin--Obukhov length scale depending on a `buoyancy flux`
+    ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
+    ### The windspeed function accounts for a wind-gust parameter.
     b★ = buoyancy_scale(DSEᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
     U = sqrt(windspeed(sc)^2)
-
-    ##### Transfer coefficients at height `h`
     Δdseᵥ = ΔDSEᵥ(param_set, sc)
-    L★ = ifelse(b★ == 0, sign(Δdseᵥ) * FT(Inf), u★^2 / (𝜅 * b★))
+    L★ = ifelse(b★ == 0, sign(ΔDSEᵥ(param_set, sc)) * FT(Inf), u★^2 / (𝜅 * b★))
+    ## The new L★ estimate is then used to update all scale variables
+    ## with stability correction functions (compute_Fₘₕ)
     ζ = Δz(sc) / L★
     ζ₀ = 𝓁u * ζ / Δz(sc)
     Pr = UF.Pr_0(uf)
 
     ### Compute new values for the scale parameters given the relation
-    χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
-    χθ = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
-    χq = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
+    χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
+    χθ = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
+    χq = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
 
     ## Recompute
     u★ = χu * U
@@ -1188,20 +1189,19 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 end
 
 function obukhov_iteration(X★, 
-    sc,
-    scheme, 
-    param_set,
-    tol,
-    maxiter = 10
+                           sc,
+                           scheme, 
+                           param_set,
+                           tol,
+                           maxiter = 10
 )
-    DSEᵥ₀ = DSEᵥ_sfc(param_set, sc)
-    FT = eltype(DSEᵥ₀)
+    FT = eltype(X★)
     q₀ = qt_sfc(param_set, sc)
     ts₀ = ts_sfc(sc)
     ts₁ = ts_in(sc)
     X★₀ = X★
     X★ = iterate_interface_fluxes(sc,
-        DSEᵥ₀, q₀,
+        q₀,
         X★,
         ts₁,
         ts₀,
@@ -1210,7 +1210,7 @@ function obukhov_iteration(X★,
     for ii = 1:maxiter
         X★₀ = X★
         X★ = iterate_interface_fluxes(sc,
-                                    DSEᵥ₀, q₀,
+                                    qt_sfc,   
                                     X★₀,
                                     ts₁,
                                     ts₀,
