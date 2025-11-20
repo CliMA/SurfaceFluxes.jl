@@ -1,4 +1,9 @@
 
+function non_zero(v::FT) where {FT}
+    sign_of_v = v == 0 ? 1 : sign(v)
+    return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
+end
+
 function windspeed(sc::AbstractSurfaceConditions)
     return max(hypot(Δu1(sc), Δu2(sc)), sc.gustiness)
 end

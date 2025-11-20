@@ -177,7 +177,6 @@ function surface_conditions(
     )
 end
 
-
 """
     obukhov_similarity_solution(sfc::SurfaceFluxConditions)
 
@@ -194,35 +193,11 @@ end
 Compute and return the Monin-Obukhov lengthscale (LMO).
 
 The internal method for computing LMO depends on the
-particular surface condition `sc`, of which there are
-several options:
-
- - `FluxesAndFrictionVelocity`
- - `Coefficients`
-
-## `AbstractSurfaceConditions` (fallback)
-
-The Monin-Obukhov length is computed by solving a non-linear
-equation given a tolerance `tol` and maximum iterations `maxiter`.
-
-## `FluxesAndFrictionVelocity`
-
-Surface fluxes and friction velocity are known.
-Iterations are not needed to determine LMO.
-
-## `Coefficients`
-
-Exchange coefficients are known.
-Iterations are not needed to determine LMO.
+particular surface condition `sc <: AbstractSurfaceConditions`. 
 """
 function obukhov_similarity_solution end
 
 obukhov_similarity_solution(sfc::SurfaceFluxConditions) = sfc.L_MO
-
-function non_zero(v::FT) where {FT}
-    sign_of_v = v == 0 ? 1 : sign(v)
-    return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
-end
 
 function compute_Fₘₕ(sc, ufₛ, ζ, 𝓁, transport)
     return log(Δz(sc)/𝓁) -
@@ -256,7 +231,7 @@ function obukhov_similarity_solution(
     else
         X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(-10),
-            𝓁u = FT(0.0001), 𝓁θ = FT(0.0001), 𝓁q = FT(0.0001))
+            𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     end
