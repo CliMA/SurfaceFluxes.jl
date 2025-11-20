@@ -130,9 +130,6 @@ end
 
 function psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
         # Businger1971 Eq. A3 (ζ < 0)
         f_m = f_momentum(p, ζ)
@@ -140,29 +137,26 @@ function psi(p::BusingerParams, ζ, ::MomentumTransport)
         return FT(log_term - 2 * atan(f_m) + π / 2)
     else
         # Businger1971 Eq. A3 (ζ >= 0)
-        _a_m = FT(a_m(p))
-        return -_a_m * ζ
+        _a_m = a_m(p)
+        return FT(-_a_m * ζ)
     end
 end
 
 function psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
         # Businger1971 Eq. A4 (ζ < 0)
         f_h = f_heat(p, ζ)
         return FT(2 * log((1 + f_h) / 2))
     else
         # Businger1971 Eq. A4 (ζ >= 0)
-        _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / _π_group
+        _a_h = a_h(p)
+        _π_group = π_group(p, tt)
+        return FT(-_a_h * ζ / _π_group)
     end
 end
 
-function Psi(p::BusingerParams, ζ, tt::MomentumTransport)
+function Psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ >= 0
         # Nishizawa2018 Eq. A5 and A13 (ζ >= 0)
@@ -184,7 +178,7 @@ function Psi(p::BusingerParams, ζ, tt::MomentumTransport)
     end
 end
 
-function Psi(p::BusingerParams, ζ, tt::HeatTransport)
+function Psi(p::BusingerParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     _a_h = FT(a_h(p))
     if ζ >= 0
@@ -234,7 +228,7 @@ f_momentum(::GryanikParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
 # Nishizawa2018 Eq. A8
 f_heat(::GryanikParams, ζ) = sqrt(1 - 9 * ζ)
 
-function phi(p::GryanikParams, ζ, tt::MomentumTransport)
+function phi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 32
@@ -248,7 +242,7 @@ function phi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function phi(p::GryanikParams, ζ, tt::HeatTransport)
+function phi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 33
@@ -263,11 +257,8 @@ function phi(p::GryanikParams, ζ, tt::HeatTransport)
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::MomentumTransport)
+function psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Gryanik2020 Eq. 34
         _a_m = FT(a_m(p))
@@ -281,11 +272,8 @@ function psi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::HeatTransport)
+function psi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Gryanik2020 Eq. 35
         _Pr_0 = FT(Pr_0(p))
@@ -299,7 +287,7 @@ function psi(p::GryanikParams, ζ, tt::HeatTransport)
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::MomentumTransport)
+function Psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     _a_m = FT(a_m(p))
     _b_m = FT(b_m(p))
@@ -319,7 +307,7 @@ function Psi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::HeatTransport)
+function Psi(p::GryanikParams, ζ, ::HeatTransport)
     FT = typeof(ζ)
     _a_h = FT(a_h(p))
     _b_h = FT(b_h(p))
@@ -368,7 +356,7 @@ f_momentum(::GrachevParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
 # Nishizawa2018 Eq. A8
 f_heat(::GrachevParams, ζ) = sqrt(1 - 9 * ζ)
 
-function phi(p::GrachevParams, ζ, tt::MomentumTransport)
+function phi(p::GrachevParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Grachev2007 Eq. 9a
@@ -399,9 +387,6 @@ end
 
 function psi(p::GrachevParams, ζ, tt::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 12
         _a_m = FT(a_m(p))
@@ -427,9 +412,6 @@ end
 
 function psi(p::GrachevParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 13
         _Pr_0 = FT(Pr_0(p))

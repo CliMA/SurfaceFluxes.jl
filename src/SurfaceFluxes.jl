@@ -473,7 +473,7 @@ function surface_conditions(
     noniterative_stable_sol::Bool = true,
 ) where {FT}
     uft = SFP.uf_params(param_set)
-    L_MO, _ = obukhov_similarity_solution(
+    X★ = obukhov_similarity_solution(
         param_set,
         sc,
         uft,
@@ -525,7 +525,7 @@ function surface_conditions(
 ) where {FT}
     uft = SFP.uf_params(param_set)
     ustar = sqrt(sc.Cd) * windspeed(sc)
-    L_MO, _ = obukhov_similarity_solution(param_set, sc, uft, scheme)
+    X★ = obukhov_similarity_solution(param_set, sc, uft, scheme)
     Cd = momentum_exchange_coefficient(
         param_set,
         nothing,
@@ -639,16 +639,16 @@ function obukhov_similarity_solution(
     grav = SFP.grav(param_set)
     δ = sign(ΔDSEᵥ(param_set, sc))
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        X★₀ = SimilarityScaleVars(FT(δ), FT(δ), FT(δ),
-            FT(10),
-            FT(0.0001), FT(0.0001), FT(0.0001))
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set)
+        X★₀ = (u★ = FT(δ), DSEᵥ★=FT(δ), q★=FT(δ),
+            L★=FT(10),
+            𝓁u=FT(0.0001), 𝓁θ=FT(0.0001), 𝓁q=FT(0.0001))
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
-        X★₀ = SimilarityScaleVars(FT(δ), FT(δ), FT(δ),
-            FT(-10),
-            FT(0.0001), FT(0.0001), FT(0.0001))
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set)
+        X★₀ = (u★ = FT(δ), DSEᵥ★=FT(δ), q★=FT(δ),
+            L★=FT(-10),
+            𝓁u=FT(0.0001), 𝓁θ=FT(0.0001), 𝓁q=FT(0.0001))
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     end
 end
@@ -718,6 +718,7 @@ end
     compute_ustar(
         param_set::AbstractSurfaceFluxesParameters,
         L_MO,
+        𝓁,
         sc::AbstractSurfaceCondition,
         scheme,
     )
@@ -1029,7 +1030,7 @@ function compute_physical_scale_coeff(
     transport,
     ::LayerAverageScheme,
 )
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     uf = SFP.uf_params(param_set)
     π_group = UF.π_group(uf, transport)
     R_z0 = 1 - 𝓁 / Δz(sc)
@@ -1040,7 +1041,7 @@ function compute_physical_scale_coeff(
         UF.Psi(uf, 𝓁 / L_MO, transport)
     denom4 = R_z0 * (UF.psi(uf, 𝓁 / L_MO, transport) - 1)
     Σterms = denom1 + denom2 + denom3 + denom4
-    return von_karman_const / (π_group * Σterms)
+    return 𝜅 / (π_group * Σterms)
 end
 
 
@@ -1066,14 +1067,15 @@ function compute_physical_scale_coeff(
     transport,
     ::PointValueScheme,
 )
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
+    FT = eltype(𝜅)
     uf = SFP.uf_params(param_set)
     π_group = UF.π_group(uf, transport)
-    denom1 = log(Δz(sc) / 𝓁)
-    denom2 = -UF.psi(uf, Δz(sc) / L_MO, transport)
-    denom3 = UF.psi(uf, 𝓁 / L_MO, transport)
+    denom1 = log(FT(Δz(sc) / 𝓁))
+    denom2 = -UF.psi(uf, FT(Δz(sc) / L_MO), transport)
+    denom3 = UF.psi(uf, FT(𝓁 / L_MO), transport)
     Σterms = denom1 + denom2 + denom3
-    return von_karman_const / (π_group * Σterms)
+    return 𝜅 / (π_group * Σterms)
 end
 
 """
@@ -1105,37 +1107,28 @@ function recover_profile(
     scheme::Union{LayerAverageScheme, PointValueScheme},
 )
     uf = SFP.uf_params(param_set)
-    von_karman_const = SFP.von_karman_const(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
     num1 = log(Z / 𝓁)
     num2 = -UF.psi(uf, Z / L_MO, transport)
     num3 = UF.psi(uf, 𝓁 / L_MO, transport)
     Σnum = num1 + num2 + num3
-    return Σnum * X_star / von_karman_const + X_sfc
+    return Σnum * X_star / 𝜅 + X_sfc
 end
 
 sfc_param_set(FT, UFT) = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 thermo_params(param_set) = SFP.thermodynamics_params(param_set)
 
-struct SimilarityScaleVars
-    u★::Any
-    DSEᵥ★::Any
-    q★::Any
-    L★::Any
-    𝓁u::Any
-    𝓁θ::Any
-    𝓁q::Any
-end
-
-@inline function buoyancy_scale(DSEᵥ★, q★, thermo_params, 𝒬, 𝑔)
-    𝒯ₐ = TD.virtual_temperature(thermo_params, 𝒬)
-    qₐ = TD.vapor_specific_humidity(thermo_params, 𝒬)
+@inline function buoyancy_scale(DSEᵥ★, q★, thermo_params, ts, 𝑔)
+    FT = eltype(𝑔)
+    𝒯ₐ = TD.virtual_temperature(thermo_params, ts)
+    qₐ = TD.vapor_specific_humidity(thermo_params, ts)
     ε = TD.Parameters.Rv_over_Rd(thermo_params)
-    δ = ε - 1
     cp_v = TD.Parameters.cp_v(thermo_params)
+    δ = ε - FT(1)
     # Convert DSEᵥ★ (energy scale) to temperature scale for buoyancy calculation
     θ★_equiv = DSEᵥ★ / cp_v
     b★ = 𝑔 / 𝒯ₐ * (θ★_equiv * (1 + δ * qₐ) + δ * 𝒯ₐ * q★)
-    return b★
+    return FT(b★)
 end
 
 """
@@ -1147,7 +1140,8 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     atmosphere_state,
     surface_state,
     scheme::SolverScheme,
-    param_set::APS)
+    param_set::APS
+)
 
     # Stability function type and problem parameters
     uft = SFP.uf_params(param_set)
@@ -1158,9 +1152,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 
     thermo_params = SFP.thermodynamics_params(param_set)
 
-    ##DSEᵥ₀ is passed in and represents surface DSEᵥ
     qₛ = qt_sfc(param_set, sc)
-    ΔDSEᵥ_diff = ΔDSEᵥ(param_set, sc)
     Δq = Δqt(param_set, sc)
 
     ## "Initial" approximate scales because we will recompute them
@@ -1178,35 +1170,36 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     ## Stability functions for momentum, heat, and vapor
     uf = SFP.uf_params(param_set)
 
-    ## Compute Monin--Obukhov length scale depending on a `buoyancy flux`
+    ### Compute Monin--Obukhov length scale depending on a `buoyancy flux`
     b★ = buoyancy_scale(DSEᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
     U = sqrt(windspeed(sc)^2)
 
-    ## Transfer coefficients at height `h`
-    𝜅 = SFP.von_karman_const(param_set)
-    δdseᵥ = ΔDSEᵥ(param_set, sc)
-    L★ = ifelse(b★ == 0, sign(δdseᵥ) * FT(Inf), u★^2 / (𝜅 * b★))
+    ##### Transfer coefficients at height `h`
+    Δdseᵥ = ΔDSEᵥ(param_set, sc)
+    L★ = ifelse(b★ == 0, sign(Δdseᵥ) * FT(Inf), u★^2 / (𝜅 * b★))
     ζ = Δz(sc) / L★
     ζ₀ = 𝓁u * ζ / Δz(sc)
     Pr = UF.Pr_0(uf)
 
-    ψ = UF.psi(uf, ζ, UF.MomentumTransport())
-    ## Compute new values for the scale parameters given the relation
-    χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
+    ### Compute new values for the scale parameters given the relation
+    χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
     χθ = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁θ, UF.HeatTransport())
     χq = 𝜅 / Pr / compute_Fₘₕ(sc, uf, ζ, 𝓁q, UF.HeatTransport())
 
-    # Recompute
+    ## Recompute
     u★ = χu * U
-    DSEᵥ★ = χθ * ΔDSEᵥ_diff
+    DSEᵥ★ = χθ * Δdseᵥ
     q★ = χq * Δq
 
-    return SimilarityScaleVars(u★, DSEᵥ★, q★, L★, 𝓁u, 𝓁θ, 𝓁q)
+    return (u★=u★, DSEᵥ★=DSEᵥ★, q★=q★, L★=L★, 𝓁u=𝓁u, 𝓁θ=𝓁θ, 𝓁q=𝓁q)
 end
 
-function obukhov_iteration(X★, sc,
-    scheme, param_set,
-    tol = sqrt(eps(eltype(X★.u★))), maxiter = 10
+function obukhov_iteration(X★, 
+    sc,
+    scheme, 
+    param_set,
+    tol,
+    maxiter = 10
 )
     DSEᵥ₀ = DSEᵥ_sfc(param_set, sc)
     q₀ = qt_sfc(param_set, sc)
@@ -1229,15 +1222,7 @@ function obukhov_iteration(X★, sc,
                                        ts₀,
                                        scheme,
                                        param_set)
-           # TODO: Generalize and define a method for the norm evaluation given
-           # standard properties in X★ (e.g. u, T, q)
-           if abs(X★.u★ - X★₀.u★) <= tol &&  
-              abs(X★.L★ - X★₀.L★) <= tol &&
-              abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) <= tol 
-                  return X★
-           else
-                  continue
-           end
+            #TODO Stopping Criteria
     end
     return X★
 end
