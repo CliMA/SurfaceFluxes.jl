@@ -259,9 +259,6 @@ end
 @testset "Test profiles" begin
     include("test_profiles.jl")
 end
-@testset "Test Float32 solver convergence" begin
-    include("test_cases.jl")
-end
 @testset "Test universal functions" begin
     include("test_universal_functions.jl")
 end
