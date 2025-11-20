@@ -1,13 +1,8 @@
-abstract type RoughnessModel end
-struct CharnockRoughness <: RoughnessModel end
-struct ScalarRoughness <: RoughnessModel end
-
 # Roughness Model Computations
 function compute_z0(u★, sfc_param_set,
     sc::AbstractSurfaceConditions, ::ScalarRoughness, ::UF.MomentumTransport)
     return sc.z0m
 end
-
 function compute_z0(u★, sfc_param_set,
     sc, ::CharnockRoughness, ::UF.MomentumTransport)
     𝛼 = eltype(u★)(0.011)
@@ -27,11 +22,11 @@ function compute_z0(u★, sfc_param_set,
 end
 function compute_z0(u★, sfc_param_set,
     sc::Coefficients, ::ScalarRoughness, ::UF.MomentumTransport)
-    return compute_z0(u★, sfc_param_set, sc, CharnockRoughness(), UF.MomentumTransport())
+    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.MomentumTransport())
 end
 function compute_z0(u★, sfc_param_set,
     sc::Coefficients, ::ScalarRoughness, ::UF.HeatTransport)
-    return compute_z0(u★, sfc_param_set, sc, CharnockRoughness(), UF.MomentumTransport())
+    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.MomentumTransport())
 end
 function compute_z0(u★, sfc_param_set,
     sc, ::ScalarRoughness, ::UF.HeatTransport)
