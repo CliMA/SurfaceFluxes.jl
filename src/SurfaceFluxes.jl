@@ -37,7 +37,8 @@ const APS = SFP.AbstractSurfaceFluxesParameters
 include("types.jl")
 include("utilities.jl")
 include("roughness_models.jl")
-
+include("coefficient_inputs.jl")
+include("profile_recovery.jl")
 
 """
     surface_conditions(
@@ -176,59 +177,6 @@ function surface_conditions(
     )
 end
 
-function surface_conditions(
-    param_set::APS{FT},
-    sc::Coefficients,
-    scheme::SolverScheme = PointValueScheme();
-    tol_neutral = SFP.cp_d(param_set) / 100,
-    tol = sqrt(eps(FT)),
-    maxiter::Int = 10,
-) where {FT}
-    uft = SFP.uf_params(param_set)
-    ustar = sqrt(sc.Cd) * windspeed(sc)
-    X★ = obukhov_similarity_solution(param_set, sc, uft, scheme)
-    Cd = momentum_exchange_coefficient(
-        param_set,
-        nothing,
-        nothing,
-        sc,
-        scheme,
-        tol_neutral,
-    )
-    Ch =
-        heat_exchange_coefficient(
-            param_set,
-            nothing,
-            nothing,
-            sc,
-            scheme,
-            tol_neutral,
-        )
-    shf = sensible_heat_flux(param_set, Ch, sc, scheme)
-    lhf = latent_heat_flux(param_set, Ch, sc, scheme)
-    buoy_flux = compute_buoyancy_flux(
-        param_set,
-        shf,
-        lhf,
-        ts_in(sc),
-        ts_sfc(sc),
-        scheme,
-    )
-    ρτxz, ρτyz = momentum_fluxes(param_set, Cd, sc, scheme)
-    E = evaporation(param_set, sc, Ch)
-    return SurfaceFluxConditions(
-        X★.L★,
-        shf,
-        lhf,
-        buoy_flux,
-        ρτxz,
-        ρτyz,
-        X★.u★,
-        Cd,
-        Ch,
-        E,
-    )
-end
 
 """
     obukhov_similarity_solution(sfc::SurfaceFluxConditions)
@@ -324,26 +272,6 @@ function obukhov_similarity_solution(
             non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
 end
 
-function obukhov_similarity_solution(
-    param_set,
-    sc::Coefficients,
-    scheme,
-    args...,
-)
-    lhf = latent_heat_flux(param_set, sc.Ch, sc, scheme)
-    shf = sensible_heat_flux(param_set, sc.Ch, sc, scheme)
-    ustar = sqrt(sc.Cd) * windspeed(sc)
-    buoyancy_flux = compute_buoyancy_flux(
-        param_set,
-        shf,
-        lhf,
-        ts_in(sc),
-        ts_sfc(sc),
-        scheme,
-    )
-    return (L★=-ustar^3 / SFP.von_karman_const(param_set) / non_zero(buoyancy_flux), u★=ustar)
-end
-
 """
     compute_buoyancy_flux(param_set, shf, lhf, ts_in, ts_sfc, scheme)
 
@@ -416,10 +344,6 @@ compute_ustar(param_set, L_MO, 𝓁, sc::Fluxes, scheme) =
         UF.MomentumTransport(),
         scheme,
     )
-
-compute_ustar(param_set, L_MO, 𝓁, sc::Coefficients, scheme) =
-    sqrt(sc.Cd) * (windspeed(sc))
-
 compute_ustar(param_set, L_MO, 𝓁, sc::ValuesOnly, scheme) =
     windspeed(sc) * compute_physical_scale_coeff(
         param_set,
@@ -454,22 +378,6 @@ function momentum_exchange_coefficient(
         Cd = ustar^2 / windspeed(sc)^2
     end
     return Cd
-end
-
-"""
-    momentum_exchange_coefficient(param_set, L_MO, sc, scheme, tol_neutral)
-
-Return Cd, the momentum exchange coefficient.
-"""
-function momentum_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Coefficients,
-    scheme,
-    tol_neutral,
-)
-    return sc.Cd
 end
 
 """
@@ -509,23 +417,6 @@ function heat_exchange_coefficient(
 end
 
 """
-    heat_exchange_coefficient(param_set, L_MO, sc, scheme)
-
-Return Ch, the heat exchange coefficient given the
-Monin-Obukhov lengthscale.
-"""
-function heat_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Coefficients,
-    scheme,
-    tol_neutral,
-)
-    return sc.Ch
-end
-
-"""
     momentum_fluxes(param_set, Cd, sc, scheme)
 
 Compute and return the momentum fluxes
@@ -558,7 +449,7 @@ Compute and return the sensible heat fluxes
 function sensible_heat_flux(
     param_set,
     Ch,
-    sc::Union{ValuesOnly, Coefficients},
+    sc::Union{ValuesOnly},
     scheme,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
@@ -622,7 +513,7 @@ Compute and return the latent heat flux
 function latent_heat_flux(
     param_set,
     Ch,
-    sc::Union{ValuesOnly, Coefficients},
+    sc::Union{ValuesOnly},
     scheme,
 )
     LH_v0 = SFP.LH_v0(param_set)
@@ -662,12 +553,11 @@ is used to represent the resistance of the surface.
         of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
   - Ch: Thermal exchange coefficient
 """
-function evaporation(param_set, sc::Union{ValuesOnly, Coefficients}, Ch)
+function evaporation(param_set, sc::Union{ValuesOnly}, Ch)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc) * sc.beta
 end
-
 
 """
     compute_physical_scale_coeff(param_set, sc, L_MO, transport, ::LayerAverageScheme)
@@ -738,46 +628,6 @@ function compute_physical_scale_coeff(
     Σterms = denom1 + denom2 + denom3
     return 𝜅 / (π_group * Σterms)
 end
-
-"""
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, scheme)
-
-Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - L_MO: Monin-Obukhov length
-  - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_star: Scale parameter for variable X
-  - X_sfc: For variable X, values at surface nodes
-  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-  - scheme: Discretization scheme (currently supports FD and FV)
-
-# TODO: add tests
-"""
-function recover_profile(
-    param_set::APS,
-    sc::AbstractSurfaceConditions,
-    L_MO,
-    𝓁,
-    Z,
-    X_star,
-    X_sfc,
-    transport,
-    scheme::Union{LayerAverageScheme, PointValueScheme},
-)
-    uf = SFP.uf_params(param_set)
-    𝜅 = SFP.von_karman_const(param_set)
-    num1 = log(Z / 𝓁)
-    num2 = -UF.psi(uf, Z / L_MO, transport)
-    num3 = UF.psi(uf, 𝓁 / L_MO, transport)
-    Σnum = num1 + num2 + num3
-    return Σnum * X_star / 𝜅 + X_sfc
-end
-
-sfc_param_set(FT, UFT) = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
-thermo_params(param_set) = SFP.thermodynamics_params(param_set)
 
 @inline function buoyancy_scale(DSEᵥ★, q★, thermo_params, ts, 𝑔)
     FT = eltype(𝑔)
