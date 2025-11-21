@@ -247,7 +247,7 @@ end
                 z0_momentum = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 z0_thermal = Array{FT}(range(1e-6, stop = 1e-1, length = 2))
                 maxiter = 10
-                tol_neutral = FT(0.01)
+                tol_neutral = sqrt(eps(FT))
                 counter = check_over_dry_states(
                     FT,
                     profiles_int,
