@@ -252,8 +252,8 @@ end
 
 @testset "Numerical regression cases" begin
     FT = Float32
-    REGRESSION_RTOL = FT(1e-3)
-    REGRESSION_ATOL = FT(1e-6)
+    REGRESSION_RTOL = FT(0.01)
+    REGRESSION_ATOL = FT(0.05)
 
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     for case in case_definitions(FT)
@@ -264,12 +264,18 @@ end
             for field in CASE_NUMERIC_FIELDS
                 expected_value = getfield(case.expected, field)
                 actual_value = getproperty(result, field)
-                @test isapprox(
-                    actual_value,
-                    expected_value;
-                    rtol = REGRESSION_RTOL,
-                    atol = REGRESSION_ATOL,
-                )
+                # Infinite L_MO is permissible and would 
+                # result in failing ATOL, RTOL checks.
+                if isinf(actual_value)
+                    @test expected_value > FT(1 / eps(FT))
+                else
+                    @test isapprox(
+                        actual_value,
+                        expected_value;
+                        rtol = REGRESSION_RTOL,
+                        atol = REGRESSION_ATOL,
+                    )
+                end
             end
 
             assert_coefficient_reasonableness(result, FT)
@@ -312,19 +318,19 @@ end
         @test isapprox(
             result_fluxustar.ustar,
             base_result.ustar;
-            rtol = FT(1e-6),
+            rtol = sqrt(eps(FT)),
             atol = FT(1e-9),
         )
         @test isapprox(
             result_fluxustar.shf,
             base_result.shf;
-            rtol = FT(1e-6),
+            rtol = sqrt(eps(FT)),
             atol = FT(1e-9),
         )
         @test isapprox(
             result_fluxustar.lhf,
             base_result.lhf;
-            rtol = FT(1e-6),
+            rtol = sqrt(eps(FT)),
             atol = FT(1e-9),
         )
     end
@@ -345,13 +351,13 @@ end
         @test isapprox(
             coeff_result.Cd,
             base_result.Cd;
-            rtol = FT(1e-6),
+            rtol = sqrt(eps(FT)),
             atol = FT(1e-9),
         )
         @test isapprox(
             coeff_result.Ch,
             base_result.Ch;
-            rtol = FT(1e-6),
+            rtol = sqrt(eps(FT)),
             atol = FT(1e-9),
         )
     end

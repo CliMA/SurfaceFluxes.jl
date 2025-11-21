@@ -4,6 +4,34 @@
 SurfaceFluxes
 ```
 
+## Source Code Structure
+
+The `src/` directory contains the following files organized by functionality:
+
+### Core Module Files
+- **`SurfaceFluxes.jl`**: Main module file containing the `surface_conditions` function and `obukhov_similarity_solution` solver
+- **`types.jl`**: Type definitions including `AbstractSurfaceConditions`, `SolverScheme`, `RoughnessModel`, and related structs
+- **`utilities.jl`**: Helper functions for state accessors, Richardson number computation, and thermodynamic differences
+- **`Parameters.jl`**: Parameter set definitions for physical constants
+- **`UniversalFunctions.jl`**: Universal function implementations (Businger, Gryanik, Grachev)
+
+### Flux and Exchange Coefficient Methods
+- **`physical_scale_coefficient_methods.jl`**: Computation of physical scale coefficients for finite difference (Byun 1990) and finite volume (Nishizawa 2018) schemes
+- **`momentum_exchange_coefficient_methods.jl`**: Computation of momentum exchange coefficient (Cd) for neutral and stratified conditions
+- **`heat_exchange_coefficient_methods.jl`**: Computation of heat exchange coefficient (Ch) for neutral and stratified conditions
+- **`friction_velocity_methods.jl`**: Friction velocity (u★) computation methods
+- **`sensible_heat_methods.jl`**: Sensible heat flux computations
+- **`latent_heat_methods.jl`**: Latent heat flux computations
+- **`buoyancy_flux_methods.jl`**: Buoyancy flux computations
+- **`evaporation_methods.jl`**: Evaporation rate computations
+
+### Surface Condition Input Types
+- **`coefficient_inputs.jl`**: Methods for surface conditions specified via exchange coefficients (Cd, Ch)
+- **`roughness_models.jl`**: Roughness length models (ScalarRoughness, CharnockRoughness)
+
+### Profile Recovery
+- **`profile_recovery.jl`**: Functions to recover vertical profiles within the surface layer using Monin-Obukhov similarity theory
+
 ## Core input types
 
 ```@docs
