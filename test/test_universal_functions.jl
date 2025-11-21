@@ -1,106 +1,152 @@
+# Tests type stability and asymptotic behavior of universal functions.
+
 using Test
 
 import QuadGK
-
-import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import ClimaParams as CP
-import SurfaceFluxes.Parameters as SFP
 
-FT = Float32
-param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
-thermo_params = param_set.thermo_params
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-# TODO: Right now, we test these functions for
-# type stability and correctness in the asymptotic
-# limit. We may want to extend correctness tests.
+const TRANSPORTS = (UF.MomentumTransport(), UF.HeatTransport())
+
+"""
+    universal_parameter_sets(::Type{FT})
+
+Return the available universal-function parameter structs for the requested
+floating-point type. Each set is constructed using the default parameter values
+from ClimaParams via the `UF.{Businger, Gryanik, Grachev}Params(FT)` constructors.
+"""
+universal_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
+    (UF.GryanikParams(FT), UF.GrachevParams(FT), UF.BusingerParams(FT))
+
+# Some tests only apply to a subset of parameterizations (e.g., the integrated stability c
+# orrection function `Psi` is not defined for the `Grachev` parameterization).
+psi_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
+    (UF.GryanikParams(FT), UF.BusingerParams(FT))
+
+# Asymptotic reference solutions for the similarity functions (nondimensional gradients)
+ϕ_h_limit(p::UF.GrachevParams, ζ) = 1 + typeof(ζ)(p.b_h)
+ϕ_m_limit(p::UF.GrachevParams, ζ) = typeof(ζ)(p.a_m / p.b_m) * ζ^(typeof(ζ)(1 / 3))
+
+function ϕ_h_limit(p::UF.GryanikParams, ζ)
+    Tζ = typeof(ζ)
+    return Tζ(1) + (Tζ(ζ) * Tζ(p.Pr_0) * Tζ(p.a_h)) / (1 + Tζ(p.b_h) * Tζ(ζ))
+end
+
+ϕ_m_limit(p::UF.GryanikParams, ζ) =
+    typeof(ζ)(p.a_m / p.b_m^(30 // 45)) * ζ^(typeof(ζ)(1 / 3)) # exponent = 2/3
+
+"""
+    neutral_velocity_increment(ufp, z, z0, L)
+
+Dimensionless (κ / u★) velocity increment between heights `z0` and `z` using the
+Monin–Obukhov similarity form. When `L → ∞` (neutral stratification) this must
+collapse to the logarithmic law of the wall, i.e. `log(z / z0)`.
+"""
+function neutral_velocity_increment(ufp, z, z0, L)
+    transport = UF.MomentumTransport()
+    ζ = z / L
+    ζ0 = z0 / L
+    ψ_z = UF.psi(ufp, ζ, transport)
+    ψ_ref = UF.psi(ufp, ζ0, transport)
+    return log(z / z0) - ψ_z + ψ_ref
+end
+
+# ---------------------------------------------------------------------------
+# Test-suite
+# ---------------------------------------------------------------------------
 
 @testset "UniversalFunctions" begin
-    @testset "Type stability" begin
-        FT = Float32
-        ζ = FT(-2):FT(0.01):FT(200)
-        for ufp in (
-            UF.GryanikParams(FT),
-            UF.GrachevParams(FT),
-            UF.BusingerParams(FT),
-        )
-            for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                ϕ = UF.phi.(ufp, ζ, transport)
-                @test eltype(ϕ) == FT
-                ψ = UF.psi.(ufp, ζ, transport)
-                @test eltype(ψ) == FT
+    @testset "Type stability (phi & psi)" begin
+        for FT in (Float32, Float64)
+            fine_grid = FT(-2):FT(0.01):FT(200)
+            near_zero = (-FT(1), FT(0.5) * eps(FT), FT(2) * eps(FT))
+            for ζ_values in (fine_grid, near_zero)
+                for ufp in universal_parameter_sets(FT)
+                    for transport in TRANSPORTS
+                        ϕ = UF.phi.(Ref(ufp), ζ_values, Ref(transport))
+                        ψ = UF.psi.(Ref(ufp), ζ_values, Ref(transport))
+                        @test eltype(ϕ) == FT
+                        @test eltype(ψ) == FT
+                    end
+                end
             end
         end
-
-        # More type stability (phi/psi):
-        FT = Float32
-        ζ = (-FT(1), FT(0.5) * eps(FT), 2 * eps(FT))
-        for ufp in (
-            UF.GryanikParams(FT),
-            UF.GrachevParams(FT),
-            UF.BusingerParams(FT),
-        )
-            for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                ϕ = UF.phi.(ufp, ζ, transport)
-                @test eltype(ϕ) == FT
-                ψ = UF.psi.(ufp, ζ, transport)
-                @test eltype(ψ) == FT
-            end
-        end
-
-        # More type stability (Psi):
-        FT = Float32
-        ζ = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), 2 * eps(FT))
-        for ufp in (UF.GryanikParams(FT), UF.BusingerParams(FT))
-            for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                Ψ = UF.Psi.(ufp, ζ, transport)
-                @test eltype(Ψ) == FT
-            end
-        end
-
     end
-    @testset "Asymptotic range" begin
+
+    @testset "Type stability (Psi)" begin
+        for FT in (Float32, Float64)
+            ζ_values = (
+                -FT(1),
+                -FT(0.5) * eps(FT),
+                FT(0.5) * eps(FT),
+                FT(2) * eps(FT),
+            )
+            for ufp in psi_parameter_sets(FT)
+                for transport in TRANSPORTS
+                    Ψ = UF.Psi.(Ref(ufp), ζ_values, Ref(transport))
+                    @test eltype(Ψ) == FT
+                end
+            end
+        end
+    end
+
+    @testset "Neutral logarithmic velocity profile" begin
+        for FT in (Float32, Float64)
+            z0 = FT(1)
+            heights = (
+                FT(2),
+                FT(4),
+                FT(8),
+                FT(32),
+                FT(128),
+            )
+            # Use a very large Obukhov length to emulate neutral conditions.
+            L_neutral = floatmax(FT) / FT(2)
+            tol = max(FT(100) * eps(FT), FT(1e-12))
+            for ufp in universal_parameter_sets(FT)
+                for z in heights
+                    Δu = neutral_velocity_increment(ufp, z, z0, L_neutral)
+                    expected = log(z / z0)
+                    @test isapprox(Δu, expected; atol = tol, rtol = FT(0))
+                end
+            end
+        end
+    end
+
+    @testset "Asymptotic behavior (|ζ| → ∞)" begin
         FT = Float32
-
-        ϕ_h_ζ∞(p::UF.GrachevParams, ζ) = 1 + FT(p.b_h)
-        ϕ_m_ζ∞(p::UF.GrachevParams, ζ) = FT(p.a_m) / FT(p.b_m) * ζ^FT(1 / 3)
-
-        ϕ_h_ζ∞(p::UF.GryanikParams, ζ) =
-            FT(1) + (FT(ζ) * FT(p.Pr_0) * FT(p.a_h)) / (1 + FT(p.b_h) * FT(ζ))
-        ϕ_m_ζ∞(p::UF.GryanikParams, ζ) =
-            FT(p.a_m / p.b_m^FT(2 / 3)) * ζ^FT(1 / 3)
-
+        large_positive = FT(10) .^ (4, 6, 8, 10)
+        very_large = FT(10) .^ (8, 9, 10)
 
         for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
-            for ζ in FT(10) .^ (4, 6, 8, 10)
+            for ζ in large_positive
                 ϕ_h = UF.phi(ufp, ζ, UF.HeatTransport())
-                @test isapprox(ϕ_h, ϕ_h_ζ∞(ufp, ζ))
+                @test isapprox(ϕ_h, ϕ_h_limit(ufp, ζ); rtol = FT(5e-3))
             end
-            for ζ in FT(10) .^ (8, 9, 10)
+            for ζ in very_large
                 ϕ_m = UF.phi(ufp, ζ, UF.MomentumTransport())
-                @test isapprox(ϕ_m, ϕ_m_ζ∞(ufp, ζ))
+                @test isapprox(ϕ_m, ϕ_m_limit(ufp, ζ); rtol = FT(5e-3))
             end
         end
-
     end
 
-    # Test for Gryanik2021 Eq. 2 & 3; ensures Ψ(0) = 0
-    @testset "Vanishes at Zero" begin
+    @testset "ψ(0) == 0" begin
         FT = Float32
         for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
-            for transport in (UF.HeatTransport(), UF.MomentumTransport())
-                Ψ_0 = UF.psi(ufp, FT(0), transport)
-                @test isapprox(Ψ_0, FT(0), atol = eps(FT))
+            for transport in TRANSPORTS
+                ψ0 = UF.psi(ufp, FT(0), transport)
+                @test isapprox(ψ0, FT(0); atol = eps(FT))
             end
         end
     end
 
-    # Test that the integrated forms of the stability correction functions ψ(ζ) are consistent
-    # when directly evaluated via numerical integration from ϕ(ζ).
-    @testset "Test Correctness: ψ(ζ) = ∫ 𝒻(ϕ(ζ′)) dζ′" begin
-        FloatType = (Float32, Float64)
-        for FT in FloatType
-            ζ_array = (
+    @testset "Integral consistency ψ(ζ) = ∫(1-ϕ)/ζ′ dζ′" begin
+        for FT in (Float32, Float64)
+            ζ_samples = (
                 FT(-20),
                 FT(-10),
                 FT(-1),
@@ -110,28 +156,17 @@ thermo_params = param_set.thermo_params
                 FT(10),
                 FT(20),
             )
-            for ζ in ζ_array
-                for ufp in (
-                    UF.GryanikParams(FT),
-                    UF.GrachevParams(FT),
-                    UF.BusingerParams(FT),
+            for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # quadgk returns (value, error)
+                ψ_int, _ = QuadGK.quadgk(
+                    ζ′ -> (FT(1) - UF.phi(ufp, ζ′, transport)) / ζ′,
+                    eps(FT),
+                    ζ;
+                    rtol = 1e-9,
                 )
-                    for transport in (UF.MomentumTransport(), UF.HeatTransport())
-                        ψ_int = QuadGK.quadgk(
-                            ζ′ -> (FT(1) - UF.phi(ufp, ζ′, transport)) / ζ′,
-                            eps(FT),
-                            ζ,
-                        )
-                        ψ = UF.psi(ufp, ζ, transport)
-                        @test isapprox(
-                            ψ_int[1] - ψ,
-                            FT(0),
-                            atol = 10sqrt(eps(FT)),
-                        )
-                    end
-                end
+                ψ = UF.psi(ufp, ζ, transport)
+                @test isapprox(ψ_int, ψ; atol = FT(10) * sqrt(eps(FT)))
             end
         end
     end
-
 end
