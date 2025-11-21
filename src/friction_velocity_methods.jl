@@ -52,4 +52,3 @@ compute_ustar(param_set, L_MO, 𝓁, sc::ValuesOnly, scheme) =
 
 compute_ustar(param_set, L_MO, 𝓁, sc::Coefficients, scheme) =
     sqrt(sc.Cd) * (windspeed(sc))
-

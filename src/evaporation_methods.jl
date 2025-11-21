@@ -40,4 +40,3 @@ function evaporation(param_set, sc::Union{Coefficients}, Ch)
     ρ_sfc = TD.air_density(thermo_params, ts_sfc(sc))
     return -ρ_sfc * Ch * windspeed(sc) * Δqt(param_set, sc) * sc.beta
 end
-

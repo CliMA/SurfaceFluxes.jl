@@ -27,23 +27,23 @@ z_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.z
 # Total Specific Humidity
 qt_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_in(sc))
-qt_sfc(param_set::APS, sc::AbstractSurfaceConditions, args=nothing) =
+qt_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-function surface_specific_humidity(param_set::APS, sc::AbstractSurfaceConditions, args=nothing)
+function surface_specific_humidity(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
     qt_sfc(param_set, sc, args)
 end
-Δqt(param_set::APS, sc::AbstractSurfaceConditions, args=nothing) =
+Δqt(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
     qt_in(param_set, sc) - qt_sfc(param_set, sc, args)
 
 # Air temperature
 T_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.air_temperature(SFP.thermodynamics_params(param_set), ts_in(sc))
-T_sfc(param_set::APS, sc::AbstractSurfaceConditions, args=nothing) =
+T_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
     TD.air_temperature(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-function surface_temperature(param_set::APS, sc::AbstractSurfaceConditions, args=nothing)
+function surface_temperature(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
     T_sfc(param_set, sc, args)
 end
-ΔT(param_set::APS, sc::AbstractSurfaceConditions, args=nothing) =
+ΔT(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
     T_in(param_set, sc) - T_sfc(param_set, sc, args)
 
 # Virtual Potential Temperature

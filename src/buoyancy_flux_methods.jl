@@ -28,4 +28,3 @@ function compute_buoyancy_flux(
         scheme,
     )
 end
-

@@ -39,4 +39,3 @@ function momentum_exchange_coefficient(
 )
     return sc.Cd
 end
-

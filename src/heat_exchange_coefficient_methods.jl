@@ -50,4 +50,3 @@ function heat_exchange_coefficient(
 )
     return sc.Ch
 end
-

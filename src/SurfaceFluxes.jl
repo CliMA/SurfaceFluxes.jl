@@ -231,13 +231,13 @@ function obukhov_similarity_solution(
     𝓁q₀ = compute_z0(u★₀, param_set, sc, sc.roughness_model, UF.HeatTransport())
     # Initial guesses for MOST iterative solution
     if ΔDSEᵥ(param_set, sc) >= FT(0)
-        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★=FT(δ), q★ = FT(δ),
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
-        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★=FT(δ), q★ = FT(δ),
+        X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(-10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
         X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
@@ -371,7 +371,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     𝜅 = SFP.von_karman_const(param_set)
     𝑔 = SFP.grav(param_set)
     FT = eltype(𝑔)
-    
+
     ## "Initial" approximate scales because we will recompute them
     ## Updated values of these will populate the resulting named-tuple
     u★ = approximate_interface_state.u★
@@ -384,7 +384,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
     𝓁q = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
-    Tₛ = surface_temperature(param_set, sc, (;u★, q★))
+    Tₛ = surface_temperature(param_set, sc, (; u★, q★))
 
     # Surface Quantities and state differences
     surface_args = sc.state_sfc.args
@@ -406,11 +406,11 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 
     ## Re-compute scale variables
     u★ = χu * ΔU
-    DSEᵥ★ = χDSEᵥ * ΔDSEᵥ(param_set, sc) 
+    DSEᵥ★ = χDSEᵥ * ΔDSEᵥ(param_set, sc)
     q★ = χq * Δq
     θᵥ★ = χθᵥ * Δθᵥ(param_set, sc)
 
-    return (;u★, DSEᵥ★, q★, L★, θᵥ★, 𝓁u, 𝓁θ, 𝓁q)
+    return (; u★, DSEᵥ★, q★, L★, θᵥ★, 𝓁u, 𝓁θ, 𝓁q)
 end
 
 function obukhov_iteration(X★,

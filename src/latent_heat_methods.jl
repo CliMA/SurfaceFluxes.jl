@@ -47,4 +47,3 @@ function latent_heat_flux(
     lhf = LH_v0 * E
     return lhf
 end
-

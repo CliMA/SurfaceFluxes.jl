@@ -40,7 +40,7 @@ struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState, NT}
     args::NT
 end
 function StateValues(z::FT, u::A, ts::TS; args::NT = nothing) where {FT, A, TS, NT}
-    return StateValues{FT, A, TS, NT}(z,u,ts,args)
+    return StateValues{FT, A, TS, NT}(z, u, ts, args)
 end
 
 ### Input Containers for surface condtions
