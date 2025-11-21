@@ -223,7 +223,7 @@ function case_definitions(::Type{FT}) where {FT}
 end
 
 const CASE_NUMERIC_FIELDS = (
-    #:L_MO,
+    :L_MO,
     :shf,
     :lhf,
     :buoy_flux,
@@ -252,8 +252,8 @@ end
 
 @testset "Numerical regression cases" begin
     FT = Float32
-    REGRESSION_RTOL = FT(1e-2)
-    REGRESSION_ATOL = sqrt(eps(FT))
+    REGRESSION_RTOL = FT(0.01)
+    REGRESSION_ATOL = FT(0.05)
 
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     for case in case_definitions(FT)
@@ -264,21 +264,18 @@ end
             for field in CASE_NUMERIC_FIELDS
                 expected_value = getfield(case.expected, field)
                 actual_value = getproperty(result, field)
-                #@info field, expected_value, actual_value
-                if !isapprox(
-                    actual_value,
-                    expected_value;
-                    rtol = REGRESSION_RTOL,
-                    atol = REGRESSION_ATOL,
-                )
-                    @info "Failing" case.name, field, expected_value, actual_value
+                # Infinite L_MO is permissible and would 
+                # result in failing ATOL, RTOL checks.
+                if isinf(actual_value)
+                    @test expected_value > FT(1/eps(FT))
+                else
+                    @test isapprox(
+                        actual_value,
+                        expected_value;
+                        rtol = REGRESSION_RTOL,
+                        atol = REGRESSION_ATOL,
+                    )
                 end
-                #@test isapprox(
-                #    actual_value,
-                #    expected_value;
-                #    rtol = REGRESSION_RTOL,
-                #    atol = REGRESSION_ATOL,
-                #)
             end
 
             assert_coefficient_reasonableness(result, FT)

@@ -30,8 +30,10 @@ struct DynamicSurfaceTemperature <: SurfaceTemperatureModel end
 Input container for state variables at either first / interior nodes.
 
 # Fields
-
-$(DSE.FIELDS)
+- `z::FT`: Height [m]
+- `u::A`: Wind velocity vector
+- `ts::TS`: Thermodynamic state
+- `args::NT`: Additional arguments (optional)
 """
 struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState, NT}
     z::FT
@@ -58,8 +60,14 @@ Input container for state variables, latent and sensible heat fluxes roughness l
 initial obukhov length and gustiness.
 
 # Fields
-
-$(DSE.FIELDS)
+- `state_in::SVA`: State values at interior/input height
+- `state_sfc::SVB`: State values at surface
+- `shf::FT`: Sensible heat flux [W/m²]
+- `lhf::FT`: Latent heat flux [W/m²]
+- `z0m::FT`: Momentum roughness length [m]
+- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
+- `gustiness::FT`: Gustiness parameter [m/s]
+- `roughness_model::RM`: Roughness model type
 """
 struct Fluxes{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
     state_in::SVA
@@ -103,8 +111,15 @@ and the friction velocity, roughness lengths,
 initial obukhov length and gustiness.
 
 # Fields
-
-$(DSE.FIELDS)
+- `state_in::SVA`: State values at interior/input height
+- `state_sfc::SVB`: State values at surface
+- `shf::FT`: Sensible heat flux [W/m²]
+- `lhf::FT`: Latent heat flux [W/m²]
+- `ustar::FT`: Friction velocity [m/s]
+- `z0m::FT`: Momentum roughness length [m]
+- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
+- `gustiness::FT`: Gustiness parameter [m/s]
+- `roughness_model::RM`: Roughness model type
 """
 struct FluxesAndFrictionVelocity{FT, SVA, SVB, RM} <:
        AbstractSurfaceConditions{FT, SVA, SVB, RM}
@@ -150,8 +165,13 @@ Input container, given surface state variables, and exchange coefficients,roughn
 initial obukhov length and gustiness.
 
 # Fields
-
-$(DSE.FIELDS)
+- `state_in::SVA`: State values at interior/input height
+- `state_sfc::SVB`: State values at surface
+- `Cd::FT`: Momentum exchange coefficient
+- `Ch::FT`: Heat exchange coefficient
+- `gustiness::FT`: Gustiness parameter [m/s]
+- `beta::FT`: Evaporation efficiency factor
+- `roughness_model::RM`: Roughness model type
 """
 struct Coefficients{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
     state_in::SVA
@@ -191,8 +211,13 @@ Input container, given only surface state variables, roughness lengths,
 initial obukhov length and gustiness.
 
 # Fields
-
-$(DSE.FIELDS)
+- `state_in::SVA`: State values at interior/input height
+- `state_sfc::SVB`: State values at surface
+- `z0m::FT`: Momentum roughness length [m]
+- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
+- `gustiness::FT`: Gustiness parameter [m/s]
+- `beta::FT`: Evaporation efficiency factor
+- `roughness_model::RM`: Roughness model type
 """
 struct ValuesOnly{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
     state_in::SVA
@@ -231,8 +256,16 @@ end
 Surface flux conditions, returned from `surface_conditions`.
 
 # Fields
-
-$(DSE.FIELDS)
+- `L_MO::FT`: Monin-Obukhov lengthscale [m]
+- `shf::FT`: Sensible heat flux [W/m²]
+- `lhf::FT`: Latent heat flux [W/m²]
+- `buoy_flux::FT`: Buoyancy flux [m²/s³]
+- `ρτxz::FT`: Momentum flux, eastward component [kg/(m·s²)]
+- `ρτyz::FT`: Momentum flux, northward component [kg/(m·s²)]
+- `ustar::FT`: Friction velocity [m/s]
+- `Cd::FT`: Momentum exchange coefficient
+- `Ch::FT`: Heat exchange coefficient
+- `evaporation::FT`: Evaporation rate [kg/(m²·s)]
 """
 struct SurfaceFluxConditions{FT <: Real}
     L_MO::FT

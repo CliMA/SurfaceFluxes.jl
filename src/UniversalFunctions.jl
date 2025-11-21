@@ -10,8 +10,6 @@ universal functions:
 """
 module UniversalFunctions
 
-import DocStringExtensions
-const DSE = DocStringExtensions
 
 abstract type AbstractUniversalFunctionParameters{FT <: Real} end
 const AUFP = AbstractUniversalFunctionParameters
@@ -82,8 +80,13 @@ Free parameters for the Businger universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -209,8 +212,13 @@ Free parameters for the Gryanik universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -336,8 +344,14 @@ Free parameters for the Grachev universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `c_h::FT`: Additional heat stability parameter
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT

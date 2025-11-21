@@ -20,9 +20,6 @@ const RS = RootSolvers
 include("UniversalFunctions.jl")
 include("Parameters.jl")
 
-using DocStringExtensions
-const DSE = DocStringExtensions
-
 import Thermodynamics
 const TD = Thermodynamics
 
@@ -36,6 +33,7 @@ const APS = SFP.AbstractSurfaceFluxesParameters
 
 include("types.jl")
 include("utilities.jl")
+include("physical_scale_coefficient_methods.jl")
 include("roughness_models.jl")
 include("coefficient_inputs.jl")
 include("evaporation_methods.jl")
@@ -52,35 +50,39 @@ include("profile_recovery.jl")
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions,
         scheme::SurfaceFluxes.SolverScheme = PointValueScheme();
-        tol_neutral = sqrt(eps(FT)),
+        tol_neutral = SFP.cp_d(param_set) / 100,
         tol = sqrt(eps(FT)),
         maxiter::Int = 10,
     )
 
-The main user facing function of the module.
-It computes the surface conditions
-based on the Monin-Obukhov similarity functions. Requires
-information about thermodynamic parameters (`param_set`),
-the surface state `sc`, and the discretisation `scheme`. Default tolerance for
-Monin-Obukhov length is absolute (i.e. has units [m]).
-Returns the RootSolvers `CompactSolution` by default.
+The main user-facing function of the module. Computes surface conditions
+based on Monin-Obukhov similarity theory.
 
-Result struct of type SurfaceFluxConditions contains:
-  - L_MO:   Monin-Obukhov lengthscale
-  - shf:    Sensible Heat Flux
-  - lhf:    Latent Heat Flux
-  - ρτxz:   Momentum Flux (Eastward component)
-  - ρτyz:   Momentum Flux (Northward component)
-  - ustar:  Friction velocity
-  - Cd:     Momentum Exchange Coefficient
-  - Ch:     Thermal Exchange Coefficient
-  - z₀:     Aerodynamic roughness lengths
+## Arguments
+- `param_set`: Parameter set containing physical and thermodynamic constants
+- `sc`: Surface conditions container (Fluxes, ValuesOnly, Coefficients, or FluxesAndFrictionVelocity)
+- `scheme`: Discretization scheme (PointValueScheme for finite difference or LayerAverageScheme for finite volume)
+- `tol_neutral`: Tolerance for neutral stability detection based on `ΔDSEᵥ` (default: `cp_d / 100`)
+- `tol`: Convergence tolerance for iterative solver (default: `sqrt(eps(FT))`)
+- `maxiter`: Maximum number of iterations (default: 10)
+
+## Returns
+Returns a `SurfaceFluxConditions` struct containing:
+  - `L_MO`:   Monin-Obukhov lengthscale [m]
+  - `shf`:    Sensible heat flux [W/m²]
+  - `lhf`:    Latent heat flux [W/m²]
+  - `ρτxz`:   Momentum flux, eastward component [kg/(m·s²)]
+  - `ρτyz`:   Momentum flux, northward component [kg/(m·s²)]
+  - `ustar`:  Friction velocity [m/s]
+  - `Cd`:     Momentum exchange coefficient
+  - `Ch`:     Heat exchange coefficient
+  - `E`:      Evaporation rate [kg/(m²·s)]
 """
 function surface_conditions(
     param_set::APS{FT},
     sc::AbstractSurfaceConditions,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = sqrt(eps(FT)),
+    tol_neutral = SFP.cp_d(param_set) / 100,
     tol = sqrt(eps(FT)),
     maxiter::Int = 30,
 ) where {FT}
@@ -144,7 +146,7 @@ function surface_conditions(
     param_set::APS{FT},
     sc::FluxesAndFrictionVelocity,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = sqrt(eps(FT)),
+    tol_neutral = SFP.cp_d(param_set) / 100,
     tol::FT = sqrt(eps(FT)),
     maxiter::Int = 10,
 ) where {FT}
@@ -188,20 +190,39 @@ end
 """
     obukhov_similarity_solution(sfc::SurfaceFluxConditions)
 
-    obukhov_similarity_solution( # internal method
+    obukhov_similarity_solution(
         param_set::AbstractSurfaceFluxesParameters,
         sc::AbstractSurfaceConditions,
-        uft,
         scheme,
         tol,
         tol_neutral,
         maxiter,
     )
 
-Compute and return the Monin-Obukhov lengthscale (LMO).
+Compute and return the Monin-Obukhov similarity solution.
 
-The internal method for computing LMO depends on the
-particular surface condition `sc <: AbstractSurfaceConditions`. 
+Solves for the Monin-Obukhov lengthscale (L_MO) and related similarity scales
+using an iterative Newton-Raphson method. The solution depends on the
+particular surface condition type `sc <: AbstractSurfaceConditions`.
+
+## Arguments
+- `param_set`: Parameter set containing physical constants
+- `sc`: Surface conditions container
+- `scheme`: Discretization scheme
+- `tol`: Convergence tolerance for iterative solver
+- `tol_neutral`: Tolerance for neutral stability detection
+- `maxiter`: Maximum number of iterations
+
+## Returns
+Returns a named tuple containing:
+  - `L★`: Monin-Obukhov lengthscale [m]
+  - `u★`: Friction velocity [m/s]
+  - `DSEᵥ★`: Virtual dry static energy scale [J/kg]
+  - `θᵥ★`: Virtual potential temperature scale [K]
+  - `q★`: Specific humidity scale [kg/kg]
+  - `𝓁u`: Momentum roughness length [m]
+  - `𝓁θ`: Heat roughness length [m]
+  - `𝓁q`: Moisture roughness length [m]
 """
 function obukhov_similarity_solution end
 
@@ -234,13 +255,13 @@ function obukhov_similarity_solution(
         X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol, tol_neutral)
         return X★
     else
         X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(-10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol, tol_neutral)
         return X★
     end
 end
@@ -275,85 +296,6 @@ function momentum_fluxes(param_set, Cd, sc::AbstractSurfaceConditions, scheme)
 end
 
 """
-    compute_physical_scale_coeff(param_set, sc, L_MO, transport, ::LayerAverageScheme)
-
-Computes the coefficient for the physical scale of a variable based on Nishizawa(2018)
-for the FV scheme.
-
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - L_MO: Monin-Obukhov length
-  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-  - scheme: Discretization scheme (currently supports FD and FV)
-"""
-function compute_physical_scale_coeff(
-    param_set::APS,
-    sc::Union{ValuesOnly, Fluxes, FluxesAndFrictionVelocity},
-    L_MO,
-    𝓁,
-    transport,
-    ::LayerAverageScheme,
-)
-    𝜅 = SFP.von_karman_const(param_set)
-    uf = SFP.uf_params(param_set)
-    π_group = UF.π_group(uf, transport)
-    R_z0 = 1 - 𝓁 / Δz(sc)
-    denom1 = log(Δz(sc) / 𝓁)
-    denom2 = -UF.Psi(uf, Δz(sc) / L_MO, transport)
-    denom3 =
-        𝓁 / Δz(sc) *
-        UF.Psi(uf, 𝓁 / L_MO, transport)
-    denom4 = R_z0 * (UF.psi(uf, 𝓁 / L_MO, transport) - 1)
-    Σterms = denom1 + denom2 + denom3 + denom4
-    return 𝜅 / (π_group * Σterms)
-end
-
-"""
-    compute_physical_scale_coeff(param_set, sc, L_MO, transport, ::PointValueScheme)
-
-Computes the coefficient for the physical scale of a variable based on Byun (1990)
-for the Finite Differences scheme.
-
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - L_MO: Monin-Obukhov length
-  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-  - scheme: Discretization scheme (currently supports FD and FV)
-"""
-function compute_physical_scale_coeff(
-    param_set,
-    sc::Union{ValuesOnly, Fluxes, FluxesAndFrictionVelocity},
-    L_MO,
-    𝓁,
-    transport,
-    ::PointValueScheme,
-)
-    𝜅 = SFP.von_karman_const(param_set)
-    FT = eltype(𝜅)
-    uf = SFP.uf_params(param_set)
-    π_group = UF.π_group(uf, transport)
-    denom1 = log(FT(Δz(sc) / 𝓁))
-    denom2 = -UF.psi(uf, FT(Δz(sc) / L_MO), transport)
-    denom3 = UF.psi(uf, FT(𝓁 / L_MO), transport)
-    Σterms = denom1 + denom2 + denom3
-    return 𝜅 / (π_group * Σterms)
-end
-
-@inline function buoyancy_scale(θᵥ★, q★, thermo_params, ts, 𝑔)
-    FT = eltype(𝑔)
-    Tᵥ = TD.virtual_temperature(thermo_params, ts)
-    qₐ = TD.vapor_specific_humidity(thermo_params, ts)
-    ε = TD.Parameters.Rv_over_Rd(thermo_params)
-    δ = ε - FT(1)
-    b★ = 𝑔 / Tᵥ * (θᵥ★ * (1 + δ * qₐ) + δ * Tᵥ * q★)
-    return FT(b★)
-end
-
-"""
     iterate_interface_fluxes()
 """
 function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
@@ -363,6 +305,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     surface_state,
     scheme::SolverScheme,
     param_set::APS,
+    tol_neutral,
 )
     ### Parameter sets
     uf = SFP.uf_params(param_set)
@@ -387,12 +330,14 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
 
     # Surface Quantities and state differences
     surface_args = sc.state_sfc.args
-    ΔU = sqrt(windspeed(sc)^2)
+    ΔU = windspeed(sc)
 
     ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
     ### The windspeed function accounts for a wind-gust parameter.
-    b★ = buoyancy_scale(θᵥ★, q★, thermo_params, ts_sfc(sc), 𝑔)
-    L★ = ifelse(b★ == 0, sign(ΔDSEᵥ(param_set, sc)) * FT(Inf), u★^2 / (𝜅 * b★))
+    b★ = DSEᵥ★ * 𝑔 / DSEᵥ_in(param_set, sc)
+    L★ = ifelse(abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral,
+        sign(ΔDSEᵥ(param_set, sc)) * FT(Inf),
+        u★^2 / (𝜅 * b★))
     ## The new L★ estimate is then used to update all scale variables
     ## with stability correction functions (compute_Fₘₕ)
     ζ = Δz(sc) / L★
@@ -409,6 +354,15 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     q★ = χq * Δq
     θᵥ★ = χθᵥ * Δθᵥ(param_set, sc)
 
+    # Returns a NamedTuple with similarity scales and roughness lengths:
+    # - u★: Friction velocity [m/s]
+    # - DSEᵥ★: Virtual dry static energy scale [J/kg]
+    # - q★: Specific humidity scale [kg/kg]
+    # - L★: Monin-Obukhov lengthscale [m]
+    # - θᵥ★: Virtual potential temperature scale [K]
+    # - 𝓁u: Momentum roughness length [m]
+    # - 𝓁θ: Heat roughness length [m]
+    # - 𝓁q: Moisture roughness length [m]
     return (; u★, DSEᵥ★, q★, L★, θᵥ★, 𝓁u, 𝓁θ, 𝓁q)
 end
 
@@ -417,7 +371,8 @@ function obukhov_iteration(X★,
     scheme,
     param_set,
     tol,
-    maxiter = 10,
+    tol_neutral,
+    maxiter = 20,
 )
     FT = eltype(X★)
     qₛ = surface_specific_humidity(param_set, sc)
@@ -429,7 +384,8 @@ function obukhov_iteration(X★,
             ts_in(sc),
             ts_sfc(sc),
             scheme,
-            param_set)
+            param_set,
+            tol_neutral)
         if abs(X★.L★ - X★₀.L★) ≤ tol &&
            abs(X★.u★ - X★₀.u★) ≤ tol &&
            abs(X★.q★ - X★₀.q★) ≤ tol &&

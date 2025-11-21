@@ -1,8 +1,22 @@
 """
-    momentum_exchange_coefficient(param_set, L_MO, sc, scheme)
+    momentum_exchange_coefficient(param_set, L_MO, u★, sc, scheme, tol_neutral)
 
-Compute and return Cd, the momentum exchange coefficient, given the
-Monin-Obukhov lengthscale.
+Compute and return Cd, the momentum exchange coefficient.
+
+For neutral conditions (when `abs(ΔDSEᵥ) <= tol_neutral`), uses the logarithmic
+law of the wall. Otherwise, computes Cd from the friction velocity and wind speed
+using the Monin-Obukhov similarity theory.
+
+## Arguments
+- `param_set`: Abstract parameter set containing physical constants
+- `L_MO`: Monin-Obukhov lengthscale
+- `u★`: Friction velocity
+- `sc`: Surface conditions container
+- `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
+- `tol_neutral`: Tolerance for neutral stability detection (default: `cp_d / 100`)
+
+## Returns
+- `Cd`: Momentum exchange coefficient
 """
 function momentum_exchange_coefficient(
     param_set,
@@ -15,7 +29,7 @@ function momentum_exchange_coefficient(
     thermo_params = SFP.thermodynamics_params(param_set)
     κ = SFP.von_karman_const(param_set)
     𝓁 = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    if abs(Δθᵥ(param_set, sc)) <= tol_neutral
+    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
         Cd = (κ / log(Δz(sc) / 𝓁))^2
     else
         ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
@@ -25,9 +39,12 @@ function momentum_exchange_coefficient(
 end
 
 """
-    momentum_exchange_coefficient(param_set, L_MO, sc, scheme, tol_neutral)
+    momentum_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme, tol_neutral)
 
-Return Cd, the momentum exchange coefficient.
+Return the momentum exchange coefficient from the surface conditions.
+
+When surface conditions are provided as exchange coefficients, this method
+simply returns the pre-computed Cd value.
 """
 function momentum_exchange_coefficient(
     param_set,

@@ -1,4 +1,6 @@
 # Roughness Model Computations
+
+# Charnock Formulation
 function compute_z0(u★, sfc_param_set,
     sc::AbstractSurfaceConditions, ::ScalarRoughness, ::UF.MomentumTransport)
     return sc.z0m
@@ -14,6 +16,7 @@ function compute_z0(u★, sfc_param_set,
     return sc.z0b
 end
 
+# Prescribed Scalar Formulation 
 function compute_z0(u★, sfc_param_set,
     sc::AbstractSurfaceConditions, ::ScalarRoughness, ::UF.HeatTransport)
     return sc.z0b
@@ -24,7 +27,7 @@ function compute_z0(u★, sfc_param_set,
 end
 function compute_z0(u★, sfc_param_set,
     sc::Coefficients, ::ScalarRoughness, ::UF.HeatTransport)
-    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.MomentumTransport())
+    return compute_z0(u★, sfc_param_set, sc, ScalarRoughness(), UF.HeatTransport())
 end
 function compute_z0(u★, sfc_param_set,
     sc, ::ScalarRoughness, ::UF.HeatTransport)
