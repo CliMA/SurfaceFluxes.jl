@@ -52,7 +52,7 @@ include("profile_recovery.jl")
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions,
         scheme::SurfaceFluxes.SolverScheme = PointValueScheme();
-        tol_neutral = SFP.cp_d(param_set) / 100,
+        tol_neutral = sqrt(eps(FT)),
         tol = sqrt(eps(FT)),
         maxiter::Int = 10,
     )
@@ -80,7 +80,7 @@ function surface_conditions(
     param_set::APS{FT},
     sc::AbstractSurfaceConditions,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = SFP.cp_d(param_set) / 100,
+    tol_neutral = sqrt(eps(FT)),
     tol = sqrt(eps(FT)),
     maxiter::Int = 30,
 ) where {FT}
@@ -254,7 +254,6 @@ function obukhov_similarity_solution(
     return (L★ = -sc.ustar^3 / SFP.von_karman_const(param_set) /
                  non_zero(compute_buoyancy_flux(param_set, sc, scheme)), u★ = sc.ustar)
 end
-
 
 """
     momentum_fluxes(param_set, Cd, sc, scheme)
