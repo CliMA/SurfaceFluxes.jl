@@ -15,7 +15,7 @@ function momentum_exchange_coefficient(
     thermo_params = SFP.thermodynamics_params(param_set)
     κ = SFP.von_karman_const(param_set)
     𝓁 = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
+    if abs(Δθᵥ(param_set, sc)) <= tol_neutral
         Cd = (κ / log(Δz(sc) / 𝓁))^2
     else
         ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)

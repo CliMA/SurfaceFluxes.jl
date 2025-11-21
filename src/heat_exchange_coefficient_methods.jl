@@ -17,7 +17,7 @@ function heat_exchange_coefficient(
     κ = SFP.von_karman_const(param_set)
     𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
     𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
-    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
+    if abs(Δθᵥ(param_set, sc)) <= tol_neutral
         Ch = κ^2 / (log(Δz(sc) / 𝓁θ) * log(Δz(sc) / 𝓁u))
     else
         ϕ_heat = compute_physical_scale_coeff(
