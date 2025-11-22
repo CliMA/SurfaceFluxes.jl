@@ -18,10 +18,9 @@ function compute_physical_scale_coeff_with_checks(
         param_set,
         sc,
         L_MO,
+        z0m,
         UF.MomentumTransport(),
         scheme,
-        z0m,
-        z0b,
     )
 end
 

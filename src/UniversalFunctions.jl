@@ -10,8 +10,6 @@ universal functions:
 """
 module UniversalFunctions
 
-import DocStringExtensions
-const DSE = DocStringExtensions
 
 abstract type AbstractUniversalFunctionParameters{FT <: Real} end
 const AUFP = AbstractUniversalFunctionParameters
@@ -82,8 +80,13 @@ Free parameters for the Businger universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -137,8 +140,8 @@ function psi(p::BusingerParams, ζ, ::MomentumTransport)
         return FT(log_term - 2 * atan(f_m) + π / 2)
     else
         # Businger1971 Eq. A3 (ζ >= 0)
-        _a_m = FT(a_m(p))
-        return -_a_m * ζ
+        _a_m = a_m(p)
+        return FT(-_a_m * ζ)
     end
 end
 
@@ -150,13 +153,13 @@ function psi(p::BusingerParams, ζ, tt::HeatTransport)
         return FT(2 * log((1 + f_h) / 2))
     else
         # Businger1971 Eq. A4 (ζ >= 0)
-        _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / _π_group
+        _a_h = a_h(p)
+        _π_group = π_group(p, tt)
+        return FT(-_a_h * ζ / _π_group)
     end
 end
 
-function Psi(p::BusingerParams, ζ, tt::MomentumTransport)
+function Psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ >= 0
         # Nishizawa2018 Eq. A5 and A13 (ζ >= 0)
@@ -209,8 +212,13 @@ Free parameters for the Gryanik universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -228,7 +236,7 @@ f_momentum(::GryanikParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
 # Nishizawa2018 Eq. A8
 f_heat(::GryanikParams, ζ) = sqrt(1 - 9 * ζ)
 
-function phi(p::GryanikParams, ζ, tt::MomentumTransport)
+function phi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 32
@@ -242,7 +250,7 @@ function phi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function phi(p::GryanikParams, ζ, tt::HeatTransport)
+function phi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 33
@@ -257,7 +265,7 @@ function phi(p::GryanikParams, ζ, tt::HeatTransport)
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::MomentumTransport)
+function psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 34
@@ -272,7 +280,7 @@ function psi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::HeatTransport)
+function psi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 35
@@ -287,7 +295,7 @@ function psi(p::GryanikParams, ζ, tt::HeatTransport)
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::MomentumTransport)
+function Psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     _a_m = FT(a_m(p))
     _b_m = FT(b_m(p))
@@ -307,7 +315,7 @@ function Psi(p::GryanikParams, ζ, tt::MomentumTransport)
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::HeatTransport)
+function Psi(p::GryanikParams, ζ, ::HeatTransport)
     FT = typeof(ζ)
     _a_h = FT(a_h(p))
     _b_h = FT(b_h(p))
@@ -336,8 +344,14 @@ Free parameters for the Grachev universal stability and stability correction
 functions.
 
 # Fields
-
-$(DSE.FIELDS)
+- `Pr_0::FT`: Neutral Prandtl number
+- `a_m::FT`: Momentum stability parameter for stable conditions
+- `a_h::FT`: Heat stability parameter for stable conditions
+- `b_m::FT`: Momentum stability parameter for unstable conditions
+- `b_h::FT`: Heat stability parameter for unstable conditions
+- `c_h::FT`: Additional heat stability parameter
+- `ζ_a::FT`: Critical stability parameter
+- `γ::FT`: Stability correction parameter
 """
 Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -356,7 +370,7 @@ f_momentum(::GrachevParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
 # Nishizawa2018 Eq. A8
 f_heat(::GrachevParams, ζ) = sqrt(1 - 9 * ζ)
 
-function phi(p::GrachevParams, ζ, tt::MomentumTransport)
+function phi(p::GrachevParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Grachev2007 Eq. 9a

@@ -10,18 +10,8 @@ env:
   OMPI_MCA_opal_warn_on_missing_libcuda: 0
 
 steps:
-  - label: "init cpu env"
-    key: "init_cpu_env"
-    command:
-      - "echo $JULIA_DEPOT_PATH"
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile()'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(); '"
-    agents:
-      partition: expansion
-      slurm_ntasks: 1
-
-  - label: "init gpu env"
-    key: "init_gpu_env"
+  - label: "init env"
+    key: "init_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
