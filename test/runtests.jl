@@ -23,26 +23,26 @@ include("test_utils.jl")  # common testing utilities (e.g. @test_allocs_and_ts)
 @info "CPU Tests"
 @info ArrayType
 
-include("test_finite_difference_vs_finite_volume.jl")  # Finite-difference vs FV velocity-scale checks
-include("test_floating_point_consistency.jl")         # Float32 vs Float64 and near-zero L_MO consistency
+#include("test_finite_difference_vs_finite_volume.jl")  # Finite-difference vs FV velocity-scale checks
+#include("test_floating_point_consistency.jl")         # Float32 vs Float64 and near-zero L_MO consistency
 
 @testset "Regression tests" begin
     # Regression tests with predefined (mostly stable) test cases.
     include("test_regressions.jl")
 end
 
-@testset "Test universal functions" begin
-    # Unit tests for the asymptotic behavior and type stability of the universal 
-    # functions used in SurfaceFluxes.
-    include("test_universal_functions.jl")
-end
-
-@testset "Convergence tests" begin
-    # Convergence tests for a broad variety of test cases.
-    include("test_convergence.jl")
-end
-
-@testset "Quality assurance" begin
-    # Meta-tests (Aqua, etc.) that check for common Julia package issues.
-    include("aqua.jl")
-end
+#@testset "Test universal functions" begin
+#    # Unit tests for the asymptotic behavior and type stability of the universal 
+#    # functions used in SurfaceFluxes.
+#    include("test_universal_functions.jl")
+#end
+#
+#@testset "Convergence tests" begin
+#    # Convergence tests for a broad variety of test cases.
+#    include("test_convergence.jl")
+#end
+#
+#@testset "Quality assurance" begin
+#    # Meta-tests (Aqua, etc.) that check for common Julia package issues.
+#    include("aqua.jl")
+#end

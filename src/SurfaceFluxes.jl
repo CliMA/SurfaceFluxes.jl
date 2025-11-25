@@ -147,7 +147,7 @@ function surface_conditions(
     sc::FluxesAndFrictionVelocity,
     scheme::SolverScheme = PointValueScheme();
     tol_neutral = SFP.cp_d(param_set) / 100,
-    tol::FT = sqrt(eps(FT)),
+    tol::FT = eps(FT),
     maxiter::Int = 10,
 ) where {FT}
     uft = SFP.uf_params(param_set)
@@ -337,10 +337,10 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     b★ = DSEᵥ★ * 𝑔 / DSEᵥ_in(param_set, sc)
     L★ = ifelse(abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral,
         sign(ΔDSEᵥ(param_set, sc)) * FT(Inf),
-        u★^2 / (𝜅 * b★))
+        non_zero(u★^2 / (𝜅 * b★)))
     ## The new L★ estimate is then used to update all scale variables
     ## with stability correction functions (compute_Fₘₕ)
-    ζ = Δz(sc) / L★
+    ζ = non_zero(Δz(sc) / L★)
 
     ### Compute new values for the scale parameters given the relation
     χu = 𝜅 / compute_Fₘₕ(sc, uf, ζ, 𝓁u, UF.MomentumTransport())
@@ -372,7 +372,7 @@ function obukhov_iteration(X★,
     param_set,
     tol,
     tol_neutral,
-    maxiter = 20,
+    maxiter = 40,
 )
     FT = eltype(X★)
     qₛ = surface_specific_humidity(param_set, sc)
