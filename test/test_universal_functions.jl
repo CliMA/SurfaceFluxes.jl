@@ -144,6 +144,43 @@ end
         end
     end
 
+    @testset "Neutral continuity (ζ → 0)" begin
+        for FT in (Float32, Float64)
+            # Test close to zero to verify the limit, but not so close 
+            # that we hit the linear approximation guards in the code.
+            # 1e-6 is safe for Float32/64 to verify continuity behavior.
+            ζ_small = FT(1e-6)
+
+            # Tolerance must accommodate the slope times the step size.
+            # Since we compare f(ε) to f(0), error is O(slope * ε).
+            # Slope is ~5. 5 * 1e-6 = 5e-6.
+            atol = FT(10 * ζ_small)
+
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # 1. Limits for phi and psi (Available for ALL parameterizations)
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+                ψ_0 = UF.psi(ufp, FT(0), transport)
+
+                # 2. Test Stable Branch (ζ > 0) -> Limit
+                @test isapprox(UF.phi(ufp, ζ_small, transport), ϕ_0; atol = atol)
+                @test isapprox(UF.psi(ufp, ζ_small, transport), ψ_0; atol = atol)
+
+                # 3. Test Unstable Branch (ζ < 0) -> Limit
+                @test isapprox(UF.phi(ufp, -ζ_small, transport), ϕ_0; atol = atol)
+                @test isapprox(UF.psi(ufp, -ζ_small, transport), ψ_0; atol = atol)
+
+                # 4. Limits for Psi (Available ONLY for Businger and Gryanik)
+                # Grachev does not implement Psi, so we skip it to avoid MethodError
+                if !(ufp isa UF.GrachevParams)
+                    Ψ_0 = UF.Psi(ufp, FT(0), transport)
+                    @test isapprox(UF.Psi(ufp, ζ_small, transport), Ψ_0; atol = atol)
+                    @test isapprox(UF.Psi(ufp, -ζ_small, transport), Ψ_0; atol = atol)
+                end
+            end
+
+        end
+    end
+
     @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
