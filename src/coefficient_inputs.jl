@@ -22,7 +22,7 @@ function surface_conditions(
     param_set::APS{FT},
     sc::Coefficients,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = SFP.cp_d(param_set) / 100,
+    tol_neutral = SFP.cp_d(param_set) / FT(1e5),  # TODO: remove tol_neutral as a relevant threshold
     tol = sqrt(eps(FT)),
     maxiter::Int = 10,
 ) where {FT}

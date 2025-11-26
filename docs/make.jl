@@ -9,6 +9,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 #! format: off
 pages = Any[
     "Home" => "index.md",
+    "API Reference" => "API.md",
     "References" => "References.md",
     "Equations" => "SurfaceFluxes.md",
     "Universal Functions" => "UniversalFunctions.md"
