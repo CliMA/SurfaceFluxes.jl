@@ -4,9 +4,10 @@ authors = ["Climate Modeling Alliance"]
 version = "0.14.0"
 
 [deps]
+ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 RootSolvers = "7181ea78-2dcb-4de3-ab41-2b8ab5a31e74"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
-ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
 
 [weakdeps]
 ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
@@ -16,6 +17,7 @@ CreateParametersExt = "ClimaParams"
 
 [compat]
 ClimaParams = "1.0"
+LinearAlgebra = "1.11.0"
 RootSolvers = "0.4, 1.0"
 Thermodynamics = "0.14.2, 0.15"
 julia = "1.9"

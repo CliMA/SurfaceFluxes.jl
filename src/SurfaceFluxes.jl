@@ -372,7 +372,7 @@ function obukhov_iteration(X★,
     param_set,
     tol,
     tol_neutral,
-    maxiter = 40,
+    maxiter = 50,
 )
     FT = eltype(X★)
     qₛ = surface_specific_humidity(param_set, sc)
@@ -389,6 +389,9 @@ function obukhov_iteration(X★,
         if abs(X★.L★ - X★₀.L★) ≤ tol &&
            abs(X★.u★ - X★₀.u★) ≤ tol &&
            abs(X★.q★ - X★₀.q★) ≤ tol &&
+           abs(X★.𝓁u - X★₀.𝓁u) ≤ tol &&
+           abs(X★.𝓁θ - X★₀.𝓁θ) ≤ tol &&
+           abs(X★.𝓁q - X★₀.𝓁q) ≤ tol &&
            abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ tol
             break
         end
