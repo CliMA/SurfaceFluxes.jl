@@ -52,7 +52,7 @@ Defined as:
 
 This is the standard correction used in point-based Monin-Obukhov
 similarity theory. Note that while ϕ(0) is typically 1, it may differ 
-(e.g. ϕ_h(0) [cite_start]= Pr_0 in Gryanik et al., 2020)[cite: 1418].
+(e.g. ϕ_h(0) = Pr_0 in Gryanik et al., 2020).
 """
 function psi end
 
@@ -97,11 +97,17 @@ d_m(p::AUFP) = p.d_m
 #####
 
 # Recycled logic for Businger unstable regimes to avoid code duplication
-# and ensure consistency across Businger, Gryanik, and Grachev.
+# and ensure consistency across Businger, Gryanik, and Grachev formulations.
 
-@inline _phi_m_unstable(ζ, γ) = 1 / sqrt(sqrt(1 - γ * ζ))
+@inline function _phi_m_unstable(ζ, γ)
+    FT = eltype(ζ)
+    return FT(1) / sqrt(sqrt(FT(1) - γ * ζ))
+end
 
-@inline _phi_h_unstable(ζ, γ) = 1 / sqrt(1 - γ * ζ)
+@inline function _phi_h_unstable(ζ, γ)
+    FT = eltype(ζ)
+    return FT(1) / sqrt(FT(1) - γ * ζ)
+end
 
 @inline function _psi_m_unstable(ζ, γ)
     FT = eltype(ζ)
@@ -120,23 +126,37 @@ end
     _Psi_m_unstable(ζ, γ)
 
 Finite-volume integral for unstable momentum.
-Matches Nishizawa & Kitamura (2018) Eq. A5.
+Derivation follows Nishizawa & Kitamura (2018, Eq. A5, but corrects the 
+coefficient in the cubic term. 
 
-Note: `γ` here refers to the **coefficient inside the sqrt/cbrt** (e.g., 15 in `(1 - 15ζ)^(-1/4)`), not the linear coefficient `a_m`.
+Note: `γ` here refers to the **coefficient inside the sqrt/cbrt** 
+(e.g., 15 in `(1 - 15ζ)^(-1/4)`), not the linear coefficient `a_m`.
+
+Eq. A5 in the paper uses a hardcoded denominator of `12ζ`, which is only 
+valid for γ = 16. For the general case, the denominator is `3γζ/4`.
 """
-function _Psi_m_unstable(ζ, γ)
+@inline function _Psi_m_unstable(ζ, γ)
     FT = eltype(ζ)
     # Small-ζ limit (Nishizawa2018 Eq. A13)
-    limit_val = -γ * ζ / FT(8)
-    # Full computation (Nishizawa2018 Eq. A5) with safe division to avoid zero
-    ζ_safe = ifelse(abs(ζ) < eps(FT), copysign(eps(FT), ζ), ζ)
+    if abs(ζ) < eps(FT)
+        return -γ * ζ / FT(8)
+    end
+
+    # Full computation (Nishizawa2018 Eq. A5) 
+    # Using expm1 for precision near ζ=0 to avoid catastrophic cancellation in (1 - x^3)
+    # x = (1 - γζ)^(1/4)
+    # 1 - x^3 = 1 - (1 - γζ)^(3/4) = -expm1(0.75 * log1p(-γζ))
     x = sqrt(sqrt(FT(1) - γ * ζ))
     log_term = log((FT(1) + x)^2 * (FT(1) + x^2) / FT(8))
     π_term = FT(π) / FT(2)
     tan_term = FT(2) * atan(x)
-    cubic_term = (FT(1) - x^3) / (FT(12) * ζ_safe)
-    full_val = log_term - tan_term + π_term - FT(1) + cubic_term
-    return ifelse(abs(ζ) < eps(FT), limit_val, full_val)
+
+    # Optimized cubic term
+    cubic_num = -expm1(FT(0.75) * log1p(-γ * ζ))
+    cubic_denom = (FT(3) * γ / FT(4)) * ζ
+    cubic_term = cubic_num / cubic_denom
+
+    return log_term - tan_term + π_term - FT(1) + cubic_term
 end
 
 """
@@ -148,16 +168,26 @@ Matches Nishizawa & Kitamura (2018) Eq. A6.
 Note: `γ` here refers to the **coefficient inside the sqrt**
 (e.g., 9 in `(1 - 9ζ)^(-1/2)`), not the linear coefficient `a_h`.
 """
-function _Psi_h_unstable(ζ, γ)
+@inline function _Psi_h_unstable(ζ, γ)
     FT = eltype(ζ)
     # Small-ζ limit (Nishizawa2018 Eq. A14)
-    limit_val = -γ * ζ / FT(4)
-    # Full computation (Nishizawa2018 Eq. A6) with safe division to avoid zero
-    ζ_safe = ifelse(abs(ζ) < eps(FT), copysign(eps(FT), ζ), ζ)
+    if abs(ζ) < eps(FT)
+        return -γ * ζ / FT(4)
+    end
+
+    # Full computation (Nishizawa2018 Eq. A6)
+    # Using expm1 for precision near ζ=0
+    # y = (1 - γζ)^(1/2)
+    # 1 - y = 1 - (1 - γζ)^(1/2) = -expm1(0.5 * log1p(-γζ))
+
     y = sqrt(FT(1) - γ * ζ)
     log_term = FT(2) * log((FT(1) + y) / FT(2))
-    full_val = log_term + FT(2) * (FT(1) - y) / (γ * ζ_safe) - FT(1)
-    return ifelse(abs(ζ) < eps(FT), limit_val, full_val)
+
+    # Optimized linear term
+    lin_num = -expm1(FT(0.5) * log1p(-γ * ζ))
+    lin_term = FT(2) * lin_num / (γ * ζ)
+
+    return log_term + lin_term - FT(1)
 end
 
 #####
