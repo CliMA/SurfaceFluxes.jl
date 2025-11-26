@@ -6,254 +6,318 @@ abstract type SolverScheme end
 struct LayerAverageScheme <: SolverScheme end
 struct PointValueScheme <: SolverScheme end
 
-### Roughness Models
-# 1) ScalarRoughness (User prescribed constant values)
-# 2) CharnockRoughness (Charnock u★ dependent formulation)
-abstract type RoughnessModel end
-struct CharnockRoughness <: RoughnessModel end
-struct ScalarRoughness <: RoughnessModel end
-struct FunctionalRoughness <: RoughnessModel end
-
-### Surface Temperature Models
-# 1) ScalarTemperature (User prescribed values)
-# 2) CharnockRoughness (Charnock u★ dependent formulation)
-abstract type SurfaceTemperatureModel end
-struct ScalarTemperature <: SurfaceTemperatureModel end
-struct DynamicSurfaceTemperature <: SurfaceTemperatureModel end
-
-
-### Input Variable Containers
-
 """
-   StateValues
-
-Input container for state variables at either first / interior nodes.
-
-# Fields
-- `z::FT`: Height [m]
-- `u::A`: Wind velocity vector
-- `ts::TS`: Thermodynamic state
-- `args::NT`: Additional arguments (optional)
+    Gustiness and quantity specifications
 """
-struct StateValues{FT <: Real, A, TS <: TD.ThermodynamicState, NT}
-    z::FT
-    u::A
-    ts::TS
-    args::NT
-end
-function StateValues(z::FT, u::A, ts::TS; args::NT = nothing) where {FT, A, TS, NT}
-    return StateValues{FT, A, TS, NT}(z, u, ts, args)
+abstract type GustinessModel end
+
+struct ConstantGustiness{FT} <: GustinessModel
+    value::FT
 end
 
-### Input Containers for surface condtions
-abstract type AbstractSurfaceConditions{
-    FT <: Real,
-    SVA <: StateValues,
-    SVB <: StateValues,
-    RM <: RoughnessModel,
-} end
-
-"""
-    Fluxes
-
-Input container for state variables, latent and sensible heat fluxes roughness lengths,
-initial obukhov length and gustiness.
-
-# Fields
-- `state_in::SVA`: State values at interior/input height
-- `state_sfc::SVB`: State values at surface
-- `shf::FT`: Sensible heat flux [W/m²]
-- `lhf::FT`: Latent heat flux [W/m²]
-- `z0m::FT`: Momentum roughness length [m]
-- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
-- `gustiness::FT`: Gustiness parameter [m/s]
-- `roughness_model::RM`: Roughness model type
-"""
-struct Fluxes{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
-    state_in::SVA
-    state_sfc::SVB
-    shf::FT
-    lhf::FT
-    z0m::FT
-    z0b::FT
-    gustiness::FT
-    roughness_model::RM
+struct FunctionalGustiness{F} <: GustinessModel
+    fn::F
 end
 
-function Fluxes(
-    state_in::SVA,
-    state_sfc::SVB,
-    shf::FT,
-    lhf::FT,
-    z0m::FT,
-    z0b::FT;
-    gustiness::FT = FT(1),
-    roughness_model::RM = ScalarRoughness(),
-) where {SVA, SVB, FT, RM}
-    return Fluxes{FT, SVA, SVB, RM}(
-        state_in,
-        state_sfc,
-        shf,
-        lhf,
-        z0m,
-        z0b,
-        gustiness,
-        roughness_model,
+abstract type SurfaceQuantity end
+
+struct SurfaceScalar{FT} <: SurfaceQuantity
+    value::FT
+end
+
+struct SurfaceCallable{F} <: SurfaceQuantity
+    fn::F
+end
+
+struct SurfaceSpec{Kind, T}
+    value::T
+end
+
+surface_temperature(spec) = SurfaceSpec{:temperature, typeof(spec)}(spec)
+surface_specific_humidity(spec) = SurfaceSpec{:specific_humidity, typeof(spec)}(spec)
+momentum_roughness(spec) = SurfaceSpec{:momentum_roughness, typeof(spec)}(spec)
+scalar_roughness(spec) = SurfaceSpec{:scalar_roughness, typeof(spec)}(spec)
+
+@inline surface_quantity(spec::SurfaceSpec{Kind, T}, ::Type{FT}) where {Kind, T, FT} =
+    surface_quantity(spec.value, FT)
+
+struct CharnockMomentum{FT}
+    α::FT
+    grav::FT
+end
+
+@inline function (cm::CharnockMomentum{FT})(ctx) where {FT}
+    return cm.α * ctx.ustar^2 / cm.grav
+end
+
+@inline surface_quantity(x::Number, ::Type{FT}) where {FT} =
+    SurfaceScalar(convert(FT, x))
+@inline function surface_quantity(spec::SurfaceScalar, ::Type{FT}) where {FT}
+    return SurfaceScalar(convert(FT, spec.value))
+end
+@inline function surface_quantity(spec::SurfaceCallable, ::Type{FT}) where {FT}
+    return spec
+end
+@inline surface_quantity(fn::F, ::Type{FT}) where {F, FT} = SurfaceCallable(fn)
+
+const FluxOption{FT} = Union{Nothing, FT}
+
+@inline maybe_convert_option(::Nothing, ::Type{FT}) where {FT} = nothing
+@inline function maybe_convert_option(value::Number, ::Type{FT}) where {FT}
+    return convert(FT, value)
+end
+@inline function maybe_convert_option(value::FT, ::Type{FT}) where {FT}
+    return value
+end
+
+struct FluxSpecs{FT}
+    shf::FluxOption{FT}
+    lhf::FluxOption{FT}
+    ustar::FluxOption{FT}
+    Cd::FluxOption{FT}
+    Ch::FluxOption{FT}
+end
+
+FluxSpecs{FT}() where {FT} = FluxSpecs{FT}(nothing, nothing, nothing, nothing, nothing)
+
+function FluxSpecs(::Type{FT};
+    shf = nothing,
+    lhf = nothing,
+    ustar = nothing,
+    Cd = nothing,
+    Ch = nothing,
+) where {FT}
+    return FluxSpecs{FT}(
+        maybe_convert_option(shf, FT),
+        maybe_convert_option(lhf, FT),
+        maybe_convert_option(ustar, FT),
+        maybe_convert_option(Cd, FT),
+        maybe_convert_option(Ch, FT),
     )
 end
 
-
-"""
-    FluxesAndFrictionVelocity
-
-Input container, given surface state variables, latent and sensible heat fluxes,
-and the friction velocity, roughness lengths,
-initial obukhov length and gustiness.
-
-# Fields
-- `state_in::SVA`: State values at interior/input height
-- `state_sfc::SVB`: State values at surface
-- `shf::FT`: Sensible heat flux [W/m²]
-- `lhf::FT`: Latent heat flux [W/m²]
-- `ustar::FT`: Friction velocity [m/s]
-- `z0m::FT`: Momentum roughness length [m]
-- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
-- `gustiness::FT`: Gustiness parameter [m/s]
-- `roughness_model::RM`: Roughness model type
-"""
-struct FluxesAndFrictionVelocity{FT, SVA, SVB, RM} <:
-       AbstractSurfaceConditions{FT, SVA, SVB, RM}
-    state_in::SVA
-    state_sfc::SVB
-    shf::FT
-    lhf::FT
-    ustar::FT
-    z0m::FT
-    z0b::FT
-    gustiness::FT
-    roughness_model::RM
+struct SolverOptions{FT}
+    tol::FT
+    tol_neutral::FT
+    maxiter::Int
 end
 
-function FluxesAndFrictionVelocity(
-    state_in::SVA,
-    state_sfc::SVB,
-    shf::FT,
-    lhf::FT,
-    ustar::FT,
-    z0m::FT,
-    z0b::FT;
-    gustiness::FT = FT(1),
-    roughness_model::RM = ScalarRoughness(),
-) where {SVA, SVB, FT, RM}
-    return FluxesAndFrictionVelocity{FT, SVA, SVB, RM}(
-        state_in,
-        state_sfc,
-        shf,
-        lhf,
-        ustar,
-        z0m,
-        z0b,
-        gustiness,
-        roughness_model,
+function SolverOptions(::Type{FT};
+    tol = sqrt(eps(FT)),
+    tol_neutral = sqrt(eps(FT)),
+    maxiter::Int = 30,
+) where {FT}
+    return SolverOptions{FT}(convert(FT, tol), convert(FT, tol_neutral), maxiter)
+end
+
+"""
+    SurfaceFluxInputs
+
+Immutable container describing the atmospheric and surface state using primitive
+quantities or module-defined callables. Instances of this type are passed to the
+functional surface flux solver.
+
+- `Tin`, `qin`, `ρin`: Interior air temperature [K], specific humidity [kg/kg], and density [kg/m³]
+- `Ts_spec`, `qs_spec`: Surface temperature and specific humidity specifications (scalar or callable)
+- `Φs`: Surface geopotential [m²/s²]
+- `Δz`: Height difference between interior and surface reference levels [m]
+- `d`: Displacement height [m]
+- `u_in`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s]
+- `gustiness_model`: Module-defined gustiness model (constant or callable)
+- `z0m_spec`, `z0b_spec`: Momentum and scalar roughness specifications
+- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities
+- Optional flux/scale quantities are supplied via `FluxSpecs`
+"""
+struct SurfaceFluxInputs{
+    FT,
+    TsSpec <: SurfaceQuantity,
+    QsSpec <: SurfaceQuantity,
+    Z0mSpec <: SurfaceQuantity,
+    Z0bSpec <: SurfaceQuantity,
+    GM <: GustinessModel,
+    U,
+}
+    Tin::FT
+    qin::FT
+    ρin::FT
+    Ts_spec::TsSpec
+    qs_spec::QsSpec
+    Φs::FT
+    Δz::FT
+    d::FT
+    u_in::U
+    u_sfc::U
+    gustiness_model::GM
+    z0m_spec::Z0mSpec
+    z0b_spec::Z0bSpec
+    shf::Union{Nothing, FT}
+    lhf::Union{Nothing, FT}
+    ustar::Union{Nothing, FT}
+    Cd::Union{Nothing, FT}
+    Ch::Union{Nothing, FT}
+end
+
+function SurfaceFluxInputs(
+    Tin::FT,
+    qin::FT,
+    ρin::FT,
+    Ts,
+    qs,
+    Φs::FT,
+    Δz::FT,
+    d::FT,
+    u_in,
+    u_sfc,
+    gustiness,
+    z0m,
+    z0b,
+    flux_specs::FluxSpecs{FT},
+) where {FT}
+    u_in_tuple = _normalize_velocity(u_in, FT)
+    u_sfc_tuple = _normalize_velocity(u_sfc, FT)
+    Ts_spec = surface_quantity(Ts, FT)
+    qs_spec = surface_quantity(qs, FT)
+    z0m_spec = surface_quantity(z0m, FT)
+    z0b_spec = surface_quantity(z0b, FT)
+    gust_model = _normalize_gustiness(gustiness, FT)
+    return SurfaceFluxInputs{
+        FT,
+        typeof(Ts_spec),
+        typeof(qs_spec),
+        typeof(z0m_spec),
+        typeof(z0b_spec),
+        typeof(gust_model),
+        typeof(u_in_tuple),
+    }(
+        Tin,
+        qin,
+        ρin,
+        Ts_spec,
+        qs_spec,
+        Φs,
+        Δz,
+        d,
+        u_in_tuple,
+        u_sfc_tuple,
+        gust_model,
+        z0m_spec,
+        z0b_spec,
+        flux_specs.shf,
+        flux_specs.lhf,
+        flux_specs.ustar,
+        flux_specs.Cd,
+        flux_specs.Ch,
     )
 end
 
-"""
-    Coefficients
+@inline function _normalize_velocity(u::NTuple{2, T}, ::Type{FT}) where {T, FT}
+    return (convert(FT, u[1]), convert(FT, u[2]))
+end
+function _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT}
+    length(u) == 2 ||
+        throw(ArgumentError("Velocity vectors must have two horizontal components."))
+    return (convert(FT, u[1]), convert(FT, u[2]))
+end
+_normalize_velocity(u::Nothing, ::Type{FT}) where {FT} = (zero(FT), zero(FT))
 
-Input container, given surface state variables, and exchange coefficients,roughness lengths,
-initial obukhov length and gustiness.
+@inline function _normalize_gustiness(gustiness, ::Type{FT}) where {FT}
+    if gustiness isa GustinessModel
+        return gustiness
+    elseif gustiness isa Number
+        return ConstantGustiness(convert(FT, gustiness))
+    else
+        return FunctionalGustiness(gustiness)
+    end
+end
 
-# Fields
-- `state_in::SVA`: State values at interior/input height
-- `state_sfc::SVB`: State values at surface
-- `Cd::FT`: Momentum exchange coefficient
-- `Ch::FT`: Heat exchange coefficient
-- `gustiness::FT`: Gustiness parameter [m/s]
-- `beta::FT`: Evaporation efficiency factor
-- `roughness_model::RM`: Roughness model type
-"""
-struct Coefficients{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
-    state_in::SVA
-    state_sfc::SVB
+Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
+    Ts::FT = FT(0)
+    qs::FT = FT(0)
+    gustiness::FT = FT(1)
+    ustar::FT = FT(0.1)
+    L_MO::FT = FT(10)
+    shf::FT = FT(0)
+    lhf::FT = FT(0)
+    Cd::FT = FT(0)
+    Ch::FT = FT(0)
+    evaporation::FT = FT(0)
+    ρ_sfc::FT = FT(1)
+    buoyancy_flux::FT = FT(0)
+end
+
+struct SimilarityScales{FT}
+    u_star::FT
+    dsev_star::FT
+    q_star::FT
+    L_star::FT
+    theta_v_star::FT
+    ell_u::FT
+    ell_theta::FT
+    ell_q::FT
+end
+
+struct SolverSnapshot{FT, S<:SimilarityScales{FT}}
+    scales::S
+    ρ_sfc::FT
+    gustiness::FT
     Cd::FT
     Ch::FT
+    shf::FT
+    lhf::FT
+    evaporation::FT
+    buoyancy_flux::FT
+end
+
+struct CallableContext{FT, U}
+    Tin::FT
+    qin::FT
+    ρin::FT
+    Ts::FT
+    qs::FT
+    Φs::FT
+    Δz::FT
+    d::FT
+    u_in::U
+    u_sfc::U
     gustiness::FT
-    beta::FT
-    roughness_model::RM
+    ustar::FT
+    shf::FT
+    lhf::FT
+    Cd::FT
+    Ch::FT
+    L_MO::FT
+    evaporation::FT
+    buoyancy_flux::FT
+    ρ_sfc::FT
 end
 
-function Coefficients(
-    state_in::SVA,
-    state_sfc::SVB,
-    Cd::FT,
-    Ch::FT;
-    gustiness::FT = FT(1),
-    beta::FT = FT(1),
-    roughness_model::RM = ScalarRoughness(),
-) where {SVA, SVB, FT, RM}
-    return Coefficients{FT, SVA, SVB, RM}(
-        state_in,
-        state_sfc,
-        Cd,
-        Ch,
-        gustiness,
-        beta,
-        roughness_model,
-    )
-end
-
-
-"""
-    ValuesOnly
-
-Input container, given only surface state variables, roughness lengths,
-initial obukhov length and gustiness.
-
-# Fields
-- `state_in::SVA`: State values at interior/input height
-- `state_sfc::SVB`: State values at surface
-- `z0m::FT`: Momentum roughness length [m]
-- `z0b::FT`: Scalar (heat/moisture) roughness length [m]
-- `gustiness::FT`: Gustiness parameter [m/s]
-- `beta::FT`: Evaporation efficiency factor
-- `roughness_model::RM`: Roughness model type
-"""
-struct ValuesOnly{FT, SVA, SVB, RM} <: AbstractSurfaceConditions{FT, SVA, SVB, RM}
-    state_in::SVA
-    state_sfc::SVB
-    z0m::FT
-    z0b::FT
-    gustiness::FT
-    beta::FT
-    roughness_model::RM
-end
-
-function ValuesOnly(
-    state_in::SVA,
-    state_sfc::SVB,
-    z0m::FT,
-    z0b::FT;
-    gustiness::FT = FT(1),
-    beta::FT = FT(1),
-    roughness_model::RM = ScalarRoughness(),
-) where {SVA, SVB, FT, RM}
-    return ValuesOnly{FT, SVA, SVB, RM}(
-        state_in,
-        state_sfc,
-        z0m,
-        z0b,
-        gustiness,
-        beta,
-        roughness_model,
-    )
-end
-
+Base.propertynames(::CallableContext) = (
+    :Tin,
+    :qin,
+    :ρin,
+    :Ts,
+    :qs,
+    :Φs,
+    :Δz,
+    :d,
+    :u_in,
+    :u_sfc,
+    :gustiness,
+    :ustar,
+    :shf,
+    :lhf,
+    :Cd,
+    :Ch,
+    :L_MO,
+    :evaporation,
+    :buoyancy_flux,
+    :ρ_sfc,
+)
 
 """
     SurfaceFluxConditions
 
-Surface flux conditions, returned from `surface_conditions`.
+Surface flux conditions, returned from `surface_fluxes`.
 
 # Fields
 - `L_MO::FT`: Monin-Obukhov lengthscale [m]

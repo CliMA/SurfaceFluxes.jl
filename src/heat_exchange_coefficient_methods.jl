@@ -1,62 +1,37 @@
 """
-    heat_exchange_coefficient(param_set, L_MO, u★, sc, scheme, tol_neutral)
+    heat_exchange_coefficient(param_set, L_MO, u★, 𝓁u, 𝓁θ, inputs, scheme, tol_neutral, gustiness, ΔDSEᵥ)
 
-Compute and return Ch, the heat exchange coefficient.
-
-Computes Ch from the friction velocity, heat scale, and wind speed using the Monin-Obukhov similarity theory.
-
-## Arguments
-- `param_set`: Abstract parameter set containing physical constants
-- `L_MO`: Monin-Obukhov lengthscale
-- `u★`: Friction velocity
-- `sc`: Surface conditions container
-- `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
-- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for API compatibility)
-
-## Returns
-- `Ch`: Heat exchange coefficient
+Compute and return `Ch`, the heat exchange coefficient, for the current
+similarity state. Neutral and non-neutral regimes follow the log-law and MOST
+formulations, respectively.
 """
 function heat_exchange_coefficient(
-    param_set,
+    param_set::APS,
     L_MO,
     u★,
-    sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
-    scheme,
+    𝓁u,
+    𝓁θ,
+    inputs::SurfaceFluxInputs,
+    scheme::SolverScheme,
     tol_neutral,
-)
-    thermo_params = SFP.thermodynamics_params(param_set)
+    gustiness::FT,
+    ΔDSEᵥ_val::FT,
+) where {FT}
     transport = UF.HeatTransport()
     𝜅 = SFP.von_karman_const(param_set)
-    𝓁u = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    𝓁θ = compute_z0(u★, param_set, sc, sc.roughness_model, UF.HeatTransport())
-    ϕ_heat = compute_physical_scale_coeff(
-        param_set,
-        sc,
-        L_MO,
-        𝓁θ,
-        transport,
-        scheme,
-    )
-    ustar = compute_ustar(param_set, L_MO, 𝓁u, sc, scheme)
-    Ch = ustar * ϕ_heat / windspeed(sc)
+    ΔU = windspeed(inputs, gustiness)
+    if abs(ΔDSEᵥ_val) <= tol_neutral
+        Ch = 𝜅^2 / (log(inputs.Δz / 𝓁θ) * log(inputs.Δz / 𝓁u))
+    else
+        ϕ_heat = compute_physical_scale_coeff(
+            param_set,
+            inputs,
+            L_MO,
+            𝓁θ,
+            transport,
+            scheme,
+        )
+        Ch = u★ * ϕ_heat / ΔU
+    end
     return Ch
-end
-
-"""
-    heat_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme, tol_neutral)
-
-Return the heat exchange coefficient from the surface conditions.
-
-When surface conditions are provided as exchange coefficients, this method
-simply returns the pre-computed Ch value.
-"""
-function heat_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Coefficients,
-    scheme,
-    tol_neutral,
-)
-    return sc.Ch
 end

@@ -137,7 +137,7 @@ end
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
             for case in cases, roughness_model in roughness_models, scheme in scheme_set
                 sc = build_surface_condition(param_set, case, roughness_model)
-                result = SF.surface_conditions(
+                result = SF.surface_fluxes(
                     param_set,
                     sc,
                     scheme;

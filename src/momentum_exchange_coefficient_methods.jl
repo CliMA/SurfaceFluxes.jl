@@ -1,52 +1,27 @@
 """
-    momentum_exchange_coefficient(param_set, L_MO, u★, sc, scheme, tol_neutral)
+    momentum_exchange_coefficient(param_set, L_MO, u★, 𝓁u, inputs, scheme, tol_neutral, gustiness, ΔDSEᵥ)
 
-Compute and return Cd, the momentum exchange coefficient.
-
-Computes Cd from the friction velocity and wind speed using the Monin-Obukhov similarity theory.
-
-## Arguments
-- `param_set`: Abstract parameter set containing physical constants
-- `L_MO`: Monin-Obukhov lengthscale
-- `u★`: Friction velocity
-- `sc`: Surface conditions container
-- `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
-- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for API compatibility)
-
-## Returns
-- `Cd`: Momentum exchange coefficient
+Compute and return `Cd`, the momentum exchange coefficient, for the current
+similarity state. For neutral conditions (`abs(ΔDSEᵥ) <= tol_neutral`), uses the
+logarithmic law of the wall; otherwise uses the diagnosed friction velocity.
 """
 function momentum_exchange_coefficient(
-    param_set,
+    param_set::APS,
     L_MO,
     u★,
-    sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
-    scheme,
+    𝓁u,
+    inputs::SurfaceFluxInputs,
+    scheme::SolverScheme,
     tol_neutral,
-)
-    thermo_params = SFP.thermodynamics_params(param_set)
+    gustiness::FT,
+    ΔDSEᵥ_val::FT,
+) where {FT}
     κ = SFP.von_karman_const(param_set)
-    𝓁 = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
-    Cd = ustar^2 / windspeed(sc)^2
+    ΔU = windspeed(inputs, gustiness)
+    if abs(ΔDSEᵥ_val) <= tol_neutral
+        Cd = (κ / log(inputs.Δz / 𝓁u))^2
+    else
+        Cd = (u★ / ΔU)^2
+    end
     return Cd
-end
-
-"""
-    momentum_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme, tol_neutral)
-
-Return the momentum exchange coefficient from the surface conditions.
-
-When surface conditions are provided as exchange coefficients, this method
-simply returns the pre-computed Cd value.
-"""
-function momentum_exchange_coefficient(
-    param_set,
-    L_MO,
-    u★,
-    sc::Coefficients,
-    scheme,
-    tol_neutral,
-)
-    return sc.Cd
 end

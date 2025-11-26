@@ -25,27 +25,28 @@ macro test_allocs_and_ts(expression)
     end
 end
 
-# Wrapper for `SurfaceFluxes.surface_conditions` that checks allocations and
+# Wrapper for `SurfaceFluxes.surface_fluxes` that checks allocations and
 # type stability.
 #
 # Arguments:
 #   - `sf_params`: SurfaceFluxes parameters
 #   - `sc`: State container (e.g., `SF.ValuesOnly`, `SF.Fluxes`, etc.)
 #   - `scheme`: Computation scheme (default: `SurfaceFluxes.PointValueScheme()`)
-#   - `kwargs...`: Additional keyword arguments passed to `surface_conditions`
+#   - `kwargs...`: Additional keyword arguments passed to `surface_fluxes`
 #
 # Returns:
-#   The result of `surface_conditions`, after verifying allocations and type stability.
-function surface_conditions_wrapper(
+#   The result of `surface_fluxes`, after verifying allocations and type stability.
+function surface_fluxes_wrapper(
     sf_params,
     sc,
     scheme = SurfaceFluxes.PointValueScheme();
     kwargs...,
 )
-    @test_allocs_and_ts SurfaceFluxes.surface_conditions(
+    @test_allocs_and_ts SurfaceFluxes.surface_fluxes(
         sf_params,
         sc,
         scheme;
         kwargs...,
     )
 end
+

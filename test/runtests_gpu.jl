@@ -51,7 +51,7 @@ else
             state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
             state_in = SF.StateValues(data.z[ii], (data.speed[ii], FT(0)), ts_in)
             sc = SF.ValuesOnly(state_in, state_sfc, data.z0[ii], z0b)
-            reference[ii] = SF.surface_conditions(param_set, sc).L_MO
+            reference[ii] = SF.surface_fluxes(param_set, sc).L_MO
         end
         return reference
     end
@@ -82,11 +82,11 @@ else
             SF.StateValues(z_i, (speed_i, zero(speed_i)), ts_in_i)
         end
         sc = SF.ValuesOnly.(state_in, state_sfc, z0, z0b)
-        gpu_outputs = map(sfc -> SF.surface_conditions(param_set, sfc).L_MO, sc)
+        gpu_outputs = map(sfc -> SF.surface_fluxes(param_set, sfc).L_MO, sc)
         return Array(gpu_outputs), reference
     end
 
-    @testset "GPU broadcast surface_conditions" begin
+    @testset "GPU broadcast surface_fluxes" begin
         for FT in (Float32, Float64)
             gpu_vals, reference = run_gpu_broadcast_test(FT)
             @test all(isfinite, gpu_vals)
