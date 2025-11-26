@@ -46,16 +46,27 @@ function phi end
 """
     psi(p, ζ, transport_type)
 
-Universal stability correction function for momentum (`ψ_m`) and 
-heat (`ψ_h`)
+The standard integrated stability correction function `ψ(ζ)`.
+Defined as:
+    ψ(ζ) = ∫[0 to ζ] (1 - ϕ(x)) / x dx
+
+This is the standard correction used in point-based Monin-Obukhov
+similarity theory (e.g., typical surface flux schemes).
 """
 function psi end
 
 """
     Psi(p, ζ, transport_type)
 
-Integral of universal stability correction function for 
-momentum (`ψ_m`) and heat (`ψ_h`), used for finite-volume averaging.
+The volume-averaged stability correction function `Ψ(ζ)`.
+Mathematically, this is defined as:
+    Ψ(ζ) = (1/ζ) ∫[0 to ζ] ψ(x) dx
+
+This function is required for finite-volume models where fluxes are
+calculated using cell-averaged values rather than point values at the
+cell center.
+
+See Nishizawa & Kitamura (2018), Eqs. 14 & 15.
 """
 function Psi end
 
@@ -104,6 +115,14 @@ function _psi_h_unstable(ζ, γ)
     return FT(2) * log((FT(1) + y) / FT(2))
 end
 
+"""
+    _Psi_m_unstable(ζ, γ)
+
+Finite-volume integral for unstable momentum.
+Matches Nishizawa & Kitamura (2018) Eq. A5.
+
+Note: `γ` here refers to the **coefficient inside the sqrt/cbrt** (e.g., 15 in `(1 - 15ζ)^(-1/4)`), not the linear coefficient `a_m`.
+"""
 function _Psi_m_unstable(ζ, γ)
     FT = eltype(ζ)
     # Small-ζ limit (Nishizawa2018 Eq. A13)
@@ -119,6 +138,15 @@ function _Psi_m_unstable(ζ, γ)
     return ifelse(abs(ζ) < eps(FT), limit_val, full_val)
 end
 
+"""
+    _Psi_h_unstable(ζ, γ)
+
+Finite-volume integral for unstable heat.
+Matches Nishizawa & Kitamura (2018) Eq. A6.
+
+Note: `γ` here refers to the **coefficient inside the sqrt**
+(e.g., 9 in `(1 - 9ζ)^(-1/2)`), not the linear coefficient `a_h`.
+"""
 function _Psi_h_unstable(ζ, γ)
     FT = eltype(ζ)
     # Small-ζ limit (Nishizawa2018 Eq. A14)
@@ -138,6 +166,11 @@ end
     BusingerParams{FT}
 
 Parameter bundle for the Businger (1971) similarity relations.
+Mappings to Nishizawa & Kitamura (2018) coefficients:
+ - `a_m`, `a_h`: The linear coefficients for stable conditions (β in some texts).
+ - `b_m`, `b_h`: The coefficients γ inside the unstable sqrt/cbrt terms (e.g., (1 - γζ)).
+ - `Pr_0`: The neutral Prandtl number.
+
 See Businger et al. (1971) and Nishizawa & Kitamura (2018).
 """
 Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
@@ -274,7 +307,14 @@ end
     GryanikParams{FT}
 
 Parameter bundle for the Gryanik et al. (2020) similarity relations.
-See Gryanik et al. (2020).
+These functions are designed to be valid across the entire stability range,
+including very stable conditions.
+
+ - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 32).
+ - `a_h`, `b_h`: Coefficients for heat stability function (Eq. 33).
+ - `Pr_0`: Neutral Prandtl number. The paper recommends Pr_0 ≈ 0.98.
+
+Reference: Gryanik et al. (2020).
 """
 Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -395,10 +435,13 @@ function Psi(p::GryanikParams, ζ, ::MomentumTransport)
     _a_m = FT(a_m(p))
     _b_m = FT(b_m(p))
     if ζ >= 0
-        base = _b_m * ζ + FT(1)
-        # Optimization: x^(4/3) -> x * cbrt(x)
-        base_43 = base * cbrt(base)
-        return FT(3) * (_a_m / _b_m) - FT(9) * _a_m * (base_43 - FT(1)) / (FT(4) * ζ * _b_m^2)
+        # Optimization: use expm1/log1p to preserve precision for small ζ
+        # (1 + b_m * ζ)^(4/3) - 1  == expm1(4/3 * log1p(b_m * ζ))
+        term_diff = expm1(FT(4) / FT(3) * log1p(_b_m * ζ))
+        numerator = FT(9) * _a_m * term_diff
+        denominator = FT(4) * ζ * _b_m^2
+        
+        return FT(3) * (_a_m / _b_m) - numerator / denominator
     else
         return _Psi_m_unstable(ζ, FT(15))
     end
@@ -432,8 +475,14 @@ end
 """
     GrachevParams{FT}
 
-Parameter bundle for the Grachev et al. (2007) similarity relations.
-See Grachev et al. (2007).
+Parameter bundle for the Grachev et al. (2007) similarity relations,
+based on SHEBA data.
+
+ - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 9a).
+ - `a_h`, `b_h`, `c_h`: Coefficients for heat stability function (Eq. 9b).
+   Note: `c_h` is the coefficient for the linear ζ term in the denominator.
+
+Reference: Grachev et al. (2007).
 """
 Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
