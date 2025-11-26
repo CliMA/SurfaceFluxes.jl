@@ -1,17 +1,13 @@
 """
     UniversalFunctions
 
-Universal stability and stability correction
-functions for `SurfaceFluxes` module. Supports
-universal functions:
- - `Businger`
- - `Gryanik`
- - `Grachev`
+Universal stability and stability correction functions for `SurfaceFluxes` module. 
+Supports the following universal functions:
+ - `Businger`: Businger et al. (1971), Dyer (1974)
+ - `Gryanik`: Gryanik et al. (2020)
+ - `Grachev`: Grachev et al. (2007)
 """
 module UniversalFunctions
-
-import DocStringExtensions
-const DSE = DocStringExtensions
 
 abstract type AbstractUniversalFunctionParameters{FT <: Real} end
 const AUFP = AbstractUniversalFunctionParameters
@@ -21,7 +17,19 @@ const AUFP = AbstractUniversalFunctionParameters
 #####
 
 abstract type AbstractTransportType end
+
+"""
+    MomentumTransport
+
+Type selecting momentum-transfer stability functions (ϕₘ, ψₘ, Ψₘ).
+"""
 struct MomentumTransport <: AbstractTransportType end
+
+"""
+    HeatTransport
+
+Type selecting heat-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
+"""
 struct HeatTransport <: AbstractTransportType end
 
 Base.broadcastable(tt::AbstractTransportType) = tuple(tt)
@@ -30,24 +38,36 @@ Base.broadcastable(p::AbstractUniversalFunctionParameters) = tuple(p)
 """
     phi
 
-Universal stability function for wind shear
-(`ϕ_m`) and temperature gradient (`ϕ_h`)
+Universal stability function for wind shear (`ϕ_m`) and 
+temperature gradient (`ϕ_h`)
 """
 function phi end
 
 """
-    psi
+    psi(p, ζ, transport_type)
 
-Universal stability correction function for
-momentum (`ψ_m`) and heat (`ψ_h`)
+The standard integrated stability correction function `ψ(ζ)`.
+Defined as:
+    ψ(ζ) = ∫[0 to ζ] (ϕ(0) - ϕ(x)) / x dx
+
+This is the standard correction used in point-based Monin-Obukhov
+similarity theory. Note that while ϕ(0) is typically 1, it may differ 
+(e.g. ϕ_h(0) = Pr_0 in Gryanik et al., 2020).
 """
 function psi end
 
 """
-    Psi
+    Psi(p, ζ, transport_type)
 
-Integral of universal stability correction
-function for momentum (`ψ_m`) and heat (`ψ_h`)
+The volume-averaged stability correction function `Ψ(ζ)`.
+Mathematically, this is defined as:
+    Ψ(ζ) = (1/ζ) ∫[0 to ζ] ψ(x) dx
+
+This function is required for finite-volume models where fluxes are
+calculated using cell-averaged values rather than point values at the
+cell center.
+
+See Nishizawa & Kitamura (2018), Eqs. 14 & 15.
 """
 function Psi end
 
@@ -73,17 +93,116 @@ d_m(p::AUFP) = p.d_m
 π_group(::AUFP, ::MomentumTransport) = 1
 
 #####
+##### Private Helpers (Unstable Businger Logic)
+#####
+
+# Recycled logic for Businger unstable regimes to avoid code duplication
+# and ensure consistency across Businger, Gryanik, and Grachev formulations.
+
+@inline function _phi_m_unstable(ζ, γ)
+    FT = eltype(ζ)
+    return FT(1) / sqrt(sqrt(FT(1) - γ * ζ))
+end
+
+@inline function _phi_h_unstable(ζ, γ)
+    FT = eltype(ζ)
+    return FT(1) / sqrt(FT(1) - γ * ζ)
+end
+
+@inline function _psi_m_unstable(ζ, γ)
+    FT = eltype(ζ)
+    x = sqrt(sqrt(FT(1) - γ * ζ))
+    log_term = log((FT(1) + x)^2 * (FT(1) + x^2) / FT(8))
+    return log_term - FT(2) * atan(x) + FT(π) / FT(2)
+end
+
+@inline function _psi_h_unstable(ζ, γ)
+    FT = eltype(ζ)
+    y = sqrt(FT(1) - γ * ζ)
+    return FT(2) * log((FT(1) + y) / FT(2))
+end
+
+"""
+    _Psi_m_unstable(ζ, γ)
+
+Finite-volume integral for unstable momentum.
+Derivation follows Nishizawa & Kitamura (2018, Eq. A5, but corrects the 
+coefficient in the cubic term. 
+
+Note: `γ` here refers to the **coefficient inside the sqrt/cbrt** 
+(e.g., 15 in `(1 - 15ζ)^(-1/4)`), not the linear coefficient `a_m`.
+
+Eq. A5 in the paper uses a hardcoded denominator of `12ζ`, which is only 
+valid for γ = 16. For the general case, the denominator is `3γζ/4`.
+"""
+@inline function _Psi_m_unstable(ζ, γ)
+    FT = eltype(ζ)
+    # Small-ζ limit (Nishizawa2018 Eq. A13)
+    if abs(ζ) < eps(FT)
+        return -γ * ζ / FT(8)
+    end
+
+    # Full computation (Nishizawa2018 Eq. A5) 
+    # Using expm1 for precision near ζ=0 to avoid catastrophic cancellation in (1 - x^3)
+    # x = (1 - γζ)^(1/4)
+    # 1 - x^3 = 1 - (1 - γζ)^(3/4) = -expm1(0.75 * log1p(-γζ))
+    x = sqrt(sqrt(FT(1) - γ * ζ))
+    log_term = log((FT(1) + x)^2 * (FT(1) + x^2) / FT(8))
+    π_term = FT(π) / FT(2)
+    tan_term = FT(2) * atan(x)
+
+    # Optimized cubic term
+    cubic_num = -expm1(FT(0.75) * log1p(-γ * ζ))
+    cubic_denom = (FT(3) * γ / FT(4)) * ζ
+    cubic_term = cubic_num / cubic_denom
+
+    return log_term - tan_term + π_term - FT(1) + cubic_term
+end
+
+"""
+    _Psi_h_unstable(ζ, γ)
+
+Finite-volume integral for unstable heat.
+Matches Nishizawa & Kitamura (2018) Eq. A6.
+
+Note: `γ` here refers to the **coefficient inside the sqrt**
+(e.g., 9 in `(1 - 9ζ)^(-1/2)`), not the linear coefficient `a_h`.
+"""
+@inline function _Psi_h_unstable(ζ, γ)
+    FT = eltype(ζ)
+    # Small-ζ limit (Nishizawa2018 Eq. A14)
+    if abs(ζ) < eps(FT)
+        return -γ * ζ / FT(4)
+    end
+
+    # Full computation (Nishizawa2018 Eq. A6)
+    # Using expm1 for precision near ζ=0
+    # y = (1 - γζ)^(1/2)
+    # 1 - y = 1 - (1 - γζ)^(1/2) = -expm1(0.5 * log1p(-γζ))
+
+    y = sqrt(FT(1) - γ * ζ)
+    log_term = FT(2) * log((FT(1) + y) / FT(2))
+
+    # Optimized linear term
+    lin_num = -expm1(FT(0.5) * log1p(-γ * ζ))
+    lin_term = FT(2) * lin_num / (γ * ζ)
+
+    return log_term + lin_term - FT(1)
+end
+
+#####
 ##### Businger
 #####
 """
-    BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    BusingerParams{FT}
 
-Free parameters for the Businger universal stability and stability correction
-functions.
+Parameter bundle for the Businger (1971) similarity relations.
+Mappings to Nishizawa & Kitamura (2018) coefficients:
+ - `a_m`, `a_h`: The linear coefficients for stable conditions (β in some texts).
+ - `b_m`, `b_h`: The coefficients γ inside the unstable sqrt/cbrt terms (e.g., (1 - γζ)).
+ - `Pr_0`: The neutral Prandtl number.
 
-# Fields
-
-$(DSE.FIELDS)
+See Businger et al. (1971) and Nishizawa & Kitamura (2018).
 """
 Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -95,112 +214,119 @@ Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     γ::FT
 end
 
-# Nishizawa2018 Eq. A7
-f_momentum(p::BusingerParams, ζ) = sqrt(sqrt(1 - typeof(ζ)(b_m(p)) * ζ))
+"""
+    phi(p::BusingerParams, ζ, ::MomentumTransport)
 
-# Nishizawa2018 Eq. A8
-f_heat(p::BusingerParams, ζ) = sqrt(1 - typeof(ζ)(b_h(p)) * ζ)
+Businger momentum similarity `ϕ_m`.
 
-function phi(p::BusingerParams, ζ, ::MomentumTransport)
+# References
+ - Stable (ζ >= 0): Eq. A1 (L >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A1 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function phi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ < 0
-        # Businger1971 Eq. A1 (ζ < 0)
-        f_m = f_momentum(p, ζ)
-        return FT(1) / FT(f_m)
+        return _phi_m_unstable(ζ, b_m(p))
     else
-        # Businger1971 Eq. A1 (ζ >= 0)
-        _a_m = FT(a_m(p))
-        return _a_m * ζ + FT(1)
+        return FT(a_m(p)) * ζ + FT(1)
     end
 end
 
-function phi(p::BusingerParams, ζ, tt::HeatTransport)
+"""
+    phi(p::BusingerParams, ζ, ::HeatTransport)
+
+Businger heat-gradient similarity `ϕ_h`.
+
+# References
+ - Stable (ζ >= 0): Eq. A2 (L >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function phi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
     if ζ < 0
-        # Businger1971 Eq. A2 (ζ < 0)
-        f_h = f_heat(p, ζ)
-        return FT(1) / FT(f_h)
+        return _phi_h_unstable(ζ, b_h(p))
     else
-        # Businger1971 Eq. A2 (ζ >= 0)
         _a_h = FT(a_h(p))
         _π_group = FT(π_group(p, tt))
         return _a_h * ζ / _π_group + FT(1)
     end
 end
 
-function psi(p::BusingerParams, ζ, ::MomentumTransport)
+"""
+    psi(p::BusingerParams, ζ, ::MomentumTransport)
+
+Businger momentum stability correction `ψ_m`.
+
+# References
+ - Stable (ζ >= 0): Eq. A3 (L >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A3 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
-        # Businger1971 Eq. A3 (ζ < 0)
-        f_m = f_momentum(p, ζ)
-        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
-        return FT(log_term - 2 * atan(f_m) + π / 2)
+        return _psi_m_unstable(ζ, b_m(p))
     else
-        # Businger1971 Eq. A3 (ζ >= 0)
-        _a_m = FT(a_m(p))
-        return -_a_m * ζ
+        return -FT(a_m(p)) * ζ
     end
 end
 
-function psi(p::BusingerParams, ζ, tt::HeatTransport)
+"""
+    psi(p::BusingerParams, ζ, ::HeatTransport)
+
+Businger heat stability correction `ψ_h`.
+
+# References
+ - Stable (ζ >= 0): Eq. A4 (L >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A4 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ < 0
-        # Businger1971 Eq. A4 (ζ < 0)
-        f_h = f_heat(p, ζ)
-        return FT(2 * log((1 + f_h) / 2))
+        return _psi_h_unstable(ζ, b_h(p))
     else
-        # Businger1971 Eq. A4 (ζ >= 0)
         _a_h = FT(a_h(p))
         _π_group = FT(π_group(p, tt))
         return -_a_h * ζ / _π_group
     end
 end
 
-function Psi(p::BusingerParams, ζ, tt::MomentumTransport)
+"""
+    Psi(p::BusingerParams, ζ, ::MomentumTransport)
+
+Volume-averaged Businger momentum stability correction `Ψ_m`.
+
+# References
+ - Stable (ζ >= 0): Derived from linear form in Eq. A13 (ζ >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A5 (L < 0) in Nishizawa & Kitamura (2018).
+ - Small ζ limit: Eq. A13 (ζ < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function Psi(p::BusingerParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ >= 0
-        # Nishizawa2018 Eq. A5 and A13 (ζ >= 0)
-        _a_m = FT(a_m(p))
-        return -_a_m * ζ / 2
+        return -FT(a_m(p)) * ζ / FT(2)
     else
-        if abs(ζ) < eps(FT)
-            # Nishizawa2018 Eq. A13 (ζ < 0)
-            return -FT(b_m(p)) * ζ / FT(8)
-        else
-            # Nishizawa2018 Eq. A5 (ζ < 0)
-            f_m = f_momentum(p, ζ)
-            log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
-            π_term = FT(π) / 2
-            tan_term = 2 * atan(f_m)
-            cubic_term = (1 - f_m^3) / (12 * ζ)
-            return FT(log_term - tan_term + π_term - 1 + cubic_term)
-        end
+        return _Psi_m_unstable(ζ, b_m(p))
     end
 end
 
-function Psi(p::BusingerParams, ζ, tt::HeatTransport)
+"""
+    Psi(p::BusingerParams, ζ, ::HeatTransport)
+
+Volume-averaged Businger heat stability correction `Ψ_h`.
+
+# References
+ - Stable (ζ >= 0): Derived from linear form in Eq. A14 (ζ >= 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A6 (L < 0) in Nishizawa & Kitamura (2018).
+ - Small ζ limit: Eq. A14 (ζ < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function Psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
-    _a_h = FT(a_h(p))
     if ζ >= 0
-        # Nishizawa2018 Eq. A6 and A14 (ζ >= 0)
+        _a_h = FT(a_h(p))
         _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / (2 * _π_group)
+        return -_a_h * ζ / (FT(2) * _π_group)
     else
-        if abs(ζ) < eps(FT)
-            # Nishizawa2018 Eq. A14 (ζ < 0)
-            return -FT(b_h(p)) * ζ / 4
-        else
-            # Nishizawa2018 Eq. A6 (ζ < 0)
-            f_h = f_heat(p, ζ)
-            log_term = 2 * log((1 + f_h) / 2)
-            return FT(log_term + 2 * (1 - f_h) / (FT(b_h(p)) * ζ) - 1)
-        end
+        return _Psi_h_unstable(ζ, b_h(p))
     end
 end
 
@@ -209,14 +335,17 @@ end
 #####
 
 """
-    GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    GryanikParams{FT}
 
-Free parameters for the Gryanik universal stability and stability correction
-functions.
+Parameter bundle for the Gryanik et al. (2020) similarity relations.
+These functions are designed to be valid across the entire stability range,
+including very stable conditions.
 
-# Fields
+ - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 32).
+ - `a_h`, `b_h`: Coefficients for heat stability function (Eq. 33).
+ - `Pr_0`: Neutral Prandtl number. The paper recommends Pr_0 ≈ 0.98.
 
-$(DSE.FIELDS)
+Reference: Gryanik et al. (2020).
 """
 Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -228,112 +357,156 @@ Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     γ::FT
 end
 
-# Nishizawa2018 Eq. A7
-f_momentum(::GryanikParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
+"""
+    phi(p::GryanikParams, ζ, ::MomentumTransport)
 
-# Nishizawa2018 Eq. A8
-f_heat(::GryanikParams, ζ) = sqrt(1 - 9 * ζ)
+Gryanik momentum similarity `ϕ_m`.
 
-function phi(p::GryanikParams, ζ, tt::MomentumTransport)
+# References
+ - Stable (ζ > 0): Eq. 32 in Gryanik et al. (2020).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A1 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function phi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Gryanik2020 Eq. 32
         _a_m = FT(a_m(p))
         _b_m = FT(b_m(p))
-        return FT(1) + (_a_m * ζ) / (1 + _b_m * ζ)^(FT(2 / 3))
+        # Optimization: (1+b_m*ζ)^(2/3) -> cbrt((1+b_m*ζ)^2)
+        denom = cbrt((FT(1) + _b_m * ζ)^2)
+        return FT(1) + (_a_m * ζ) / denom
     else
-        # Nishizawa2018 Eq. A1 (ζ <= 0)
-        f_m = f_momentum(p, ζ)
-        return FT(1) / FT(f_m)
+        # Fallback to Businger form with γ = 15
+        return _phi_m_unstable(ζ, FT(15))
     end
 end
 
-function phi(p::GryanikParams, ζ, tt::HeatTransport)
+"""
+    phi(p::GryanikParams, ζ, ::HeatTransport)
+
+Gryanik heat-gradient similarity `ϕ_h`.
+
+# References
+ - Stable (ζ >= 0): Eq. 33 in Gryanik et al. (2020). Matches the neutral limit `ϕ_h(0) = Pr_0`.
+ - Unstable (ζ < 0): Scaled Businger form to ensure continuity at ζ=0.
+"""
+@inline function phi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
-    if ζ > 0
+    _Pr_0 = FT(Pr_0(p))
+    if ζ >= 0
         # Gryanik2020 Eq. 33
-        _Pr_0 = FT(Pr_0(p))
         _a_h = FT(a_h(p))
         _b_h = FT(b_h(p))
-        return FT(1) + (ζ * _Pr_0 * _a_h) / (1 + _b_h * ζ)
+        return _Pr_0 * (FT(1) + (_a_h * ζ) / (FT(1) + _b_h * ζ))
     else
-        # Nishizawa2018 Eq. A2 (ζ <= 0)
-        f_h = f_heat(p, ζ)
-        return FT(1) / FT(f_h)
+        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        return _Pr_0 * _phi_h_unstable(ζ, FT(9))
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::MomentumTransport)
+"""
+    psi(p::GryanikParams, ζ, ::MomentumTransport)
+
+Gryanik momentum stability correction `ψ_m`.
+
+# References
+ - Stable (ζ > 0): Eq. 34 in Gryanik et al. (2020).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A3 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Gryanik2020 Eq. 34
         _a_m = FT(a_m(p))
         _b_m = FT(b_m(p))
-        return -3 * (_a_m / _b_m) * ((1 + _b_m * ζ)^(FT(1 / 3)) - 1)
+        # Optimization: (1 + b_m*ζ)^(1/3) -> cbrt(...)
+        return -FT(3) * (_a_m / _b_m) * (cbrt(FT(1) + _b_m * ζ) - FT(1))
     else
-        # Nishizawa2018 Eq. A3 (ζ <= 0)
-        f_m = f_momentum(p, ζ)
-        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
-        return FT(log_term - 2 * atan(f_m) + π / 2)
+        # Fallback to Businger form with γ = 15
+        return _psi_m_unstable(ζ, FT(15))
     end
 end
 
-function psi(p::GryanikParams, ζ, tt::HeatTransport)
+"""
+    psi(p::GryanikParams, ζ, ::HeatTransport)
+
+Gryanik heat stability correction `ψ_h`.
+
+# References
+ - Stable (ζ > 0): Eq. 35 in Gryanik et al. (2020).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A4 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
+    _Pr_0 = FT(Pr_0(p))
     if ζ > 0
         # Gryanik2020 Eq. 35
-        _Pr_0 = FT(Pr_0(p))
         _a_h = FT(a_h(p))
         _b_h = FT(b_h(p))
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
-        # Nishizawa2018 Eq. A4 (ζ <= 0)
-        f_h = f_heat(p, ζ)
-        return FT(2 * log((1 + f_h) / 2))
+        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        return _Pr_0 * _psi_h_unstable(ζ, FT(9))
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::MomentumTransport)
+"""
+    Psi(p::GryanikParams, ζ, ::MomentumTransport)
+
+Volume-averaged Gryanik momentum stability correction `Ψ_m`.
+
+# References
+ - Stable (ζ >= 0): Analytically derived from Eq. 34 in Gryanik et al. (2020).
+ - Unstable (ζ < 0): Falls back to Businger form, Eq. A5 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function Psi(p::GryanikParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     _a_m = FT(a_m(p))
     _b_m = FT(b_m(p))
     if ζ >= 0
-        return 3 * (_a_m / _b_m) - FT(9) * _a_m * ((_b_m * ζ + FT(1))^(FT(4 / 3)) - 1) / ζ / FT(4) / _b_m^FT(2)
-    else
+        # Limit at ζ -> 0 is 0. Required to avoid NaN (0/0) at exactly ζ = 0.
         if abs(ζ) < eps(FT)
-            return -FT(15) * ζ / FT(8)
-        else
-            f_m = f_momentum(p, ζ)
-            log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
-            π_term = FT(π) / 2
-            tan_term = 2 * atan(f_m)
-            cubic_term = (1 - f_m^3) / (12 * ζ)
-            return FT(log_term - tan_term + π_term - 1 + cubic_term)
+            return -_a_m * ζ / FT(2)
         end
+
+        # Optimization: use expm1/log1p to preserve precision for small ζ
+        # (1 + b_m * ζ)^(4/3) - 1  == expm1(4/3 * log1p(b_m * ζ))
+        term_diff = expm1(FT(4) / FT(3) * log1p(_b_m * ζ))
+        numerator = FT(9) * _a_m * term_diff
+        denominator = FT(4) * ζ * _b_m^2
+
+        return FT(3) * (_a_m / _b_m) - numerator / denominator
+    else
+        # Fallback to Businger form with γ = 15
+        return _Psi_m_unstable(ζ, FT(15))
     end
 end
 
-function Psi(p::GryanikParams, ζ, tt::HeatTransport)
-    FT = typeof(ζ)
+"""
+    Psi(p::GryanikParams, ζ, ::HeatTransport)
+
+Volume-averaged Gryanik heat stability correction `Ψ_h`.
+
+# References
+ - Stable (ζ >= 0): Analytically derived from Eq. 35 in Gryanik et al. (2020).
+ - Unstable (ζ < 0): Falls back to Businger form, Eq. A6 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function Psi(p::GryanikParams, ζ, ::HeatTransport)
+    FT = eltype(ζ)
     _a_h = FT(a_h(p))
     _b_h = FT(b_h(p))
-    Pr0 = FT(Pr_0(p))
+    _Pr_0 = FT(Pr_0(p))
     if ζ >= 0
-        return -_a_h / _b_h / ζ * Pr0 * ((1 / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
-    else
+        # Limit at ζ -> 0 is 0
         if abs(ζ) < eps(FT)
-            return -FT(9) * ζ / 4
-        else
-            f_h = f_heat(p, ζ)
-            log_term = 2 * log((1 + f_h) / 2)
-            return FT(log_term + 2 * (1 - f_h) / (9 * ζ) - FT(1))
+            return -_a_h * ζ * _Pr_0 / FT(2) # Linear approximation for very small ζ
         end
+
+        # Gryanik2020 Eq. 35 integral
+        return -_a_h / _b_h / ζ * _Pr_0 * ((FT(1) / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
+    else
+        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        return _Pr_0 * _Psi_h_unstable(ζ, FT(9))
     end
 end
 
@@ -342,14 +515,16 @@ end
 #####
 
 """
-    GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
+    GrachevParams{FT}
 
-Free parameters for the Grachev universal stability and stability correction
-functions.
+Parameter bundle for the Grachev et al. (2007) similarity relations,
+based on SHEBA data.
 
-# Fields
+ - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 9a).
+ - `a_h`, `b_h`, `c_h`: Coefficients for heat stability function (Eq. 9b).
+   Note: `c_h` is the coefficient for the linear ζ term in the denominator.
 
-$(DSE.FIELDS)
+Reference: Grachev et al. (2007).
 """
 Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
@@ -362,91 +537,112 @@ Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     γ::FT
 end
 
-# Nishizawa2018 Eq. A7
-f_momentum(::GrachevParams, ζ) = sqrt(sqrt(1 - 15 * ζ))
+"""
+    phi(p::GrachevParams, ζ, ::MomentumTransport)
 
-# Nishizawa2018 Eq. A8
-f_heat(::GrachevParams, ζ) = sqrt(1 - 9 * ζ)
+Grachev momentum similarity `ϕ_m`.
 
-function phi(p::GrachevParams, ζ, tt::MomentumTransport)
+# References
+ - Stable (ζ > 0): Eq. 9a in Grachev et al. (2007).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A1 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function phi(p::GrachevParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Grachev2007 Eq. 9a
         _a_m = FT(a_m(p))
         _b_m = FT(b_m(p))
-        return FT(1) + _a_m * ζ * (1 + ζ)^FT(1 / 3) / (1 + _b_m * ζ)
+        # Optimization: (1+ζ)^(1/3) -> cbrt(1+ζ)
+        return FT(1) + _a_m * ζ * cbrt(FT(1) + ζ) / (FT(1) + _b_m * ζ)
     else
-        # Nishizawa2018 Eq. A1 (ζ < 0)
-        f_m = f_momentum(p, ζ)
-        return FT(1) / FT(f_m)
+        # Fallback to Businger form with γ = 15
+        return _phi_m_unstable(ζ, FT(15))
     end
 end
 
-function phi(p::GrachevParams, ζ, tt::HeatTransport)
+"""
+    phi(p::GrachevParams, ζ, ::HeatTransport)
+
+Grachev heat-gradient similarity `ϕ_h`.
+
+# References
+ - Stable (ζ > 0): Eq. 9b in Grachev et al. (2007).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function phi(p::GrachevParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ > 0
         # Grachev2007 Eq. 9b
         _a_h = FT(a_h(p))
         _b_h = FT(b_h(p))
         _c_h = FT(c_h(p))
-        return FT(1) + (_a_h * ζ + _b_h * ζ^2) / (1 + _c_h * ζ + ζ^2)
+        return FT(1) + (_a_h * ζ + _b_h * ζ^2) / (FT(1) + _c_h * ζ + ζ^2)
     else
-        # Nishizawa2018 Eq. A2 (ζ < 0)
-        f_h = f_heat(p, ζ)
-        return FT(1) / FT(f_h)
+        # Fallback to Businger form with γ = 9
+        return _phi_h_unstable(ζ, FT(9))
     end
 end
 
-function psi(p::GrachevParams, ζ, tt::MomentumTransport)
+"""
+    psi(p::GrachevParams, ζ, ::MomentumTransport)
+
+Grachev momentum stability correction `ψ_m`.
+
+# References
+ - Stable (ζ > 0): Eq. 12 in Grachev et al. (2007).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A3 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::GrachevParams, ζ, ::MomentumTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 12
         _a_m = FT(a_m(p))
         _b_m = FT(b_m(p))
-        B_m = cbrt(1 / _b_m - 1)
-        x = cbrt(1 + ζ)
-        sqrt3 = FT(sqrt(3))
-        linear_term = -3 * (_a_m / _b_m) * (x - 1)
-        log_term_1 = 2 * log((x + B_m) / (1 + B_m))
-        log_term_2 = log((x^2 - x * B_m + B_m^2) / (1 - B_m + B_m^2))
-        atan_term_1 = atan((2 * x - B_m) / (sqrt3 * B_m))
-        atan_term_2 = atan((2 - B_m) / (sqrt3 * B_m))
+        # Optimization: cbrt
+        B_m = cbrt(FT(1) / _b_m - FT(1))
+        x = cbrt(FT(1) + ζ)
+        sqrt3 = sqrt(FT(3))
+        linear_term = -FT(3) * (_a_m / _b_m) * (x - FT(1))
+        log_term_1 = FT(2) * log((x + B_m) / (FT(1) + B_m))
+        log_term_2 = log((x^2 - x * B_m + B_m^2) / (FT(1) - B_m + B_m^2))
+        atan_term_1 = atan((FT(2) * x - B_m) / (sqrt3 * B_m))
+        atan_term_2 = atan((FT(2) - B_m) / (sqrt3 * B_m))
         atan_terms = atan_term_1 - atan_term_2
-        bracket_term = log_term_1 - log_term_2 + 2 * sqrt3 * atan_terms
-        return linear_term + _a_m * B_m / (2 * _b_m) * bracket_term
+        bracket_term = log_term_1 - log_term_2 + FT(2) * sqrt3 * atan_terms
+        return linear_term + _a_m * B_m / (FT(2) * _b_m) * bracket_term
     else
-        # Nishizawa2018 Eq. A3 (ζ < 0)
-        f_m = f_momentum(p, ζ)
-        log_term = log((1 + f_m)^2 * (1 + f_m^2) / 8)
-        return FT(log_term - 2 * atan(f_m) + π / 2)
+        # Fallback to Businger form with γ = 15
+        return _psi_m_unstable(ζ, FT(15))
     end
 end
 
-function psi(p::GrachevParams, ζ, tt::HeatTransport)
+"""
+    psi(p::GrachevParams, ζ, ::HeatTransport)
+
+Grachev heat stability correction `ψ_h`.
+
+# References
+ - Stable (ζ > 0): Eq. 13 in Grachev et al. (2007).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A4 (L < 0) in Nishizawa & Kitamura (2018).
+"""
+@inline function psi(p::GrachevParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
-    if abs(ζ) < eps(FT)
-        return FT(0)
-    end
     if ζ > 0
         # Grachev2007 Eq. 13
-        _Pr_0 = FT(Pr_0(p))
         _a_h = FT(a_h(p))
         _b_h = FT(b_h(p))
         _c_h = FT(c_h(p))
-        B_h = sqrt(_c_h^2 - 4)
-        coeff = _a_h / B_h - _b_h * _c_h / (2 * B_h)
-        log_term_1 = log((2 * ζ + _c_h - B_h) / (2 * ζ + _c_h + B_h))
+        # Constants computed on the fly 
+        B_h = sqrt(_c_h^2 - FT(4))
+        coeff = _a_h / B_h - _b_h * _c_h / (FT(2) * B_h)
+        log_term_1 = log((FT(2) * ζ + _c_h - B_h) / (FT(2) * ζ + _c_h + B_h))
         log_term_2 = log((_c_h - B_h) / (_c_h + B_h))
         log_terms = log_term_1 - log_term_2
-        term_2 = _b_h / 2 * log1p(_c_h * ζ + ζ^2)
+        term_2 = _b_h / FT(2) * log1p(_c_h * ζ + ζ^2)
         return -coeff * log_terms - term_2
     else
-        # Nishizawa2018 Eq. A4 (ζ < 0)
-        f_h = f_heat(p, ζ)
-        return FT(2 * log((1 + f_h) / 2))
+        # Fallback to Businger form with γ = 9
+        return _psi_h_unstable(ζ, FT(9))
     end
 end
 
