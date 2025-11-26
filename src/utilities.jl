@@ -42,4 +42,3 @@ end
 end
 
 @inline surface_geopotential(inputs::SurfaceFluxInputs) = inputs.Φs
-

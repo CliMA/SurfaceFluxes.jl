@@ -365,7 +365,7 @@ Gryanik heat-gradient similarity `ϕ_h`.
 @inline function phi(p::GryanikParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     _Pr_0 = FT(Pr_0(p))
-    if ζ >= 0 
+    if ζ >= 0
         # Gryanik2020 Eq. 33
         _a_h = FT(a_h(p))
         _b_h = FT(b_h(p))
@@ -438,15 +438,15 @@ Volume-averaged Gryanik momentum stability correction `Ψ_m`.
     if ζ >= 0
         # Limit at ζ -> 0 is 0. Required to avoid NaN (0/0) at exactly ζ = 0.
         if abs(ζ) < eps(FT)
-            return -_a_m * ζ / FT(2) 
+            return -_a_m * ζ / FT(2)
         end
-        
+
         # Optimization: use expm1/log1p to preserve precision for small ζ
         # (1 + b_m * ζ)^(4/3) - 1  == expm1(4/3 * log1p(b_m * ζ))
         term_diff = expm1(FT(4) / FT(3) * log1p(_b_m * ζ))
         numerator = FT(9) * _a_m * term_diff
         denominator = FT(4) * ζ * _b_m^2
-        
+
         return FT(3) * (_a_m / _b_m) - numerator / denominator
     else
         # Fallback to Businger form with γ = 15

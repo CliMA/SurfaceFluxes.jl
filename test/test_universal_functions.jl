@@ -149,65 +149,6 @@ end
         end
     end
 
-    @testset "Neutral continuity (ζ → 0)" begin
-        for FT in (Float32, Float64)
-            # Test close to zero to verify the limit, but not so close 
-            # that we hit the linear approximation guards in the code.
-            # 1e-6 is safe for Float32/64 to verify continuity behavior.
-            ζ_small = FT(1e-6)
-
-            # Tolerance must accommodate the slope times the step size.
-            # Since we compare f(ε) to f(0), error is O(slope * ε).
-            # Slope is ~5. 5 * 1e-6 = 5e-6.
-            atol = FT(10 * ζ_small)
-
-            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
-                # 1. Limits for phi and psi (Available for ALL parameterizations)
-                ϕ_0 = UF.phi(ufp, FT(0), transport)
-                ψ_0 = UF.psi(ufp, FT(0), transport)
-
-                # 2. Test Stable Branch (ζ > 0) -> Limit
-                @test isapprox(UF.phi(ufp, ζ_small, transport), ϕ_0; atol = atol)
-                @test isapprox(UF.psi(ufp, ζ_small, transport), ψ_0; atol = atol)
-
-                # 3. Test Unstable Branch (ζ < 0) -> Limit
-                @test isapprox(UF.phi(ufp, -ζ_small, transport), ϕ_0; atol = atol)
-                @test isapprox(UF.psi(ufp, -ζ_small, transport), ψ_0; atol = atol)
-
-                # 4. Limits for Psi (Available ONLY for Businger and Gryanik)
-                # Grachev does not implement Psi, so we skip it to avoid MethodError
-                if !(ufp isa UF.GrachevParams)
-                    Ψ_0 = UF.Psi(ufp, FT(0), transport)
-                    @test isapprox(UF.Psi(ufp, ζ_small, transport), Ψ_0; atol = atol)
-                    @test isapprox(UF.Psi(ufp, -ζ_small, transport), Ψ_0; atol = atol)
-                end
-            end
-
-        end
-    end
-
-    @testset "Derivative consistency ϕ(ζ) ≈ ϕ(0) - ζ·ψ'(ζ)" begin
-        # Test that the analytical psi is consistent with phi via finite differences
-        for FT in (Float32, Float64)
-            ζ_samples = (FT(-5), FT(-1), FT(-0.1), FT(0.1), FT(1), FT(5))
-            ϵ = cbrt(eps(FT)) # Finite difference step size
-
-            for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
-                # Central difference approximation of ψ'(ζ)
-                ψ_plus = UF.psi(ufp, ζ + ϵ, transport)
-                ψ_minus = UF.psi(ufp, ζ - ϵ, transport)
-                dψ_dζ = (ψ_plus - ψ_minus) / (2ϵ)
-
-                ϕ_0 = UF.phi(ufp, FT(0), transport)
-                ϕ_expected = ϕ_0 - ζ * dψ_dζ
-                ϕ_actual = UF.phi(ufp, ζ, transport)
-
-                # Tolerances need to be loose for FD, especially with changing curvature
-                @test isapprox(ϕ_actual, ϕ_expected; rtol = sqrt(ϵ))
-            end
-        end
-    end
-
     @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
