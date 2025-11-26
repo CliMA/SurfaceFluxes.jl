@@ -45,6 +45,21 @@ function BusingerParams(toml_dict::CP.ParamDict{FT}) where {FT}
     return BusingerParams{FT}(; parameters...)
 end
 
+"""
+    _get_businger_unstable_params(toml_dict)
+
+Helper function to get Businger b_m and b_h parameters for use in unstable branches
+of Gryanik and Grachev parameterizations.
+"""
+function _get_businger_unstable_params(toml_dict::CP.ParamDict{FT}) where {FT}
+    businger_name_map = (;
+        :coefficient_b_m_businger => :b_m,
+        :coefficient_b_h_businger => :b_h,
+    )
+    businger_params = CP.get_parameter_values(toml_dict, businger_name_map, "SurfaceFluxes")
+    return (; b_m_unstable = businger_params.b_m, b_h_unstable = businger_params.b_h)
+end
+
 GryanikParams(::Type{FT}) where {FT <: AbstractFloat} =
     GryanikParams(CP.create_toml_dict(FT))
 
@@ -59,7 +74,8 @@ function GryanikParams(toml_dict::CP.ParamDict{FT}) where {FT}
         :most_stability_exponent_gryanik => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    return GryanikParams{FT}(; parameters...)
+    unstable_params = _get_businger_unstable_params(toml_dict)
+    return GryanikParams{FT}(; parameters..., unstable_params...)
 end
 
 GrachevParams(::Type{FT}) where {FT <: AbstractFloat} =
@@ -77,7 +93,8 @@ function GrachevParams(toml_dict::CP.ParamDict{FT}) where {FT}
         :most_stability_exponent_grachev => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    return GrachevParams{FT}(; parameters...)
+    unstable_params = _get_businger_unstable_params(toml_dict)
+    return GrachevParams{FT}(; parameters..., unstable_params...)
 end
 
 end

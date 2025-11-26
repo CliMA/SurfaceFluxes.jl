@@ -353,6 +353,8 @@ Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     a_h::FT
     b_m::FT
     b_h::FT
+    b_m_unstable::FT
+    b_h_unstable::FT
     ζ_a::FT
     γ::FT
 end
@@ -376,8 +378,8 @@ Gryanik momentum similarity `ϕ_m`.
         denom = cbrt((FT(1) + _b_m * ζ)^2)
         return FT(1) + (_a_m * ζ) / denom
     else
-        # Fallback to Businger form with γ = 15
-        return _phi_m_unstable(ζ, FT(15))
+        # Fallback to Businger form
+        return _phi_m_unstable(ζ, FT(b_m_unstable(p)))
     end
 end
 
@@ -400,7 +402,7 @@ Gryanik heat-gradient similarity `ϕ_h`.
         return _Pr_0 * (FT(1) + (_a_h * ζ) / (FT(1) + _b_h * ζ))
     else
         # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
-        return _Pr_0 * _phi_h_unstable(ζ, FT(9))
+        return _Pr_0 * _phi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
 
@@ -422,8 +424,8 @@ Gryanik momentum stability correction `ψ_m`.
         # Optimization: (1 + b_m*ζ)^(1/3) -> cbrt(...)
         return -FT(3) * (_a_m / _b_m) * (cbrt(FT(1) + _b_m * ζ) - FT(1))
     else
-        # Fallback to Businger form with γ = 15
-        return _psi_m_unstable(ζ, FT(15))
+        # Fallback to Businger form
+        return _psi_m_unstable(ζ, FT(b_m_unstable(p)))
     end
 end
 
@@ -446,7 +448,7 @@ Gryanik heat stability correction `ψ_h`.
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
         # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
-        return _Pr_0 * _psi_h_unstable(ζ, FT(9))
+        return _Pr_0 * _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
 
@@ -477,8 +479,8 @@ Volume-averaged Gryanik momentum stability correction `Ψ_m`.
 
         return FT(3) * (_a_m / _b_m) - numerator / denominator
     else
-        # Fallback to Businger form with γ = 15
-        return _Psi_m_unstable(ζ, FT(15))
+        # Fallback to Businger form
+        return _Psi_m_unstable(ζ, FT(b_m_unstable(p)))
     end
 end
 
@@ -506,7 +508,7 @@ Volume-averaged Gryanik heat stability correction `Ψ_h`.
         return -_a_h / _b_h / ζ * _Pr_0 * ((FT(1) / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
     else
         # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
-        return _Pr_0 * _Psi_h_unstable(ζ, FT(9))
+        return _Pr_0 * _Psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
 
@@ -533,9 +535,17 @@ Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     b_m::FT
     b_h::FT
     c_h::FT
+    b_m_unstable::FT
+    b_h_unstable::FT
     ζ_a::FT
     γ::FT
 end
+
+# Accessor methods for unstable coefficients (defined after structs)
+b_m_unstable(p::GryanikParams) = p.b_m_unstable
+b_h_unstable(p::GryanikParams) = p.b_h_unstable
+b_m_unstable(p::GrachevParams) = p.b_m_unstable
+b_h_unstable(p::GrachevParams) = p.b_h_unstable
 
 """
     phi(p::GrachevParams, ζ, ::MomentumTransport)
@@ -555,8 +565,8 @@ Grachev momentum similarity `ϕ_m`.
         # Optimization: (1+ζ)^(1/3) -> cbrt(1+ζ)
         return FT(1) + _a_m * ζ * cbrt(FT(1) + ζ) / (FT(1) + _b_m * ζ)
     else
-        # Fallback to Businger form with γ = 15
-        return _phi_m_unstable(ζ, FT(15))
+        # Fallback to Businger form
+        return _phi_m_unstable(ζ, FT(b_m_unstable(p)))
     end
 end
 
@@ -578,8 +588,8 @@ Grachev heat-gradient similarity `ϕ_h`.
         _c_h = FT(c_h(p))
         return FT(1) + (_a_h * ζ + _b_h * ζ^2) / (FT(1) + _c_h * ζ + ζ^2)
     else
-        # Fallback to Businger form with γ = 9
-        return _phi_h_unstable(ζ, FT(9))
+        # Fallback to Businger form
+        return _phi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
 
@@ -611,8 +621,8 @@ Grachev momentum stability correction `ψ_m`.
         bracket_term = log_term_1 - log_term_2 + FT(2) * sqrt3 * atan_terms
         return linear_term + _a_m * B_m / (FT(2) * _b_m) * bracket_term
     else
-        # Fallback to Businger form with γ = 15
-        return _psi_m_unstable(ζ, FT(15))
+        # Fallback to Businger form
+        return _psi_m_unstable(ζ, FT(b_m_unstable(p)))
     end
 end
 
@@ -641,8 +651,8 @@ Grachev heat stability correction `ψ_h`.
         term_2 = _b_h / FT(2) * log1p(_c_h * ζ + ζ^2)
         return -coeff * log_terms - term_2
     else
-        # Fallback to Businger form with γ = 9
-        return _psi_h_unstable(ζ, FT(9))
+        # Fallback to Businger form
+        return _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
 
