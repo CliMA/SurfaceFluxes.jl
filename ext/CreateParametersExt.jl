@@ -117,47 +117,18 @@ end
 """
     _get_businger_unstable_params(toml_dict)
 
-Helper function to extract Businger `b_m` and `b_h` parameters for use in unstable
-branches of Gryanik and Grachev parameterizations.
-
-The unstable branches of Gryanik and Grachev parameterizations fall back to the Businger
-formulation. This function reads the Businger coefficients from the TOML dictionary and
-returns them as `b_m_unstable` and `b_h_unstable` for use in those fallback branches.
-
-# Arguments
-- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
-
-# Returns
-A named tuple `(; b_m_unstable, b_h_unstable)` containing the Businger coefficients
-for momentum and heat transport in unstable conditions.
-
-# Notes
-- `b_m_unstable` corresponds to the coefficient γ in `(1 - γζ)^(-1/4)` for momentum.
-- `b_h_unstable` corresponds to the coefficient γ in `(1 - γζ)^(-1/2)` for heat.
-- These values are typically 15.0 and 9.0 respectively for standard Businger parameters.
+Helper function to get Businger b_m and b_h parameters for use in unstable branches
+of Gryanik and Grachev parameterizations.
 """
 function _get_businger_unstable_params(toml_dict::CP.ParamDict{FT}) where {FT}
     businger_name_map = (;
-        :coefficient_b_m_businger => :b_m_unstable,
-        :coefficient_b_h_businger => :b_h_unstable,
+        :coefficient_b_m_businger => :b_m,
+        :coefficient_b_h_businger => :b_h,
     )
-    return CP.get_parameter_values(toml_dict, businger_name_map, "SurfaceFluxes")
+    businger_params = CP.get_parameter_values(toml_dict, businger_name_map, "SurfaceFluxes")
+    return (; b_m_unstable = businger_params.b_m, b_h_unstable = businger_params.b_h)
 end
 
-"""
-    GryanikParams(::Type{FT})
-
-Construct `GryanikParams` for the specified floating-point type using default parameter
-values from ClimaParams.
-
-# Arguments
-- `FT`: Floating-point type (e.g., `Float32`, `Float64`).
-
-# Returns
-A `GryanikParams` instance with default parameter values from the TOML configuration.
-
-See also: [`GryanikParams(toml_dict)`](@ref)
-"""
 GryanikParams(::Type{FT}) where {FT <: AbstractFloat} =
     GryanikParams(CP.create_toml_dict(FT))
 
