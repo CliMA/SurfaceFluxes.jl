@@ -186,6 +186,28 @@ end
         end
     end
 
+    @testset "Derivative consistency ϕ(ζ) ≈ ϕ(0) - ζ·ψ'(ζ)" begin
+        # Test that the analytical psi is consistent with phi via finite differences
+        for FT in (Float32, Float64)
+            ζ_samples = (FT(-5), FT(-1), FT(-0.1), FT(0.1), FT(1), FT(5))
+            ϵ = cbrt(eps(FT)) # Finite difference step size
+
+            for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # Central difference approximation of ψ'(ζ)
+                ψ_plus = UF.psi(ufp, ζ + ϵ, transport)
+                ψ_minus = UF.psi(ufp, ζ - ϵ, transport)
+                dψ_dζ = (ψ_plus - ψ_minus) / (2ϵ)
+
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+                ϕ_expected = ϕ_0 - ζ * dψ_dζ
+                ϕ_actual = UF.phi(ufp, ζ, transport)
+
+                # Tolerances need to be loose for FD, especially with changing curvature
+                @test isapprox(ϕ_actual, ϕ_expected; rtol = sqrt(ϵ))
+            end
+        end
+    end
+
     @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
@@ -249,7 +271,7 @@ end
                     # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
                     # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
                     # Slope is a_h / Pr_0.
-                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    expected_h = - (FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end
