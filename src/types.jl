@@ -256,7 +256,7 @@ struct SimilarityScales{FT}
     ell_q::FT
 end
 
-struct SolverSnapshot{FT, S<:SimilarityScales{FT}}
+struct SolverSnapshot{FT, S <: SimilarityScales{FT}}
     scales::S
     ρ_sfc::FT
     gustiness::FT

@@ -24,4 +24,3 @@ end
 )
     return resolve_quantity(inputs.z0b_spec, ctx)
 end
-

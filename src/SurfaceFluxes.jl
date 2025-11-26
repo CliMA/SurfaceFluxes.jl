@@ -299,30 +299,34 @@ function solve_surface_layer(
             grav,
         )
 
-        Cd_val = inputs.Cd === nothing ? momentum_exchange_coefficient(
-            param_set,
-            current.L_star,
-            current.u_star,
-            current.ell_u,
-            inputs,
-            scheme,
-            tol_neutral,
-            gustiness,
-            ΔDSE_val,
-        ) : inputs.Cd
+        Cd_val =
+            inputs.Cd === nothing ?
+            momentum_exchange_coefficient(
+                param_set,
+                current.L_star,
+                current.u_star,
+                current.ell_u,
+                inputs,
+                scheme,
+                tol_neutral,
+                gustiness,
+                ΔDSE_val,
+            ) : inputs.Cd
 
-        Ch_val = inputs.Ch === nothing ? heat_exchange_coefficient(
-            param_set,
-            current.L_star,
-            current.u_star,
-            current.ell_u,
-            current.ell_theta,
-            inputs,
-            scheme,
-            tol_neutral,
-            gustiness,
-            ΔDSE_val,
-        ) : inputs.Ch
+        Ch_val =
+            inputs.Ch === nothing ?
+            heat_exchange_coefficient(
+                param_set,
+                current.L_star,
+                current.u_star,
+                current.ell_u,
+                current.ell_theta,
+                inputs,
+                scheme,
+                tol_neutral,
+                gustiness,
+                ΔDSE_val,
+            ) : inputs.Ch
 
         E = evaporation(
             param_set,
@@ -437,7 +441,7 @@ function iterate_interface_fluxes(
     Δq_val,
     DSEᵥ_in_val,
     grav,
-) 
+)
     FT = typeof(approximate_state.u_star)
     u_star = approximate_state.u_star
     ell_u = compute_z0(u_star, param_set, inputs, UF.MomentumTransport(), ctx)

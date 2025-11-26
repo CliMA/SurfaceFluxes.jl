@@ -144,7 +144,7 @@ end
         end
     end
 
-    @testset "Integral consistency ψ(ζ) = ∫(1-ϕ)/ζ′ dζ′" begin
+    @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
                 FT(-20),
@@ -157,9 +157,13 @@ end
                 FT(20),
             )
             for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # Determine the neutral limit ϕ(0) dynamically
+                # For Businger this is 1. For Gryanik/Grachev heat this is Pr_0.
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+
                 # quadgk returns (value, error)
                 ψ_int, _ = QuadGK.quadgk(
-                    ζ′ -> (FT(1) - UF.phi(ufp, ζ′, transport)) / ζ′,
+                    ζ′ -> (ϕ_0 - UF.phi(ufp, ζ′, transport)) / ζ′,
                     eps(FT),
                     ζ;
                     rtol = 1e-9,
