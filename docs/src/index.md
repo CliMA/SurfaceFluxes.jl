@@ -9,8 +9,8 @@ SurfaceFluxes
 The `src/` directory contains the following files organized by functionality:
 
 ### Core Module Files
-- **`SurfaceFluxes.jl`**: Main module file containing the `surface_conditions` function and `obukhov_similarity_solution` solver
-- **`types.jl`**: Type definitions including `AbstractSurfaceConditions`, `SolverScheme`, `RoughnessModel`, and related structs
+- **`SurfaceFluxes.jl`**: Main module file containing the `surface_fluxes` function and `obukhov_similarity_solution` solver
+- **`types.jl`**: Type definitions including `SurfaceFluxInputs`, `SolverScheme`, and quantity/solver helper structs
 - **`utilities.jl`**: Helper functions for state accessors, Richardson number computation, and thermodynamic differences
 - **`Parameters.jl`**: Parameter set definitions for physical constants
 - **`UniversalFunctions.jl`**: Universal function implementations (Businger, Gryanik, Grachev)
@@ -27,7 +27,7 @@ The `src/` directory contains the following files organized by functionality:
 
 ### Surface Condition Input Types
 - **`coefficient_inputs.jl`**: Methods for surface conditions specified via exchange coefficients (Cd, Ch)
-- **`roughness_models.jl`**: Roughness length models (ScalarRoughness, CharnockRoughness)
+- **`roughness_lengths.jl`**: Roughness length evaluation helpers for momentum/scalar callables
 
 ### Profile Recovery
 - **`profile_recovery.jl`**: Functions to recover vertical profiles within the surface layer using Monin-Obukhov similarity theory
@@ -50,7 +50,7 @@ SurfaceFluxes.ValuesOnly
 ## User-facing methods
 
 ```@docs
-SurfaceFluxes.surface_conditions
+SurfaceFluxes.surface_fluxes
 SurfaceFluxes.recover_profile
 ```
 

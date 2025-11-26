@@ -10,7 +10,7 @@ include("test_utils.jl")
 
 Numerical regression cases derived from challenging configurations.
 Each case stores the state specification and the expected `SurfaceFluxConditions`
-returned by `surface_conditions`. The expected values were generated using 
+returned by `surface_fluxes`. The expected values were generated using 
 SurfaceFluxes v0.13.1 and provide a regression target for changes.
 """
 function case_definitions(::Type{FT}) where {FT}
@@ -259,7 +259,7 @@ end
     for case in case_definitions(FT)
         @testset "$(case.name)" begin
             sc, state_in, state_sfc = build_values_only_case(case, FT)
-            result = surface_conditions_wrapper(param_set, sc)
+            result = surface_fluxes_wrapper(param_set, sc)
 
             for field in CASE_NUMERIC_FIELDS
                 expected_value = getfield(case.expected, field)
@@ -288,7 +288,7 @@ end
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     base_case = case_definitions(FT)[1]
     base_sc, state_in, state_sfc = build_values_only_case(base_case, FT)
-    base_result = surface_conditions_wrapper(param_set, base_sc)
+    base_result = surface_fluxes_wrapper(param_set, base_sc)
 
     z0m, z0b = base_case.z0m, base_case.z0b
     @testset "Flux-prescribed container" begin
@@ -300,7 +300,7 @@ end
             z0m,
             z0b,
         )
-        flux_result = surface_conditions_wrapper(param_set, flux_sc)
+        flux_result = surface_fluxes_wrapper(param_set, flux_sc)
         @test isapprox(flux_result.L_MO, base_result.L_MO; rtol = FT(1e-3))
     end
 
@@ -314,7 +314,7 @@ end
             z0m,
             z0b,
         )
-        result_fluxustar = surface_conditions_wrapper(param_set, fluxustar_sc)
+        result_fluxustar = surface_fluxes_wrapper(param_set, fluxustar_sc)
         @test isapprox(
             result_fluxustar.ustar,
             base_result.ustar;
@@ -342,7 +342,7 @@ end
             base_result.Cd,
             base_result.Ch,
         )
-        coeff_result = surface_conditions_wrapper(param_set, coeff_sc)
+        coeff_result = surface_fluxes_wrapper(param_set, coeff_sc)
         @test isapprox(
             coeff_result.ustar,
             base_result.ustar;

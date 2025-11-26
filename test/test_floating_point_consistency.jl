@@ -1,7 +1,7 @@
 # Floating-point consistency checks for Obukhov solutions
 #
 # 1. Near-zero test: ensures helper utilities such as `non_zero` preserve sign
-#    and that `surface_conditions` still returns a meaningful (non-zero) L_MO
+#    and that `surface_fluxes` still returns a meaningful (non-zero) L_MO
 #    when the layer spacing approaches zero.
 # 2. Identical-state test: compares Float32 vs Float64 solutions over a grid of
 #    heights and roughness lengths to make sure both precisions agree within 1%.
@@ -30,7 +30,7 @@ end
 
         for z_int in NEAR_ZERO_Z_LEVELS
             sc = build_values_only_case(FT, z_int, ts_int, ts_sfc, 1e-5, 1e-5)
-            sfc_output = surface_conditions_wrapper(param_set, sc)
+            sfc_output = surface_fluxes_wrapper(param_set, sc)
             L_MO = sfc_output.L_MO
             @test L_MO != FT(0)
         end
@@ -49,7 +49,7 @@ end
             (ll, z0b) in enumerate(IDENTICAL_Z0)
 
             sc = build_values_only_case(FT, z_int, ts, ts, z0m, z0b)
-            sfc_output = surface_conditions_wrapper(param_set, sc; maxiter = 20)
+            sfc_output = surface_fluxes_wrapper(param_set, sc; maxiter = 20)
             L = isinf(sfc_output.L_MO) ? FT(1e6) : sfc_output.L_MO
             sol_mat[ii, jj, kk, ll] = Float64(L)
         end
