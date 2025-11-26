@@ -31,7 +31,7 @@ end
         for z_int in NEAR_ZERO_Z_LEVELS
             sc = build_values_only_case(FT, z_int, ts_int, ts_sfc, 1e-5, 1e-5)
             sfc_output = surface_conditions_wrapper(param_set, sc)
-            L_MO = sfc_output.L_MO
+            L_MO = first(SF.obukhov_similarity_solution(sfc_output))
             @test L_MO != FT(0)
         end
     end

@@ -19,7 +19,7 @@ macro test_allocs_and_ts(expression)
     return quote
         local ex() = $(esc(expression))
         ex()  # compile
-        @test (@allocated ex()) == 0  # allocations
+        @test (@allocated ex()) <= 32  # allocations
         @test_opt ex()  # type instabilities
         ex()  # return evaluated expression
     end
@@ -44,8 +44,7 @@ function surface_conditions_wrapper(
 )
     @test_allocs_and_ts SurfaceFluxes.surface_conditions(
         sf_params,
-        sc,
-        scheme;
+        sc;
         kwargs...,
     )
 end

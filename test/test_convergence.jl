@@ -143,6 +143,7 @@ end
                     scheme;
                     maxiter = 15,
                     tol_neutral = tol_neutral,
+                    soltype = RS.CompactSolution(),
                 )
                 assert_flux_expectations(result, case, FT, param_set, sc)
             end
