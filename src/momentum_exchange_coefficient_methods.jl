@@ -3,9 +3,7 @@
 
 Compute and return Cd, the momentum exchange coefficient.
 
-For neutral conditions (when `abs(ΔDSEᵥ) <= tol_neutral`), uses the logarithmic
-law of the wall. Otherwise, computes Cd from the friction velocity and wind speed
-using the Monin-Obukhov similarity theory.
+Computes Cd from the friction velocity and wind speed using the Monin-Obukhov similarity theory.
 
 ## Arguments
 - `param_set`: Abstract parameter set containing physical constants
@@ -13,7 +11,7 @@ using the Monin-Obukhov similarity theory.
 - `u★`: Friction velocity
 - `sc`: Surface conditions container
 - `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
-- `tol_neutral`: Tolerance for neutral stability detection (default: `cp_d / 100`)
+- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for API compatibility)
 
 ## Returns
 - `Cd`: Momentum exchange coefficient
@@ -29,12 +27,8 @@ function momentum_exchange_coefficient(
     thermo_params = SFP.thermodynamics_params(param_set)
     κ = SFP.von_karman_const(param_set)
     𝓁 = compute_z0(u★, param_set, sc, sc.roughness_model, UF.MomentumTransport())
-    if abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral
-        Cd = (κ / log(Δz(sc) / 𝓁))^2
-    else
-        ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
-        Cd = ustar^2 / windspeed(sc)^2
-    end
+    ustar = compute_ustar(param_set, L_MO, 𝓁, sc, scheme)
+    Cd = ustar^2 / windspeed(sc)^2
     return Cd
 end
 
