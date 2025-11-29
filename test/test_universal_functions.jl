@@ -1,4 +1,4 @@
-# Tests type stability and asymptotic behavior of universal functions.
+# Tests type stability,continuity, and asymptotic behavior of universal functions.
 
 using Test
 
@@ -22,8 +22,8 @@ from ClimaParams via the `UF.{Businger, Gryanik, Grachev}Params(FT)` constructor
 universal_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
     (UF.GryanikParams(FT), UF.GrachevParams(FT), UF.BusingerParams(FT))
 
-# Some tests only apply to a subset of parameterizations (e.g., the integrated stability c
-# orrection function `Psi` is not defined for the `Grachev` parameterization).
+# Some tests only apply to a subset of parameterizations (e.g., the integrated stability
+# correction function `Psi` is not defined for the `Grachev` parameterization).
 psi_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
     (UF.GryanikParams(FT), UF.BusingerParams(FT))
 
@@ -79,12 +79,7 @@ end
 
     @testset "Type stability (Psi)" begin
         for FT in (Float32, Float64)
-            ζ_values = (
-                -FT(1),
-                -FT(0.5) * eps(FT),
-                FT(0.5) * eps(FT),
-                FT(2) * eps(FT),
-            )
+            ζ_values = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), FT(2) * eps(FT))
             for ufp in psi_parameter_sets(FT)
                 for transport in TRANSPORTS
                     Ψ = UF.Psi.(Ref(ufp), ζ_values, Ref(transport))
@@ -97,13 +92,7 @@ end
     @testset "Neutral logarithmic velocity profile" begin
         for FT in (Float32, Float64)
             z0 = FT(1)
-            heights = (
-                FT(2),
-                FT(4),
-                FT(8),
-                FT(32),
-                FT(128),
-            )
+            heights = (FT(2), FT(4), FT(8), FT(32), FT(128))
             # Use a very large Obukhov length to emulate neutral conditions.
             L_neutral = floatmax(FT) / FT(2)
             tol = max(FT(100) * eps(FT), FT(1e-12))
@@ -282,7 +271,7 @@ end
                     # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
                     # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
                     # Slope is a_h / Pr_0.
-                    expected_h = - (FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end

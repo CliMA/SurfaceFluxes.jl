@@ -1,3 +1,7 @@
+if !("." in LOAD_PATH) # for ease of local testing
+    push!(LOAD_PATH, ".")
+end
+
 import Plots
 
 import SurfaceFluxes as SF
@@ -7,9 +11,9 @@ import ClimaParams as CP
 
 const FT = Float32
 
-ζ = FT(-0.1):FT(0.001):FT(0.1);
+ζ = FT(-0.1):FT(0.001):FT(0.1)
 
-L = FT(10);
+L = FT(10)
 
 ufps = (
     UF.GryanikParams(FT),
@@ -57,6 +61,7 @@ function save_ϕ_figs(
         )
     end
     Plots.savefig("$(fig_prefix)_phi_h.svg")
+    return nothing
 end
 function save_ψ_figs(
     ufps,
@@ -98,6 +103,7 @@ function save_ψ_figs(
         )
     end
     Plots.savefig("$(fig_prefix)_psi_h.svg")
+    return nothing
 end
 
 

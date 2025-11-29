@@ -133,7 +133,7 @@ end
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
             param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
-            tol_neutral = FT(SF.Parameters.cp_d(param_set) / 10)
+            tol_neutral = FT(SF.Parameters.cp_d(param_set) / 1e5)  # TODO: remove tol_neutral as a relevant threshold
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
             for case in cases, roughness_model in roughness_models, scheme in scheme_set
                 sc = build_surface_condition(param_set, case, roughness_model)
