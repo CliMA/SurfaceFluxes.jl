@@ -16,12 +16,7 @@ function momentum_exchange_coefficient(
     gustiness::FT,
     ΔDSEᵥ_val::FT,
 ) where {FT}
-    κ = SFP.von_karman_const(param_set)
     ΔU = windspeed(inputs, gustiness)
-    if abs(ΔDSEᵥ_val) <= tol_neutral
-        Cd = (κ / log(inputs.Δz / 𝓁u))^2
-    else
-        Cd = (u★ / ΔU)^2
-    end
+    Cd = (u★ / ΔU)^2
     return Cd
 end

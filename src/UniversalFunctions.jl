@@ -500,6 +500,7 @@ Volume-averaged Gryanik momentum stability correction `Ψ_m`.
 
         base_val = _b_m * ζ
         term_diff = expm1(FT(4) / FT(3) * log1p(base_val)) # Equivalent to ((1 + bζ)^(4/3) - 1)
+
         numerator = FT(9) * _a_m * term_diff
         denominator = FT(4) * ζ * _b_m^2
 
