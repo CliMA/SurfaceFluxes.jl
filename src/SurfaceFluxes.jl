@@ -450,8 +450,8 @@ function iterate_interface_fluxes(
     κ = SFP.von_karman_const(param_set)
     dsev_star = approximate_state.dsev_star
     b_star = dsev_star * grav / DSEᵥ_in_val
-    if abs(ΔDSE_val) <= tol_neutral
-        sgn = iszero(ΔDSE_val) ? one(FT) : sign(ΔDSE_val)
+    if abs(b_star) <= eps(FT)
+        sgn = iszero(b_star) ? one(FT) : sign(b_star)
         L_star = sgn * FT(Inf)
     else
         L_star = u_star^2 / (κ * b_star)

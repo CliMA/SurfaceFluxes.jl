@@ -18,20 +18,15 @@ function heat_exchange_coefficient(
     ΔDSEᵥ_val::FT,
 ) where {FT}
     transport = UF.HeatTransport()
-    𝜅 = SFP.von_karman_const(param_set)
     ΔU = windspeed(inputs, gustiness)
-    if abs(ΔDSEᵥ_val) <= tol_neutral
-        Ch = 𝜅^2 / (log(inputs.Δz / 𝓁θ) * log(inputs.Δz / 𝓁u))
-    else
-        ϕ_heat = compute_physical_scale_coeff(
-            param_set,
-            inputs,
-            L_MO,
-            𝓁θ,
-            transport,
-            scheme,
-        )
-        Ch = u★ * ϕ_heat / ΔU
-    end
+    ϕ_heat = compute_physical_scale_coeff(
+        param_set,
+        inputs,
+        L_MO,
+        𝓁θ,
+        transport,
+        scheme,
+    )
+    Ch = u★ * ϕ_heat / ΔU
     return Ch
 end

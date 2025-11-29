@@ -471,9 +471,21 @@ Volume-averaged Gryanik momentum stability correction `Ψ_m`.
             return -_a_m * ζ / FT(2)
         end
 
-        # Optimization: use expm1/log1p to preserve precision for small ζ
-        # (1 + b_m * ζ)^(4/3) - 1  == expm1(4/3 * log1p(b_m * ζ))
-        term_diff = expm1(FT(4) / FT(3) * log1p(_b_m * ζ))
+        # Analytical Integral of Gryanik et al. (2020), Eq. 34:
+        # The volume-averaged stability function Ψ_m is defined as (1/ζ) ∫ ψ_m(x) dx.
+        # Integrating Eq. 34 yields:
+        # Ψ_m(ζ) = 3(a_m/b_m) - [9 a_m / (4 b_m² ζ)] * ((1 + b_m ζ)^(4/3) - 1)
+
+        # Numerical Optimization:
+        # The term ((1 + b_m ζ)^(4/3) - 1) suffers from catastrophic cancellation 
+        # when ζ is small (the result approaches 0).
+        # We use the identity: u^p - 1 = exp(p * ln(u)) - 1 = expm1(p * log(u))
+        # substituting u = (1 + b_m ζ) and p = 4/3.
+        # We further use log1p(x) for log(1+x) to maintain precision.
+
+        base_val = _b_m * ζ
+        term_diff = expm1(FT(4) / FT(3) * log1p(base_val)) # Equivalent to ((1 + bζ)^(4/3) - 1)
+
         numerator = FT(9) * _a_m * term_diff
         denominator = FT(4) * ζ * _b_m^2
 
