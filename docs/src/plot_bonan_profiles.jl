@@ -475,3 +475,4 @@ p4 = Plots.plot!(
 
 bonan_fig = Plots.plot(p1, p2, p3, p4; layout = pl)
 Plots.savefig("Bonan_Fig6-4.svg")
+nothing

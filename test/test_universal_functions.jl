@@ -1,4 +1,4 @@
-# Tests type stability and asymptotic behavior of universal functions.
+# Tests type stability,continuity, and asymptotic behavior of universal functions.
 
 using Test
 
@@ -22,8 +22,8 @@ from ClimaParams via the `UF.{Businger, Gryanik, Grachev}Params(FT)` constructor
 universal_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
     (UF.GryanikParams(FT), UF.GrachevParams(FT), UF.BusingerParams(FT))
 
-# Some tests only apply to a subset of parameterizations (e.g., the integrated stability c
-# orrection function `Psi` is not defined for the `Grachev` parameterization).
+# Some tests only apply to a subset of parameterizations (e.g., the integrated stability
+# correction function `Psi` is not defined for the `Grachev` parameterization).
 psi_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
     (UF.GryanikParams(FT), UF.BusingerParams(FT))
 
@@ -79,12 +79,7 @@ end
 
     @testset "Type stability (Psi)" begin
         for FT in (Float32, Float64)
-            ζ_values = (
-                -FT(1),
-                -FT(0.5) * eps(FT),
-                FT(0.5) * eps(FT),
-                FT(2) * eps(FT),
-            )
+            ζ_values = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), FT(2) * eps(FT))
             for ufp in psi_parameter_sets(FT)
                 for transport in TRANSPORTS
                     Ψ = UF.Psi.(Ref(ufp), ζ_values, Ref(transport))
@@ -97,13 +92,7 @@ end
     @testset "Neutral logarithmic velocity profile" begin
         for FT in (Float32, Float64)
             z0 = FT(1)
-            heights = (
-                FT(2),
-                FT(4),
-                FT(8),
-                FT(32),
-                FT(128),
-            )
+            heights = (FT(2), FT(4), FT(8), FT(32), FT(128))
             # Use a very large Obukhov length to emulate neutral conditions.
             L_neutral = floatmax(FT) / FT(2)
             tol = max(FT(100) * eps(FT), FT(1e-12))
@@ -134,6 +123,22 @@ end
         end
     end
 
+    @testset "Monotonicity of ϕ(ζ)" begin
+        # ϕ should increase with stability (ζ)
+        for FT in (Float32, Float64)
+            ζ_grid = range(FT(-5), FT(5), length = 100)
+
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                ϕ_vals = [UF.phi(ufp, ζ, transport) for ζ in ζ_grid]
+
+                # Check that differences between consecutive points are positive
+                diffs = diff(ϕ_vals)
+
+                @test all(d -> d > -eps(FT), diffs) # Allow for numerical noise
+            end
+        end
+    end
+
     @testset "ψ(0) == 0" begin
         FT = Float32
         for ufp in (UF.GryanikParams(FT), UF.GrachevParams(FT))
@@ -144,7 +149,66 @@ end
         end
     end
 
-    @testset "Integral consistency ψ(ζ) = ∫(1-ϕ)/ζ′ dζ′" begin
+    @testset "Neutral continuity (ζ → 0)" begin
+        for FT in (Float32, Float64)
+            # Test close to zero to verify the limit, but not so close 
+            # that we hit the linear approximation guards in the code.
+            # 1e-6 is safe for Float32/64 to verify continuity behavior.
+            ζ_small = FT(1e-6)
+
+            # Tolerance must accommodate the slope times the step size.
+            # Since we compare f(ε) to f(0), error is O(slope * ε).
+            # Slope is ~5. 5 * 1e-6 = 5e-6.
+            atol = FT(10 * ζ_small)
+
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # 1. Limits for phi and psi (Available for ALL parameterizations)
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+                ψ_0 = UF.psi(ufp, FT(0), transport)
+
+                # 2. Test Stable Branch (ζ > 0) -> Limit
+                @test isapprox(UF.phi(ufp, ζ_small, transport), ϕ_0; atol = atol)
+                @test isapprox(UF.psi(ufp, ζ_small, transport), ψ_0; atol = atol)
+
+                # 3. Test Unstable Branch (ζ < 0) -> Limit
+                @test isapprox(UF.phi(ufp, -ζ_small, transport), ϕ_0; atol = atol)
+                @test isapprox(UF.psi(ufp, -ζ_small, transport), ψ_0; atol = atol)
+
+                # 4. Limits for Psi (Available ONLY for Businger and Gryanik)
+                # Grachev does not implement Psi, so we skip it to avoid MethodError
+                if !(ufp isa UF.GrachevParams)
+                    Ψ_0 = UF.Psi(ufp, FT(0), transport)
+                    @test isapprox(UF.Psi(ufp, ζ_small, transport), Ψ_0; atol = atol)
+                    @test isapprox(UF.Psi(ufp, -ζ_small, transport), Ψ_0; atol = atol)
+                end
+            end
+
+        end
+    end
+
+    @testset "Derivative consistency ϕ(ζ) ≈ ϕ(0) - ζ·ψ'(ζ)" begin
+        # Test that the analytical psi is consistent with phi via finite differences
+        for FT in (Float32, Float64)
+            ζ_samples = (FT(-5), FT(-1), FT(-0.1), FT(0.1), FT(1), FT(5))
+            ϵ = cbrt(eps(FT)) # Finite difference step size
+
+            for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # Central difference approximation of ψ'(ζ)
+                ψ_plus = UF.psi(ufp, ζ + ϵ, transport)
+                ψ_minus = UF.psi(ufp, ζ - ϵ, transport)
+                dψ_dζ = (ψ_plus - ψ_minus) / (2ϵ)
+
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+                ϕ_expected = ϕ_0 - ζ * dψ_dζ
+                ϕ_actual = UF.phi(ufp, ζ, transport)
+
+                # Tolerances need to be loose for FD, especially with changing curvature
+                @test isapprox(ϕ_actual, ϕ_expected; rtol = sqrt(ϵ))
+            end
+        end
+    end
+
+    @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
                 FT(-20),
@@ -157,15 +221,59 @@ end
                 FT(20),
             )
             for ζ in ζ_samples, ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                # Determine the neutral limit ϕ(0) dynamically
+                # For Businger this is 1. For Gryanik/Grachev heat this is Pr_0.
+                ϕ_0 = UF.phi(ufp, FT(0), transport)
+
                 # quadgk returns (value, error)
                 ψ_int, _ = QuadGK.quadgk(
-                    ζ′ -> (FT(1) - UF.phi(ufp, ζ′, transport)) / ζ′,
+                    ζ′ -> (ϕ_0 - UF.phi(ufp, ζ′, transport)) / ζ′,
                     eps(FT),
                     ζ;
                     rtol = 1e-9,
                 )
                 ψ = UF.psi(ufp, ζ, transport)
                 @test isapprox(ψ_int, ψ; atol = FT(10) * sqrt(eps(FT)))
+            end
+        end
+    end
+
+    @testset "Small-ζ Linearization Consistency" begin
+        # Checks that the implementation of Psi near zero (using linear approximations)
+        # is consistent with the theoretical slope derived from phi parameters.
+        # The limit of Psi(ζ)/ζ as ζ->0 should be -phi'(0)/2.
+        # For most functions here: phi(ζ) ~ phi(0) + a*ζ  =>  Psi(ζ) ~ -a*ζ/2
+
+        for FT in (Float32, Float64)
+            # Choose a ζ small enough to trigger the `abs(ζ) < eps(FT)` guard
+            # inside the Psi functions.
+            ζ_tiny = FT(0.9) * eps(FT)
+
+            for ufp in psi_parameter_sets(FT) # Skip Grachev as Psi not implemented
+
+                # 1. Momentum
+                # phi_m ~ 1 + a_m * ζ
+                # Psi_m ~ -a_m * ζ / 2
+                Psi_m = UF.Psi(ufp, ζ_tiny, UF.MomentumTransport())
+                expected_m = -FT(ufp.a_m) * ζ_tiny / 2
+                @test isapprox(Psi_m, expected_m; rtol = sqrt(eps(FT)))
+
+                # 2. Heat
+                # phi_h ~ Pr_0 * (1 + a_h * ζ)  [Gryanik] or 1 + a_h * ζ [Businger]
+                # The linear coefficient 'a' depends on the parameterization structure.
+                Psi_h = UF.Psi(ufp, ζ_tiny, UF.HeatTransport())
+
+                if ufp isa UF.GryanikParams
+                    # Gryanik Heat: phi_h ~ Pr_0 + Pr_0 * a_h * ζ
+                    # Slope is Pr_0 * a_h
+                    expected_h = -FT(ufp.Pr_0) * FT(ufp.a_h) * ζ_tiny / 2
+                else
+                    # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
+                    # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
+                    # Slope is a_h / Pr_0.
+                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                end
+                @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end
         end
     end

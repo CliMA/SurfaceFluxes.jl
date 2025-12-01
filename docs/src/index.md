@@ -1,8 +1,6 @@
 # SurfaceFluxes.jl
 
-```@docs
-SurfaceFluxes
-```
+See the [API Reference](@ref) for complete API documentation.
 
 ## Source Code Structure
 
@@ -32,27 +30,7 @@ The `src/` directory contains the following files organized by functionality:
 ### Profile Recovery
 - **`profile_recovery.jl`**: Functions to recover vertical profiles within the surface layer using Monin-Obukhov similarity theory
 
-## Core input types
-
-```@docs
-SurfaceFluxes.StateValues
-```
-
-## Dispatch types
-
-```@docs
-SurfaceFluxes.Fluxes
-SurfaceFluxes.FluxesAndFrictionVelocity
-SurfaceFluxes.Coefficients
-SurfaceFluxes.ValuesOnly
-```
-
-## User-facing methods
-
-```@docs
-SurfaceFluxes.surface_conditions
-SurfaceFluxes.recover_profile
-```
+For detailed API documentation of all types and methods, see the [API Reference](@ref).
 
 # Parameters
 Convenience constructors are provided for the `SurfaceFluxesParameters` and the various `UniversalFunctions` parameter structs.
@@ -77,20 +55,6 @@ UF.GryanikParams(FT)
 UF.GrachevParams(FT)
 ```
 
-## Universal Functions
-
-```@docs
-SurfaceFluxes.UniversalFunctions
-```
-
-```@docs
-SurfaceFluxes.UniversalFunctions.GryanikParams
-SurfaceFluxes.UniversalFunctions.GrachevParams
-SurfaceFluxes.UniversalFunctions.BusingerParams
-```
-
-```@docs
-SurfaceFluxes.UniversalFunctions.phi
-SurfaceFluxes.UniversalFunctions.psi
-SurfaceFluxes.UniversalFunctions.Psi
-```
+## Documentation
+- [API Reference](API.md)
+- [Universal Functions](UniversalFunctions.md)

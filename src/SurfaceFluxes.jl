@@ -210,7 +210,7 @@ particular surface condition type `sc <: AbstractSurfaceConditions`.
 - `sc`: Surface conditions container
 - `scheme`: Discretization scheme
 - `tol`: Convergence tolerance for iterative solver
-- `tol_neutral`: Tolerance for neutral stability detection
+- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for backward compatibility)
 - `maxiter`: Maximum number of iterations
 
 ## Returns
@@ -255,13 +255,13 @@ function obukhov_similarity_solution(
         X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol, tol_neutral)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     else
         X★₀ = (u★ = u★₀, DSEᵥ★ = FT(δ), θᵥ★ = FT(δ), q★ = FT(δ),
             L★ = FT(-10),
             𝓁u = 𝓁u₀, 𝓁θ = 𝓁θ₀, 𝓁q = 𝓁q₀)
-        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol, tol_neutral)
+        X★ = obukhov_iteration(X★₀, sc, scheme, param_set, tol)
         return X★
     end
 end
@@ -305,7 +305,6 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     surface_state,
     scheme::SolverScheme,
     param_set::APS,
-    tol_neutral,
 )
     ### Parameter sets
     uf = SFP.uf_params(param_set)
@@ -335,9 +334,7 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     ### Compute Monin--Obukhov length scale depending on the buoyancy scale b★
     ### The windspeed function accounts for a wind-gust parameter.
     b★ = DSEᵥ★ * 𝑔 / DSEᵥ_in(param_set, sc)
-    L★ = ifelse(abs(ΔDSEᵥ(param_set, sc)) <= tol_neutral,
-        sign(ΔDSEᵥ(param_set, sc)) * FT(Inf),
-        u★^2 / (𝜅 * b★))
+    L★ = u★^2 / (𝜅 * b★)
     ## The new L★ estimate is then used to update all scale variables
     ## with stability correction functions (compute_Fₘₕ)
     ζ = Δz(sc) / L★
@@ -371,7 +368,6 @@ function obukhov_iteration(X★,
     scheme,
     param_set,
     tol,
-    tol_neutral,
     maxiter = 20,
 )
     FT = eltype(X★)
@@ -384,8 +380,7 @@ function obukhov_iteration(X★,
             ts_in(sc),
             ts_sfc(sc),
             scheme,
-            param_set,
-            tol_neutral)
+            param_set)
         if abs(X★.L★ - X★₀.L★) ≤ tol &&
            abs(X★.u★ - X★₀.u★) ≤ tol &&
            abs(X★.q★ - X★₀.q★) ≤ tol &&
