@@ -50,7 +50,6 @@ include("profile_recovery.jl")
         param_set::AbstractSurfaceFluxesParameters,
         sc::SurfaceFluxes.AbstractSurfaceConditions,
         scheme::SurfaceFluxes.SolverScheme = PointValueScheme();
-        tol_neutral = SFP.cp_d(param_set) / 100,
         tol = sqrt(eps(FT)),
         maxiter::Int = 10,
     )
@@ -62,7 +61,6 @@ based on Monin-Obukhov similarity theory.
 - `param_set`: Parameter set containing physical and thermodynamic constants
 - `sc`: Surface conditions container (Fluxes, ValuesOnly, Coefficients, or FluxesAndFrictionVelocity)
 - `scheme`: Discretization scheme (PointValueScheme for finite difference or LayerAverageScheme for finite volume)
-- `tol_neutral`: Tolerance for neutral stability detection based on `ΔDSEᵥ` (default: `cp_d / 100`)
 - `tol`: Convergence tolerance for iterative solver (default: `sqrt(eps(FT))`)
 - `maxiter`: Maximum number of iterations (default: 10)
 
@@ -82,7 +80,6 @@ function surface_conditions(
     param_set::APS{FT},
     sc::AbstractSurfaceConditions,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = SFP.cp_d(param_set) / 100,
     tol = sqrt(eps(FT)),
     maxiter::Int = 30,
 ) where {FT}
@@ -92,7 +89,6 @@ function surface_conditions(
         sc,
         scheme,
         tol,
-        tol_neutral,
         maxiter,
     )
     L_MO = X★.L★
@@ -105,7 +101,6 @@ function surface_conditions(
         ustar,
         sc,
         scheme,
-        tol_neutral,
     )
     Ch =
         heat_exchange_coefficient(
@@ -114,7 +109,6 @@ function surface_conditions(
             ustar,
             sc,
             scheme,
-            tol_neutral,
         )
     shf = sensible_heat_flux(param_set, Ch, sc, scheme)
     lhf = latent_heat_flux(param_set, Ch, sc, scheme)
@@ -146,7 +140,6 @@ function surface_conditions(
     param_set::APS{FT},
     sc::FluxesAndFrictionVelocity,
     scheme::SolverScheme = PointValueScheme();
-    tol_neutral = SFP.cp_d(param_set) / 100,
     tol::FT = sqrt(eps(FT)),
     maxiter::Int = 10,
 ) where {FT}
@@ -156,11 +149,10 @@ function surface_conditions(
         sc,
         scheme,
         tol,
-        tol_neutral,
         maxiter,
     )
-    Cd = momentum_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme, tol_neutral)
-    Ch = heat_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme, tol_neutral)
+    Cd = momentum_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme)
+    Ch = heat_exchange_coefficient(param_set, X★.L★, X★.u★, sc, scheme)
     shf = sc.shf
     lhf = sc.lhf
     buoy_flux = compute_buoyancy_flux(
@@ -195,7 +187,6 @@ end
         sc::AbstractSurfaceConditions,
         scheme,
         tol,
-        tol_neutral,
         maxiter,
     )
 
@@ -210,7 +201,6 @@ particular surface condition type `sc <: AbstractSurfaceConditions`.
 - `sc`: Surface conditions container
 - `scheme`: Discretization scheme
 - `tol`: Convergence tolerance for iterative solver
-- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for backward compatibility)
 - `maxiter`: Maximum number of iterations
 
 ## Returns
@@ -239,7 +229,6 @@ function obukhov_similarity_solution(
     sc::Union{Fluxes, ValuesOnly},
     scheme,
     tol,
-    tol_neutral,
     maxiter,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)

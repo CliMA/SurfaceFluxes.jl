@@ -1,5 +1,5 @@
 """
-    heat_exchange_coefficient(param_set, L_MO, u★, sc, scheme, tol_neutral)
+    heat_exchange_coefficient(param_set, L_MO, u★, sc, scheme)
 
 Compute and return Ch, the heat exchange coefficient.
 
@@ -11,7 +11,6 @@ Computes Ch from the friction velocity, heat scale, and wind speed using the Mon
 - `u★`: Friction velocity
 - `sc`: Surface conditions container
 - `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
-- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for API compatibility)
 
 ## Returns
 - `Ch`: Heat exchange coefficient
@@ -22,7 +21,6 @@ function heat_exchange_coefficient(
     u★,
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     scheme,
-    tol_neutral,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     transport = UF.HeatTransport()
@@ -43,7 +41,7 @@ function heat_exchange_coefficient(
 end
 
 """
-    heat_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme, tol_neutral)
+    heat_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme)
 
 Return the heat exchange coefficient from the surface conditions.
 
@@ -56,7 +54,6 @@ function heat_exchange_coefficient(
     u★,
     sc::Coefficients,
     scheme,
-    tol_neutral,
 )
     return sc.Ch
 end
