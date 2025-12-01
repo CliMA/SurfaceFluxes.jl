@@ -138,11 +138,10 @@ for momentum and heat transport in unstable conditions.
 """
 function _get_businger_unstable_params(toml_dict::CP.ParamDict{FT}) where {FT}
     businger_name_map = (;
-        :coefficient_b_m_businger => :b_m,
-        :coefficient_b_h_businger => :b_h,
+        :coefficient_b_m_businger => :b_m_unstable,
+        :coefficient_b_h_businger => :b_h_unstable,
     )
-    businger_params = CP.get_parameter_values(toml_dict, businger_name_map, "SurfaceFluxes")
-    return (; b_m_unstable = businger_params.b_m, b_h_unstable = businger_params.b_h)
+    return CP.get_parameter_values(toml_dict, businger_name_map, "SurfaceFluxes")
 end
 
 """
