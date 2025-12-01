@@ -252,8 +252,8 @@ end
 
 @testset "Numerical regression cases" begin
     FT = Float32
-    REGRESSION_RTOL = FT(0.01)
-    REGRESSION_ATOL = FT(0.05)
+    REGRESSION_RTOL = FT(0.0015)
+    REGRESSION_ATOL = FT(0.00001)
 
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     for case in case_definitions(FT)
