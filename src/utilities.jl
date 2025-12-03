@@ -27,10 +27,34 @@ z_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.z
 # Total Specific Humidity
 qt_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_in(sc))
-qt_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_sfc(sc))
+# When args = nothing, qt_sfc and surface_specific_humidity are the same
 function surface_specific_humidity(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
-    qt_sfc(param_set, sc, args)
+    TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_sfc(sc))
+end
+qt_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
+    surface_specific_humidity(param_set, sc, args)
+# Alternative formulation: when Real arguments are provided, return qt_sfc + sum of all args
+function surface_specific_humidity(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    Q1::Real,
+    Q2::Real,
+)
+    q_base = qt_sfc(param_set, sc, nothing)
+    return q_base + Q1 + Q2
+end
+# Method to handle named tuples - unpacks the arguments
+function surface_specific_humidity(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    args::NamedTuple,
+)
+    # Unpack named tuple and pass as varargs
+    return surface_specific_humidity(param_set, sc, values(args)...)
+end
+# Splattable method for alternative formulations - accepts args but ignores them (following obukhov_similarity_solution pattern)
+function surface_specific_humidity(param_set::APS, sc::AbstractSurfaceConditions, args...)
+    return surface_specific_humidity(param_set, sc, nothing)
 end
 Δqt(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
     qt_in(param_set, sc) - qt_sfc(param_set, sc, args)
@@ -38,19 +62,70 @@ end
 # Air temperature
 T_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.air_temperature(SFP.thermodynamics_params(param_set), ts_in(sc))
-T_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    TD.air_temperature(SFP.thermodynamics_params(param_set), ts_sfc(sc))
+# When args = nothing, T_sfc and surface_temperature are the same
 function surface_temperature(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
-    T_sfc(param_set, sc, args)
+    TD.air_temperature(SFP.thermodynamics_params(param_set), ts_sfc(sc))
 end
-ΔT(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    T_in(param_set, sc) - T_sfc(param_set, sc, args)
+T_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
+    surface_temperature(param_set, sc, args)
+# Alternative formulation: when Real arguments are provided, return T_sfc + sum of all args
+function surface_temperature(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    T1::Real,
+    T2::Real,
+)
+    T_base = T_sfc(param_set, sc, nothing)
+    return T_base + T1 + T2
+end
+# Method to handle named tuples - unpacks the arguments
+function surface_temperature(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    args::NamedTuple,
+)
+    # Unpack named tuple and pass as varargs
+    return surface_temperature(param_set, sc, values(args)...)
+end
+# Splattable method for alternative formulations - accepts args but ignores them (following obukhov_similarity_solution pattern)
+function surface_temperature(param_set::APS, sc::AbstractSurfaceConditions, args...)
+    return surface_temperature(param_set, sc, nothing)
+end
+ΔT(param_set::APS, sc::AbstractSurfaceConditions, args...) =
+    T_in(param_set, sc) - surface_temperature(param_set, sc, args...)
 
 # Virtual Potential Temperature
 θᵥ_in(param_set::APS, sc::AbstractSurfaceConditions) =
     TD.virtual_pottemp(SFP.thermodynamics_params(param_set), ts_in(sc))
-θᵥ_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
+# When args = nothing, θᵥ_sfc and surface_virtual_pottemp are the same
+function surface_virtual_pottemp(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
     TD.virtual_pottemp(SFP.thermodynamics_params(param_set), ts_sfc(sc))
+end
+# Alternative formulation: when Real arguments are provided, return θᵥ_sfc + sum of all args
+function surface_virtual_pottemp(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    θ1::Real,
+    θ2::Real,
+)
+    θ_base = surface_virtual_pottemp(param_set, sc, nothing)
+    return θ_base + θ1 + θ2
+end
+# Method to handle named tuples - unpacks the arguments
+function surface_virtual_pottemp(
+    param_set::APS,
+    sc::AbstractSurfaceConditions,
+    args::NamedTuple,
+)
+    # Unpack named tuple and pass as varargs
+    return surface_virtual_pottemp(param_set, sc, values(args)...)
+end
+# Splattable method for alternative formulations - accepts args but ignores them (following obukhov_similarity_solution pattern)
+function surface_virtual_pottemp(param_set::APS, sc::AbstractSurfaceConditions, args...)
+    return surface_virtual_pottemp(param_set, sc, nothing)
+end
+θᵥ_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
+    surface_virtual_pottemp(param_set, sc, nothing)
 Δθᵥ(param_set::APS, sc::AbstractSurfaceConditions) =
     θᵥ_in(param_set, sc) - θᵥ_sfc(param_set, sc)
 

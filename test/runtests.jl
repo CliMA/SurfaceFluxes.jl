@@ -42,6 +42,11 @@ end
     include("test_convergence.jl")
 end
 
+@testset "Utility function tests" begin
+    # Tests for utility functions including splattable methods.
+    include("test_utilities.jl")
+end
+
 @testset "Quality assurance" begin
     # Meta-tests (Aqua, etc.) that check for common Julia package issues.
     include("aqua.jl")
