@@ -1,5 +1,5 @@
 """
-    momentum_exchange_coefficient(param_set, L_MO, u★, sc, scheme, tol_neutral)
+    momentum_exchange_coefficient(param_set, L_MO, u★, sc, scheme)
 
 Compute and return Cd, the momentum exchange coefficient.
 
@@ -11,7 +11,6 @@ Computes Cd from the friction velocity and wind speed using the Monin-Obukhov si
 - `u★`: Friction velocity
 - `sc`: Surface conditions container
 - `scheme`: Discretization scheme (PointValueScheme or LayerAverageScheme)
-- `tol_neutral`: Tolerance for neutral stability detection (unused, kept for API compatibility)
 
 ## Returns
 - `Cd`: Momentum exchange coefficient
@@ -22,7 +21,6 @@ function momentum_exchange_coefficient(
     u★,
     sc::Union{Fluxes, ValuesOnly, FluxesAndFrictionVelocity},
     scheme,
-    tol_neutral,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     κ = SFP.von_karman_const(param_set)
@@ -33,7 +31,7 @@ function momentum_exchange_coefficient(
 end
 
 """
-    momentum_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme, tol_neutral)
+    momentum_exchange_coefficient(param_set, L_MO, u★, sc::Coefficients, scheme)
 
 Return the momentum exchange coefficient from the surface conditions.
 
@@ -46,7 +44,6 @@ function momentum_exchange_coefficient(
     u★,
     sc::Coefficients,
     scheme,
-    tol_neutral,
 )
     return sc.Cd
 end
