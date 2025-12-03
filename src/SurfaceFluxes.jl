@@ -363,6 +363,37 @@ function iterate_interface_fluxes(sc::Union{ValuesOnly, Fluxes},
     return (; u★, DSEᵥ★, q★, L★, θᵥ★, 𝓁u, 𝓁θ, 𝓁q)
 end
 
+"""
+    bulk_richardson_number(param_set, sc, X★, scheme)
+
+Compute the bulk Richardson number from similarity scales.
+
+The bulk Richardson number is defined as:
+    Ri_b = ζ F_c(ζ) F_m(ζ)^(-2)
+
+where ζ = Δz / L★ is the Monin-Obukhov stability parameter,
+F_c and F_m are the stability correction functions for scalar and momentum transport.
+"""
+function bulk_richardson_number(param_set, sc, X★, scheme)
+    uf = SFP.uf_params(param_set)
+    𝜅 = SFP.von_karman_const(param_set)
+    FT = eltype(X★.L★)
+    
+    # Compute stability parameter
+    ζ = Δz(sc) / X★.L★
+    
+    # Compute stability correction functions
+    F_c = compute_Fₘₕ(sc, uf, ζ, X★.𝓁θ, UF.HeatTransport())
+    F_m = compute_Fₘₕ(sc, uf, ζ, X★.𝓁u, UF.MomentumTransport())
+    
+    # Ri_b = ζ F_c(ζ) F_m(ζ)^(-2)
+    # Avoid division by zero
+    if abs(F_m) < eps(FT)
+        return FT(Inf) * sign(ζ)
+    end
+    return ζ * F_c / (F_m^2)
+end
+
 function obukhov_iteration(X★,
     sc,
     scheme,
@@ -381,10 +412,10 @@ function obukhov_iteration(X★,
             ts_sfc(sc),
             scheme,
             param_set)
-        if abs(X★.L★ - X★₀.L★) ≤ tol &&
-           abs(X★.u★ - X★₀.u★) ≤ tol &&
-           abs(X★.q★ - X★₀.q★) ≤ tol &&
-           abs(X★.DSEᵥ★ - X★₀.DSEᵥ★) ≤ tol
+        # Check convergence using bulk Richardson number
+        Ri_b₀ = bulk_richardson_number(param_set, sc, X★₀, scheme)
+        Ri_b = bulk_richardson_number(param_set, sc, X★, scheme)
+        if abs(Ri_b - Ri_b₀) ≤ tol
             break
         end
     end
