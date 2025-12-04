@@ -21,11 +21,11 @@ end
 @inline ΔT(T_int::FT, T_sfc::FT) where {FT} = T_int - T_sfc
 
 @inline function θᵥ(param_set::APS, T::FT, ρ::FT, phase) where {FT}
-    return TD.virtual_pottemp(param_set, T, ρ, phase)
+    return TD.virtual_pottemp(SFP.thermodynamics_params(param_set), T, ρ, phase)
 end
 
 @inline function virtual_temperature(param_set::APS, T::FT, phase) where {FT}
-    return TD.virtual_temperature(param_set, T, phase)
+    return TD.virtual_temperature(SFP.thermodynamics_params(param_set), T, phase)
 end
 
 @inline function Δθᵥ(

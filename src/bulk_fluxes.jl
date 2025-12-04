@@ -114,7 +114,8 @@ It is approximated by linearizing the density perturbations with respect to temp
 Where:
  - `cp_m` is the specific heat of moist air, calculated using `q_tot_sfc`, `q_liq_sfc`, and `q_ice_sfc`.
  - `ε_vd` is the ratio of gas constants for water vapor and dry air.
- - The term `(ε_vd - 1)` represents the density effect of water vapor relative to dry air.
+ - The term `(ε_vd - 1)` represents the density effect of water vapor relative to dry air (the virtual temperature 
+   correction factor).
 
 Arguments:
  - `q_tot_sfc`: Specific humidity of total water at the surface.
@@ -149,3 +150,35 @@ function buoyancy_flux(
 
     return (grav / ρ_sfc) * (term_shf + term_lhf)
 end
+
+"""
+    momentum_fluxes(Cd, inputs, ρ_sfc, gustiness)
+
+Computes the momentum fluxes at the surface.
+
+The momentum fluxes are calculated using the bulk aerodynamic formula:
+
+    ρτxz = -ρ_sfc * Cd * ΔU * Δu_x
+    ρτyz = -ρ_sfc * Cd * ΔU * Δu_y
+
+where:
+ - `Cd`: Momentum exchange coefficient (drag coefficient)
+ - `ΔU`: Magnitude of the wind speed difference (including gustiness)
+ - `Δu_x`, `Δu_y`: Components of the wind speed difference
+ - `ρ_sfc`: Surface air density
+
+Returns a tuple `(ρτxz, ρτyz)`.
+"""
+function momentum_fluxes(
+    Cd,
+    inputs::SurfaceFluxInputs,
+    ρ_sfc,
+    gustiness,
+)
+    Δu = Δu_components(inputs)
+    ΔU = windspeed(inputs, gustiness)
+    ρτxz = -ρ_sfc * Cd * Δu[1] * ΔU
+    ρτyz = -ρ_sfc * Cd * Δu[2] * ΔU
+    return (ρτxz, ρτyz)
+end
+
