@@ -10,6 +10,7 @@ include("Parameters.jl")
 
 import Thermodynamics
 const TD = Thermodynamics
+const TP = Thermodynamics.Parameters
 
 import .UniversalFunctions
 const UF = UniversalFunctions
@@ -24,13 +25,11 @@ include("input_builders.jl")
 include("utilities.jl")
 include("physical_scale_coefficient_methods.jl")
 include("roughness_lengths.jl")
-include("evaporation_methods.jl")
-include("latent_heat_methods.jl")
-include("sensible_heat_methods.jl")
+include("thermodynamic_fluxes.jl")
 include("momentum_exchange_coefficient_methods.jl")
 include("heat_exchange_coefficient_methods.jl")
 include("friction_velocity_methods.jl")
-include("buoyancy_flux_methods.jl")
+include("conductances.jl")
 include("profile_recovery.jl")
 
 @inline float_type(::APS{FT}) where {FT} = FT
@@ -92,67 +91,65 @@ end
 @inline SolverOptions(param_set::APS{FT}; kwargs...) where {FT} = SolverOptions(FT; kwargs...)
 
 """
-    charnock_momentum(param_set; α = 0.011)
+    charnock_momentum(; α = 0.011, scalar = 1e-4)
 
-Convenience helper returning a type-stable callable that evaluates the Charnock
-relation for the momentum roughness length.
+Convenience helper returning a roughness specification that applies the
+Charnock relation for the momentum roughness length while keeping a scalar
+roughness length fixed.
 """
-@inline function charnock_momentum(
-    param_set::APS{FT};
-    α = FT(0.011),
-) where {FT}
-    return SurfaceCallable(CharnockMomentum{FT}(convert(FT, α), SFP.grav(param_set)))
+@inline function charnock_momentum(; α = 0.011, scalar = 1e-4)
+    return CharnockRoughnessSpec(α, scalar)
 end
 
 """
-    surface_fluxes(param_set, Tin, qin, ρin, Ts, qs, Φs, Δz, d,
-                   u_in, u_sfc, roughness, gustiness, scheme,
-                   solver_opts, flux_specs)
+    surface_fluxes(param_set, Tin, qin, ρin, Ts_guess, qs_guess, Φs, Δz, d,
+                   u_int, u_sfc, config, scheme,
+                   solver_opts, flux_specs, update_Ts!, update_qs!)
 
-Compute near-surface fluxes using primitive inputs. `Ts` and `qs` may be
-scalars or callables that are evaluated every iteration with the current flux
-context. Roughness lengths and gustiness may likewise be scalars or the
-module-defined functional forms exposed via `SurfaceFluxInputs`.
+Compute near-surface fluxes using primitive inputs. `Ts_guess` and `qs_guess`
+seed the nonlinear MOST iteration, while the optional `update_Ts!` and
+`update_qs!` hooks may adjust these values after every iteration. Roughness
+and gustiness parameterizations are provided via `SurfaceFluxConfig`, ensuring
+the solver only relies on module-defined models.
 
 # Required arguments
 - `param_set`: Surface flux parameter set
 - `Tin`: Interior temperature [K]
 - `qin`: Interior specific humidity [kg/kg]
 - `ρin`: Interior air density [kg/m³]
-- `Ts`: Surface temperature (scalar or callable)
-- `qs`: Surface specific humidity (scalar or callable)
+- `Ts_guess`: Initial surface temperature guess [K]
+- `qs_guess`: Initial surface specific humidity guess [kg/kg]
 - `Φs`: Surface geopotential [m²/s²]
 - `Δz`: Height difference between interior and surface reference levels [m]
 - `d`: Displacement height [m]
 
 All subsequent arguments are positional to remain GPU-friendly. Defaults are
-provided for winds, roughness lengths, gustiness, the solver scheme,
-iteration tolerances, and prescribed flux specifications. Use
-`roughness_lengths`, `flux_spec`, and `gustiness_constant` for clarity when
-configuring these optional specifications.
+provided for winds, the solver scheme, iteration tolerances, prescribed flux
+specifications, and the surface parameterization config. Use `flux_spec` and
+`gustiness_constant` for clarity when configuring optional specifications.
 """
 function surface_fluxes(
     param_set::APS{FT},
     Tin::FT,
     qin::FT,
     ρin::FT,
-    Ts,
-    qs,
+    Ts_guess::FT,
+    qs_guess::FT,
     Φs::FT,
     Δz::FT,
     d::FT,
-    u_in = nothing,
+    u_int = nothing,
     u_sfc = nothing,
-    roughness = nothing,
-    gustiness = nothing,
+    config::SurfaceFluxConfig = SurfaceFluxConfig(),
     scheme::SolverScheme = PointValueScheme(),
     solver_opts = nothing,
     flux_specs = nothing,
+    update_Ts! = nothing,
+    update_qs! = nothing,
 ) where {FT}
-    u_in_val = u_in === nothing ? (zero(FT), zero(FT)) : u_in
+    u_int_val = u_int === nothing ? (zero(FT), zero(FT)) : u_int
     u_sfc_val = u_sfc === nothing ? (zero(FT), zero(FT)) : u_sfc
-    roughness_val = roughness === nothing ? default_roughness_lengths(param_set) : roughness
-    gustiness_val = gustiness === nothing ? FT(1) : gustiness
+    config_val = config === nothing ? SurfaceFluxConfig() : config
     solver_opts_val = normalize_solver_options(param_set, solver_opts)
     flux_specs_val = normalize_flux_specs(param_set, flux_specs)
 
@@ -161,16 +158,17 @@ function surface_fluxes(
         Tin,
         qin,
         ρin,
-        Ts,
-        qs,
+        Ts_guess,
+        qs_guess,
         Φs,
         Δz,
         d,
-        u_in_val,
+        u_int_val,
         u_sfc_val,
-        roughness_val,
-        gustiness_val,
+        config_val,
         flux_specs_val,
+        update_Ts!,
+        update_qs!,
     )
     thermo_params = SFP.thermodynamics_params(param_set)
     solution = solve_surface_layer(
@@ -215,51 +213,66 @@ function solve_surface_layer(
     tol = solver_opts.tol
     tol_neutral = solver_opts.tol_neutral
     maxiter = solver_opts.maxiter
-    T_in = inputs.Tin
+    T_int = inputs.Tin
     q_in = inputs.qin
-    ρ_in = inputs.ρin
-    Φ_in = interior_geopotential(param_set, inputs)
+    ρ_int = inputs.ρin
+    Φ_int = interior_geopotential(param_set, inputs)
     Φ_sfc = surface_geopotential(inputs)
-    phase_in = TD.PhasePartition(q_in)
-    cp_m_in = TD.cp_m(thermo_params, phase_in)
-    cv_m_in = TD.cv_m(thermo_params, phase_in)
-    R_m_in = TD.gas_constant_air(thermo_params, phase_in)
-    DSEᵥ_in_val = DSEᵥ(param_set, T_in, phase_in, Φ_in)
+    phase_int = TD.PhasePartition(q_in)
+    cp_m_int = TD.cp_m(thermo_params, phase_int)
+    cv_m_int = TD.cv_m(thermo_params, phase_int)
+    R_m_int = TD.gas_constant_air(thermo_params, phase_int)
+    DSEᵥ_int_val = DSEᵥ(param_set, T_int, phase_int, Φ_int)
     uf_params = SFP.uf_params(param_set)
     grav = SFP.grav(param_set)
     FT = float_type(param_set)
 
     iter_state = SurfaceFluxIterationState{FT}()
-    iter_state.Ts = T_in
-    iter_state.qs = q_in
-    iter_state.ρ_sfc = ρ_in
+    iter_state.Ts = inputs.Ts_guess
+    iter_state.qs = inputs.qs_guess
+    iter_state.ρ_sfc = ρ_int
     inputs.ustar !== nothing && (iter_state.ustar = inputs.ustar)
     inputs.shf !== nothing && (iter_state.shf = inputs.shf)
     inputs.lhf !== nothing && (iter_state.lhf = inputs.lhf)
     inputs.Cd !== nothing && (iter_state.Cd = inputs.Cd)
     inputs.Ch !== nothing && (iter_state.Ch = inputs.Ch)
-    ctx0 = callable_context(inputs, iter_state, T_in, q_in, ρ_in)
+    ctx0 = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
     iter_state.gustiness = gustiness_value(inputs.gustiness_model, inputs, ctx0)
 
     prev_state = nothing
     last = nothing
 
     for _ in 1:maxiter
-        ctx = callable_context(inputs, iter_state, T_in, q_in, ρ_in)
-        iter_state.Ts = resolve_quantity(inputs.Ts_spec, ctx)
-        iter_state.qs = resolve_quantity(inputs.qs_spec, ctx)
+        ctx = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
+        did_update = false
+        if inputs.update_Ts! !== nothing
+            new_Ts = inputs.update_Ts!(iter_state, ctx)
+            if new_Ts !== nothing
+                iter_state.Ts = convert(FT, new_Ts)
+            end
+            did_update = true
+        end
+        if inputs.update_qs! !== nothing
+            new_qs = inputs.update_qs!(iter_state, ctx)
+            if new_qs !== nothing
+                iter_state.qs = convert(FT, new_qs)
+            end
+            did_update = true
+        end
+        if did_update
+            ctx = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
+        end
 
-        ρ_sfc = dry_adiabatic_surface_density(cv_m_in, R_m_in, T_in, ρ_in, iter_state.Ts)
+        ρ_sfc = dry_adiabatic_surface_density(cv_m_int, R_m_int, T_int, ρ_int, iter_state.Ts)
         iter_state.ρ_sfc = ρ_sfc
         phase_sfc = TD.PhasePartition(iter_state.qs)
-        cp_m_sfc = TD.cp_m(thermo_params, phase_sfc)
 
-        ctx = callable_context(inputs, iter_state, T_in, q_in, ρ_in)
+        ctx = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
         gustiness = gustiness_value(inputs.gustiness_model, inputs, ctx)
         iter_state.gustiness = gustiness
 
-        ΔDSE_val = ΔDSEᵥ(param_set, T_in, phase_in, Φ_in, iter_state.Ts, phase_sfc, Φ_sfc)
-        Δθᵥ_val = Δθᵥ(param_set, T_in, ρ_in, phase_in, iter_state.Ts, ρ_sfc, phase_sfc)
+        ΔDSE_val = ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, iter_state.Ts, phase_sfc, Φ_sfc)
+        Δθᵥ_val = Δθᵥ(param_set, T_int, ρ_int, phase_int, iter_state.Ts, ρ_sfc, phase_sfc)
         Δq_val = Δqt(q_in, iter_state.qs)
         ΔU = windspeed(inputs, gustiness)
 
@@ -295,7 +308,7 @@ function solve_surface_layer(
             ΔDSE_val,
             Δθᵥ_val,
             Δq_val,
-            DSEᵥ_in_val,
+            DSEᵥ_int_val,
             grav,
         )
 
@@ -328,36 +341,37 @@ function solve_surface_layer(
                 ΔDSE_val,
             ) : inputs.Ch
 
+        g_h = heat_conductance(inputs, Ch_val, gustiness)
+        g_q = heat_conductance(inputs, Ch_val, gustiness)
         E = evaporation(
             param_set,
+            thermo_params,
             inputs,
-            Ch_val,
+            g_q,
             q_in,
             iter_state.qs,
             ρ_sfc,
-            gustiness,
         )
-        lhf = latent_heat_flux(param_set, inputs, E)
+        lhf = latent_heat_flux(param_set, thermo_params, inputs, E)
         shf = sensible_heat_flux(
             param_set,
             thermo_params,
             inputs,
-            Ch_val,
-            cp_m_in,
-            cp_m_sfc,
-            T_in,
+            g_h,
+            T_int,
             iter_state.Ts,
             ρ_sfc,
-            gustiness,
             E,
         )
-        buoy_flux = compute_buoyancy_flux(
+        buoy_flux = buoyancy_flux(
             param_set,
             thermo_params,
             shf,
             lhf,
-            cp_m_in,
-            T_in,
+            iter_state.Ts,
+            phase_sfc.tot,
+            phase_sfc.liq,
+            phase_sfc.ice,
             ρ_sfc,
         )
 
@@ -405,7 +419,7 @@ end
         inputs.Φs,
         inputs.Δz,
         inputs.d,
-        inputs.u_in,
+        inputs.u_int,
         inputs.u_sfc,
         iter_state.gustiness,
         iter_state.ustar,
@@ -439,7 +453,7 @@ function iterate_interface_fluxes(
     ΔDSE_val,
     Δθᵥ_val,
     Δq_val,
-    DSEᵥ_in_val,
+    DSEᵥ_int_val,
     grav,
 )
     FT = typeof(approximate_state.u_star)
@@ -449,7 +463,7 @@ function iterate_interface_fluxes(
     ell_q = compute_z0(u_star, param_set, inputs, UF.HeatTransport(), ctx)
     κ = SFP.von_karman_const(param_set)
     dsev_star = approximate_state.dsev_star
-    b_star = dsev_star * grav / DSEᵥ_in_val
+    b_star = dsev_star * grav / DSEᵥ_int_val
     if abs(b_star) <= eps(FT)
         sgn = iszero(b_star) ? one(FT) : sign(b_star)
         L_star = sgn * FT(Inf)

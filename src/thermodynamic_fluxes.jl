@@ -1,0 +1,155 @@
+"""
+    sensible_heat_flux(param_set, thermo_params, inputs, g_h, T_int, T_sfc, ρ_sfc, E)
+
+Computes the sensible heat flux at the surface.
+
+The sensible heat flux is given by
+
+    SHF = -ρ_sfc * g_h * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
+
+where `ΔDSE = DSE_int - DSE_sfc` is the difference in dry static energy between
+the interior and surface, `g_h` is the heat conductance, `hv_sfc` is the specific
+enthalpy of water vapor at the surface temperature, `Φ_sfc` is the surface geopotential,
+`LH_v0` is the latent heat of vaporization at the reference temperature, and `E` is
+the evaporation rate.
+
+The second term `(hv_sfc + Φ_sfc - LH_v0) * E` accounts for the sensible heat and 
+potential energy advected by evaporating water.
+
+If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
+allowing for prescribed sensible heat flux conditions.
+"""
+function sensible_heat_flux(
+    param_set::APS,
+    thermo_params,
+    inputs::SurfaceFluxInputs,
+    g_h,
+    T_int,
+    T_sfc,
+    ρ_sfc,
+    E,
+)
+    if inputs.shf !== nothing
+        return inputs.shf
+    end
+    LH_v0 = TP.LH_v0(thermo_params)
+    hv_sfc = TD.specific_enthalpy_vapor(thermo_params, T_sfc)
+    Φ_int = interior_geopotential(param_set, inputs)
+    Φ_sfc = surface_geopotential(inputs)
+    DSE_in = TD.dry_static_energy(thermo_params, T_int, Φ_int)
+    DSE_sfc = TD.dry_static_energy(thermo_params, T_sfc, Φ_sfc)
+    ΔDSE = DSE_in - DSE_sfc
+    return -ρ_sfc * g_h * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
+end
+
+"""
+    evaporation(param_set, thermo_params, inputs, g_h, q_v_int, q_v_sfc, ρ_sfc)
+
+Computes the evaporation rate at the surface.
+
+The evaporation rate is given by
+
+    E = -ρ_sfc * g_h * Δq_v
+
+where `Δq_v = q_v_int - q_v_sfc` is the difference in vapor specific humidity between
+the interior and surface, `g_h` is the moisture conductance, and `ρ_sfc` is the
+surface air density. Here `q_v_int` and `q_v_sfc` are the vapor specific humidities
+(not total specific humidity) at the interior and surface, respectively.
+
+If `inputs.lhf` is provided (not `nothing`), the function returns the evaporation
+rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
+`LH_v0` is the latent heat of vaporization at the reference temperature.
+"""
+function evaporation(
+    param_set::APS,
+    thermo_params,
+    inputs::SurfaceFluxInputs,
+    g_h,
+    q_v_int,
+    q_v_sfc,
+    ρ_sfc,
+)
+    if inputs.lhf !== nothing
+        LH_v0 = TP.LH_v0(thermo_params)
+        return inputs.lhf / LH_v0
+    end
+    Δq_v = q_v_int - q_v_sfc
+    return -ρ_sfc * g_h * Δq_v
+end
+
+"""
+    latent_heat_flux(param_set, thermo_params, inputs, E)
+
+Computes the latent heat flux at the surface.
+
+The latent heat flux is given by
+
+    LHF = LH_v0 * E
+
+where `LH_v0` is the latent heat of vaporization at the reference temperature
+and `E` is the evaporation rate.
+
+If `inputs.lhf` is provided (not `nothing`), the function returns that value directly,
+allowing for prescribed latent heat flux conditions.
+"""
+function latent_heat_flux(
+    param_set::APS,
+    thermo_params,
+    inputs::SurfaceFluxInputs,
+    E,
+)
+    if inputs.lhf !== nothing
+        return inputs.lhf
+    end
+    LH_v0 = TP.LH_v0(thermo_params)
+    return LH_v0 * E
+end
+
+"""
+    buoyancy_flux(param_set, thermo_params, shf, lhf, T_sfc, q_tot_sfc, q_liq_sfc, q_ice_sfc, ρ_sfc)
+
+Computes the buoyancy flux at the surface, accounting for the presence of liquid and ice condensate.
+
+The buoyancy flux `B` is defined as the vertical flux of virtual potential temperature `θv`.
+It is approximated by linearizing the density perturbations with respect to temperature and total water content:
+
+    B ≈ (g / ρ_sfc) * ( SHF / (cp_m * T_sfc) + (ε_vd - 1) * LHF / LH_v0 )
+
+Where:
+ - `cp_m` is the specific heat of moist air, calculated using `q_tot_sfc`, `q_liq_sfc`, and `q_ice_sfc`.
+ - `ε_vd` is the ratio of gas constants for water vapor and dry air.
+ - The term `(ε_vd - 1)` represents the density effect of water vapor relative to dry air.
+
+Arguments:
+ - `q_tot_sfc`: Specific humidity of total water at the surface.
+ - `q_liq_sfc`: Specific humidity of liquid water at the surface.
+ - `q_ice_sfc`: Specific humidity of ice at the surface.
+"""
+function buoyancy_flux(
+    param_set::APS,
+    thermo_params,
+    shf,
+    lhf,
+    T_sfc,
+    q_tot_sfc,
+    q_liq_sfc, 
+    q_ice_sfc, 
+    ρ_sfc,
+)
+    grav = SFP.grav(param_set)
+    ε_vd = SFP.Rv_over_Rd(param_set)
+    
+    # Calculate specific heat of moist air at the surface including condensate
+    cp_m_sfc = TD.cp_m(thermo_params, q_tot_sfc, q_liq_sfc, q_ice_sfc)
+    
+    LH_v0 = TP.LH_v0(thermo_params)
+
+    # Term 1: Sensible heat flux contribution
+    term_shf = shf / (cp_m_sfc * T_sfc)
+    
+    # Term 2: Latent heat flux contribution
+    # This term captures the buoyancy effect of water vapor density changes.
+    term_lhf = (ε_vd - 1) * lhf / LH_v0
+    
+    return (grav / ρ_sfc) * (term_shf + term_lhf)
+end

@@ -25,6 +25,7 @@ include("test_utils.jl")  # common testing utilities (e.g. @test_allocs_and_ts)
 
 include("test_finite_difference_vs_finite_volume.jl")  # Finite-difference vs FV velocity-scale checks
 include("test_floating_point_consistency.jl")         # Float32 vs Float64 and near-zero L_MO consistency
+include("test_surface_fluxes_api.jl")                 # Primitive API regressions
 
 @testset "Regression tests" begin
     # Regression tests with predefined (mostly stable) test cases.

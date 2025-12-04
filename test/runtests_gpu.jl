@@ -40,17 +40,17 @@ else
     function cpu_reference_L_MO(FT, param_set, data)
         thermo_params = SFP.thermodynamics_params(param_set)
         ρ_sfc = FT(1.15)
-        ρ_in = FT(1.13)
+        ρ_int = FT(1.13)
         qt_sfc = FT(0.01)
-        qt_in = FT(0.009)
+        qt_int = FT(0.009)
         z0b = FT(0.001)
         reference = Vector{FT}(undef, length(data.z))
         for ii in eachindex(data.z)
             ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, data.theta_sfc[ii], qt_sfc)
-            ts_in = TD.PhaseEquil_ρθq(thermo_params, ρ_in, data.theta[ii], qt_in)
+            ts_int = TD.PhaseEquil_ρθq(thermo_params, ρ_int, data.theta[ii], qt_int)
             state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-            state_in = SF.StateValues(data.z[ii], (data.speed[ii], FT(0)), ts_in)
-            sc = SF.ValuesOnly(state_in, state_sfc, data.z0[ii], z0b)
+            state_int = SF.StateValues(data.z[ii], (data.speed[ii], FT(0)), ts_int)
+            sc = SF.ValuesOnly(state_int, state_sfc, data.z0[ii], z0b)
             reference[ii] = SF.surface_fluxes(param_set, sc).L_MO
         end
         return reference
@@ -71,17 +71,17 @@ else
 
         thermo_params = SFP.thermodynamics_params(param_set)
         ρ_sfc = FT(1.15)
-        ρ_in = FT(1.13)
+        ρ_int = FT(1.13)
         qt_sfc = FT(0.01)
-        qt_in = FT(0.009)
+        qt_int = FT(0.009)
 
         ts_sfc = @. TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
-        ts_in = @. TD.PhaseEquil_ρθq(thermo_params, ρ_in, θ, qt_in)
+        ts_int = @. TD.PhaseEquil_ρθq(thermo_params, ρ_int, θ, qt_int)
         state_sfc = SF.StateValues.(Ref(FT(0)), Ref((FT(0), FT(0))), ts_sfc)
-        state_in = map(z, speed, ts_in) do z_i, speed_i, ts_in_i
-            SF.StateValues(z_i, (speed_i, zero(speed_i)), ts_in_i)
+        state_int = map(z, speed, ts_int) do z_i, speed_i, ts_int_i
+            SF.StateValues(z_i, (speed_i, zero(speed_i)), ts_int_i)
         end
-        sc = SF.ValuesOnly.(state_in, state_sfc, z0, z0b)
+        sc = SF.ValuesOnly.(state_int, state_sfc, z0, z0b)
         gpu_outputs = map(sfc -> SF.surface_fluxes(param_set, sfc).L_MO, sc)
         return Array(gpu_outputs), reference
     end

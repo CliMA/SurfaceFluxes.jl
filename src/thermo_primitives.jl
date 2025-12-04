@@ -18,7 +18,7 @@ thermodynamics parameters to avoid constructing intermediate state objects.
 end
 
 @inline Δqt(q_in::FT, q_sfc::FT) where {FT} = q_in - q_sfc
-@inline ΔT(T_in::FT, T_sfc::FT) where {FT} = T_in - T_sfc
+@inline ΔT(T_int::FT, T_sfc::FT) where {FT} = T_int - T_sfc
 
 @inline function θᵥ(param_set::APS, T::FT, ρ::FT, phase) where {FT}
     return TD.virtual_pottemp(param_set, T, ρ, phase)
@@ -30,14 +30,14 @@ end
 
 @inline function Δθᵥ(
     param_set::APS,
-    T_in::FT,
-    ρ_in::FT,
-    phase_in,
+    T_int::FT,
+    ρ_int::FT,
+    phase_int,
     T_sfc::FT,
     ρ_sfc::FT,
     phase_sfc,
 ) where {FT}
-    return θᵥ(param_set, T_in, ρ_in, phase_in) -
+    return θᵥ(param_set, T_int, ρ_int, phase_int) -
            θᵥ(param_set, T_sfc, ρ_sfc, phase_sfc)
 end
 
@@ -48,13 +48,13 @@ end
 
 @inline function ΔDSEᵥ(
     param_set::APS,
-    T_in::FT,
-    phase_in,
-    Φ_in::FT,
+    T_int::FT,
+    phase_int,
+    Φ_int::FT,
     T_sfc::FT,
     phase_sfc,
     Φ_sfc::FT,
 ) where {FT}
-    return DSEᵥ(param_set, T_in, phase_in, Φ_in) -
+    return DSEᵥ(param_set, T_int, phase_int, Φ_int) -
            DSEᵥ(param_set, T_sfc, phase_sfc, Φ_sfc)
 end

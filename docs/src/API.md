@@ -6,25 +6,21 @@
 SurfaceFluxes
 ```
 
-## Core Input Types
+## Primitive API
 
 ```@docs
-SurfaceFluxes.StateValues
+SurfaceFluxes.surface_fluxes
+SurfaceFluxes.SurfaceFluxConfig
+SurfaceFluxes.roughness_lengths
+SurfaceFluxes.charnock_momentum
+SurfaceFluxes.gustiness_constant
+SurfaceFluxes.SurfaceFluxConditions
 ```
 
-## Dispatch Types
+## Solver Utilities
 
 ```@docs
-SurfaceFluxes.Fluxes
-SurfaceFluxes.FluxesAndFrictionVelocity
-SurfaceFluxes.Coefficients
-SurfaceFluxes.ValuesOnly
-```
-
-## User-Facing Methods
-
-```@docs
-SurfaceFluxes.surface_conditions
+SurfaceFluxes.SolverOptions
 SurfaceFluxes.recover_profile
 ```
 

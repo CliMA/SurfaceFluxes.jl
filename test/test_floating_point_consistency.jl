@@ -11,10 +11,10 @@ const IDENTICAL_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160)
 const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
 const FLOAT_TYPES = (Float32, Float64)
 
-function build_values_only_case(FT, z_int, ts_int, ts_sfc, z0m, z0b)
-    state_in = SF.StateValues(FT(z_int), (FT(0), FT(0)), ts_int)
+function build_values_only_case(FT, z_int, ts_intt, ts_sfc, z0m, z0b)
+    state_int = SF.StateValues(FT(z_int), (FT(0), FT(0)), ts_intt)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly(state_in, state_sfc, FT(z0m), FT(z0b))
+    return SF.ValuesOnly(state_int, state_sfc, FT(z0m), FT(z0b))
 end
 
 @testset "SurfaceFluxes - Near-zero Obukhov length" begin
@@ -25,11 +25,11 @@ end
 
     for FT in FLOAT_TYPES
         param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
-        ts_int = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
+        ts_intt = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
         ts_sfc = TD.PhaseEquil{FT}(FT(1.2176297), FT(102852.51), FT(45087.812), FT(0.013232904), FT(291.96683))
 
         for z_int in NEAR_ZERO_Z_LEVELS
-            sc = build_values_only_case(FT, z_int, ts_int, ts_sfc, 1e-5, 1e-5)
+            sc = build_values_only_case(FT, z_int, ts_intt, ts_sfc, 1e-5, 1e-5)
             sfc_output = surface_fluxes_wrapper(param_set, sc)
             L_MO = sfc_output.L_MO
             @test L_MO != FT(0)
