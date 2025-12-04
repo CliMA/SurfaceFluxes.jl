@@ -7,58 +7,80 @@ struct LayerAverageScheme <: SolverScheme end
 struct PointValueScheme <: SolverScheme end
 
 """
-    Gustiness and quantity specifications
+    Surface flux configuration specs
 """
-abstract type GustinessModel end
 
-struct ConstantGustiness{FT} <: GustinessModel
-    value::FT
+abstract type AbstractRoughnessSpec end
+abstract type AbstractGustinessSpec end
+
+struct DefaultRoughnessSpec <: AbstractRoughnessSpec end
+
+struct FixedRoughnessSpec{TM <: Real, TS <: Real} <: AbstractRoughnessSpec
+    momentum::TM
+    scalar::TS
+end
+FixedRoughnessSpec(momentum::Real, scalar::Real) =
+    FixedRoughnessSpec{typeof(momentum), typeof(scalar)}(momentum, scalar)
+FixedRoughnessSpec(momentum::Real; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
+
+struct CharnockRoughnessSpec{TA <: Real, TS <: Real} <: AbstractRoughnessSpec
+    α::TA
+    scalar::TS
+end
+CharnockRoughnessSpec(α::Real, scalar::Real) =
+    CharnockRoughnessSpec{typeof(α), typeof(scalar)}(α, scalar)
+
+struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
+    value::TG
+end
+ConstantGustinessSpec(value::Real) = ConstantGustinessSpec{typeof(value)}(value)
+
+struct SurfaceFluxConfig{R <: AbstractRoughnessSpec, G <: AbstractGustinessSpec}
+    roughness::R
+    gustiness::G
 end
 
-struct FunctionalGustiness{F} <: GustinessModel
-    fn::F
+SurfaceFluxConfig(; roughness = DefaultRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
+    SurfaceFluxConfig(roughness, gustiness)
+
+"""
+    Runtime roughness and gustiness models
+"""
+
+abstract type AbstractRoughnessModel{FT} end
+abstract type AbstractGustinessModel{FT} end
+
+struct FixedRoughnessModel{FT} <: AbstractRoughnessModel{FT}
+    momentum::FT
+    scalar::FT
 end
 
-abstract type SurfaceQuantity end
-
-struct SurfaceScalar{FT} <: SurfaceQuantity
-    value::FT
-end
-
-struct SurfaceCallable{F} <: SurfaceQuantity
-    fn::F
-end
-
-struct SurfaceSpec{Kind, T}
-    value::T
-end
-
-surface_temperature(spec) = SurfaceSpec{:temperature, typeof(spec)}(spec)
-surface_specific_humidity(spec) = SurfaceSpec{:specific_humidity, typeof(spec)}(spec)
-momentum_roughness(spec) = SurfaceSpec{:momentum_roughness, typeof(spec)}(spec)
-scalar_roughness(spec) = SurfaceSpec{:scalar_roughness, typeof(spec)}(spec)
-
-@inline surface_quantity(spec::SurfaceSpec{Kind, T}, ::Type{FT}) where {Kind, T, FT} =
-    surface_quantity(spec.value, FT)
-
-struct CharnockMomentum{FT}
+struct CharnockRoughnessModel{FT} <: AbstractRoughnessModel{FT}
     α::FT
+    scalar::FT
     grav::FT
 end
 
-@inline function (cm::CharnockMomentum{FT})(ctx) where {FT}
-    return cm.α * ctx.ustar^2 / cm.grav
+struct ConstantGustinessModel{FT} <: AbstractGustinessModel{FT}
+    value::FT
 end
 
-@inline surface_quantity(x::Number, ::Type{FT}) where {FT} =
-    SurfaceScalar(convert(FT, x))
-@inline function surface_quantity(spec::SurfaceScalar, ::Type{FT}) where {FT}
-    return SurfaceScalar(convert(FT, spec.value))
+@inline function instantiate_roughness(param_set::APS{FT}, ::DefaultRoughnessSpec) where {FT}
+    defaults = default_roughness_lengths(param_set)
+    return FixedRoughnessModel{FT}(defaults.momentum, defaults.scalar)
 end
-@inline function surface_quantity(spec::SurfaceCallable, ::Type{FT}) where {FT}
-    return spec
+
+@inline function instantiate_roughness(param_set::APS{FT}, spec::FixedRoughnessSpec) where {FT}
+    return FixedRoughnessModel{FT}(convert(FT, spec.momentum), convert(FT, spec.scalar))
 end
-@inline surface_quantity(fn::F, ::Type{FT}) where {F, FT} = SurfaceCallable(fn)
+
+@inline function instantiate_roughness(param_set::APS{FT}, spec::CharnockRoughnessSpec) where {FT}
+    return CharnockRoughnessModel{FT}(convert(FT, spec.α), convert(FT, spec.scalar), SFP.grav(param_set))
+end
+
+@inline function instantiate_gustiness(::APS{FT}, spec::ConstantGustinessSpec) where {FT}
+    return ConstantGustinessModel{FT}(convert(FT, spec.value))
+end
 
 const FluxOption{FT} = Union{Nothing, FT}
 
@@ -114,42 +136,42 @@ end
     SurfaceFluxInputs
 
 Immutable container describing the atmospheric and surface state using primitive
-quantities or module-defined callables. Instances of this type are passed to the
-functional surface flux solver.
+quantities plus module-defined parameterizations. Instances of this type are
+passed to the functional surface flux solver.
 
 - `Tin`, `qin`, `ρin`: Interior air temperature [K], specific humidity [kg/kg], and density [kg/m³]
-- `Ts_spec`, `qs_spec`: Surface temperature and specific humidity specifications (scalar or callable)
+- `Ts_guess`, `qs_guess`: Scalar initial guesses for surface temperature and humidity
 - `Φs`: Surface geopotential [m²/s²]
 - `Δz`: Height difference between interior and surface reference levels [m]
 - `d`: Displacement height [m]
-- `u_in`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s]
-- `gustiness_model`: Module-defined gustiness model (constant or callable)
-- `z0m_spec`, `z0b_spec`: Momentum and scalar roughness specifications
-- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities
-- Optional flux/scale quantities are supplied via `FluxSpecs`
+- `u_int`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s]
+- `roughness_model`: Module-defined roughness parameterization
+- `gustiness_model`: Module-defined gustiness parameterization
+- `update_Ts!`, `update_qs!`: Optional hooks invoked each solver iteration
+- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities supplied via `FluxSpecs`
 """
 struct SurfaceFluxInputs{
     FT,
-    TsSpec <: SurfaceQuantity,
-    QsSpec <: SurfaceQuantity,
-    Z0mSpec <: SurfaceQuantity,
-    Z0bSpec <: SurfaceQuantity,
-    GM <: GustinessModel,
+    RM <: AbstractRoughnessModel{FT},
+    GM <: AbstractGustinessModel{FT},
+    UpdateTs,
+    UpdateQs,
     U,
 }
     Tin::FT
     qin::FT
     ρin::FT
-    Ts_spec::TsSpec
-    qs_spec::QsSpec
+    Ts_guess::FT
+    qs_guess::FT
     Φs::FT
     Δz::FT
     d::FT
-    u_in::U
+    u_int::U
     u_sfc::U
+    roughness_model::RM
     gustiness_model::GM
-    z0m_spec::Z0mSpec
-    z0b_spec::Z0bSpec
+    update_Ts!::UpdateTs
+    update_qs!::UpdateQs
     shf::Union{Nothing, FT}
     lhf::Union{Nothing, FT}
     ustar::Union{Nothing, FT}
@@ -161,47 +183,43 @@ function SurfaceFluxInputs(
     Tin::FT,
     qin::FT,
     ρin::FT,
-    Ts,
-    qs,
+    Ts_guess::FT,
+    qs_guess::FT,
     Φs::FT,
     Δz::FT,
     d::FT,
-    u_in,
+    u_int,
     u_sfc,
-    gustiness,
-    z0m,
-    z0b,
+    roughness_model::RM,
+    gustiness_model::GM,
+    update_Ts!,
+    update_qs!,
     flux_specs::FluxSpecs{FT},
-) where {FT}
-    u_in_tuple = _normalize_velocity(u_in, FT)
+) where {FT, RM <: AbstractRoughnessModel{FT}, GM <: AbstractGustinessModel{FT}}
+    u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
-    Ts_spec = surface_quantity(Ts, FT)
-    qs_spec = surface_quantity(qs, FT)
-    z0m_spec = surface_quantity(z0m, FT)
-    z0b_spec = surface_quantity(z0b, FT)
-    gust_model = _normalize_gustiness(gustiness, FT)
     return SurfaceFluxInputs{
         FT,
-        typeof(Ts_spec),
-        typeof(qs_spec),
-        typeof(z0m_spec),
-        typeof(z0b_spec),
-        typeof(gust_model),
-        typeof(u_in_tuple),
+        RM,
+        GM,
+        typeof(update_Ts!),
+        typeof(update_qs!),
+        typeof(u_int_tuple),
     }(
         Tin,
         qin,
         ρin,
-        Ts_spec,
-        qs_spec,
+        Ts_guess,
+        qs_guess,
         Φs,
         Δz,
         d,
-        u_in_tuple,
+        u_int_tuple,
         u_sfc_tuple,
-        gust_model,
-        z0m_spec,
-        z0b_spec,
+        roughness_model,
+        gustiness_model,
+        update_Ts!,
+        update_qs!,
         flux_specs.shf,
         flux_specs.lhf,
         flux_specs.ustar,
@@ -219,16 +237,6 @@ function _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT}
     return (convert(FT, u[1]), convert(FT, u[2]))
 end
 _normalize_velocity(u::Nothing, ::Type{FT}) where {FT} = (zero(FT), zero(FT))
-
-@inline function _normalize_gustiness(gustiness, ::Type{FT}) where {FT}
-    if gustiness isa GustinessModel
-        return gustiness
-    elseif gustiness isa Number
-        return ConstantGustiness(convert(FT, gustiness))
-    else
-        return FunctionalGustiness(gustiness)
-    end
-end
 
 Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     Ts::FT = FT(0)
@@ -277,7 +285,7 @@ struct CallableContext{FT, U}
     Φs::FT
     Δz::FT
     d::FT
-    u_in::U
+    u_int::U
     u_sfc::U
     gustiness::FT
     ustar::FT
@@ -300,7 +308,7 @@ Base.propertynames(::CallableContext) = (
     :Φs,
     :Δz,
     :d,
-    :u_in,
+    :u_int,
     :u_sfc,
     :gustiness,
     :ustar,

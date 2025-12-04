@@ -18,11 +18,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Strong wind shear, strongly stable #1",
             Δz = FT(15.000001),
-            u_in = (FT(-19.07545), FT(16.88031)),
+            u_int = (FT(-19.07545), FT(16.88031)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.2595116f0,
                 99902.82f0,
                 12337.749f0,
@@ -52,11 +52,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Weak wind, weakly stratified #2",
             Δz = FT(15.000001),
-            u_in = (FT(-0.168524), FT(-0.000566946)),
+            u_int = (FT(-0.168524), FT(-0.000566946)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.2605726f0,
                 100331.47f0,
                 7956.4053f0,
@@ -86,11 +86,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Strong wind shear, strongly stable #3",
             Δz = FT(15.000001),
-            u_in = (FT(-14.154735), FT(-5.1905923)),
+            u_int = (FT(-14.154735), FT(-5.1905923)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.1730341f0,
                 98689.72f0,
                 43302.703f0,
@@ -120,11 +120,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Strong wind shear, strongly stable #4",
             Δz = FT(15.000001),
-            u_in = (FT(-13.526638), FT(-8.794365)),
+            u_int = (FT(-13.526638), FT(-8.794365)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.1698402f0,
                 98647.89f0,
                 44855.285f0,
@@ -154,11 +154,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "High wind, near-neutral #5",
             Δz = FT(15.000001),
-            u_in = (FT(-41.34482), FT(-23.609104)),
+            u_int = (FT(-41.34482), FT(-23.609104)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.2182463f0,
                 96874.9f0,
                 13805.914f0,
@@ -188,11 +188,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Weak wind, stable #6",
             Δz = FT(15.000001),
-            u_in = (FT(-0.75088084), FT(-0.09317328)),
+            u_int = (FT(-0.75088084), FT(-0.09317328)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            ts_int = TD.PhaseEquil{FT}(
                 1.2317619f0,
                 99965.086f0,
                 12921.355f0,
@@ -237,9 +237,9 @@ const CASE_NUMERIC_FIELDS = (
 
 function build_values_only_case(case, ::Type{FT}) where {FT}
     state_sfc = SF.StateValues(FT(0), case.u_sfc, case.ts_sfc)
-    state_in = SF.StateValues(case.Δz, case.u_in, case.ts_in)
-    sc = SF.ValuesOnly(state_in, state_sfc, case.z0m, case.z0b)
-    return sc, state_in, state_sfc
+    state_int = SF.StateValues(case.Δz, case.u_int, case.ts_int)
+    sc = SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b)
+    return sc, state_int, state_sfc
 end
 
 function assert_coefficient_reasonableness(result, ::Type{FT}) where {FT}
@@ -258,7 +258,7 @@ end
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     for case in case_definitions(FT)
         @testset "$(case.name)" begin
-            sc, state_in, state_sfc = build_values_only_case(case, FT)
+            sc, state_int, state_sfc = build_values_only_case(case, FT)
             result = surface_fluxes_wrapper(param_set, sc)
 
             for field in CASE_NUMERIC_FIELDS
@@ -287,13 +287,13 @@ end
     FT = Float32
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     base_case = case_definitions(FT)[1]
-    base_sc, state_in, state_sfc = build_values_only_case(base_case, FT)
+    base_sc, state_int, state_sfc = build_values_only_case(base_case, FT)
     base_result = surface_fluxes_wrapper(param_set, base_sc)
 
     z0m, z0b = base_case.z0m, base_case.z0b
     @testset "Flux-prescribed container" begin
         flux_sc = SF.Fluxes(
-            state_in,
+            state_int,
             state_sfc,
             base_result.shf,
             base_result.lhf,
@@ -306,7 +306,7 @@ end
 
     @testset "Flux+ustar container" begin
         fluxustar_sc = SF.FluxesAndFrictionVelocity(
-            state_in,
+            state_int,
             state_sfc,
             base_result.shf,
             base_result.lhf,
@@ -337,7 +337,7 @@ end
 
     @testset "Coefficient-prescribed container" begin
         coeff_sc = SF.Coefficients(
-            state_in,
+            state_int,
             state_sfc,
             base_result.Cd,
             base_result.Ch,

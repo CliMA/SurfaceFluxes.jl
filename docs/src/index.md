@@ -7,9 +7,9 @@ See the [API Reference](@ref) for complete API documentation.
 The `src/` directory contains the following files organized by functionality:
 
 ### Core Module Files
-- **`SurfaceFluxes.jl`**: Main module file containing the `surface_conditions` function and `obukhov_similarity_solution` solver
-- **`types.jl`**: Type definitions including `AbstractSurfaceConditions`, `SolverScheme`, `RoughnessModel`, and related structs
-- **`utilities.jl`**: Helper functions for state accessors, Richardson number computation, and thermodynamic differences
+- **`SurfaceFluxes.jl`**: Main module file containing the primitive `surface_fluxes` API and the `obukhov_similarity_solution` solver
+- **`types.jl`**: Type definitions including solver options, `SurfaceFluxConfig`, and iteration-state records
+- **`utilities.jl`**: Helper functions for Richardson number computation and thermodynamic differences
 - **`Parameters.jl`**: Parameter set definitions for physical constants
 - **`UniversalFunctions.jl`**: Universal function implementations (Businger, Gryanik, Grachev)
 
@@ -18,14 +18,11 @@ The `src/` directory contains the following files organized by functionality:
 - **`momentum_exchange_coefficient_methods.jl`**: Computation of momentum exchange coefficient (Cd) for neutral and stratified conditions
 - **`heat_exchange_coefficient_methods.jl`**: Computation of heat exchange coefficient (Ch) for neutral and stratified conditions
 - **`friction_velocity_methods.jl`**: Friction velocity (u★) computation methods
-- **`sensible_heat_methods.jl`**: Sensible heat flux computations
-- **`latent_heat_methods.jl`**: Latent heat flux computations
-- **`buoyancy_flux_methods.jl`**: Buoyancy flux computations
-- **`evaporation_methods.jl`**: Evaporation rate computations
+- **`thermodynamic_fluxes.jl`**: Sensible heat flux, latent heat flux, evaporation rate, and buoyancy flux computations
 
-### Surface Condition Input Types
-- **`coefficient_inputs.jl`**: Methods for surface conditions specified via exchange coefficients (Cd, Ch)
-- **`roughness_models.jl`**: Roughness length models (ScalarRoughness, CharnockRoughness)
+### Surface Configuration Helpers
+- **`input_builders.jl`**: Normalization of primitive inputs plus parameterization selection via `SurfaceFluxConfig`
+- **`roughness_lengths.jl`**: Roughness length evaluation for built-in parameterizations
 
 ### Profile Recovery
 - **`profile_recovery.jl`**: Functions to recover vertical profiles within the surface layer using Monin-Obukhov similarity theory

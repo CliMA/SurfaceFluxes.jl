@@ -2,49 +2,24 @@
     roughness_lengths(momentum; scalar=momentum)
 
 Convenience constructor that pairs the momentum and scalar roughness
-specifications. `momentum` and `scalar` may be scalars, callables, or any of
-the `SurfaceQuantity` helper specs.
+specifications.
 """
-struct RoughnessLengths{ZM, ZB}
-    momentum::ZM
-    scalar::ZB
+struct RoughnessLengths{FT}
+    momentum::FT
+    scalar::FT
 end
 
-roughness_lengths(momentum; scalar = momentum) = RoughnessLengths(momentum, scalar)
+roughness_lengths(momentum; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
 
 @inline function default_roughness_lengths(::APS{FT}) where {FT}
-    return RoughnessLengths(FT(1e-3), FT(1e-4))
-end
-
-@inline function normalize_roughness(roughness::RoughnessLengths, ::Type{FT}) where {FT}
-    return roughness
-end
-
-@inline function normalize_roughness(
-    roughness::NTuple{2, Any},
-    ::Type{FT},
-) where {FT}
-    return RoughnessLengths(roughness[1], roughness[2])
-end
-
-@inline function normalize_roughness(roughness::NamedTuple, ::Type{FT}) where {FT}
-    first_value = first(values(roughness))
-    momentum = get(roughness, :momentum, get(roughness, :scalar, first_value))
-    scalar = get(roughness, :scalar, momentum)
-    return RoughnessLengths(momentum, scalar)
-end
-
-@inline function normalize_roughness(roughness, ::Type{FT}) where {FT}
-    return RoughnessLengths(roughness, roughness)
+    return RoughnessLengths{FT}(FT(1e-3), FT(1e-4))
 end
 
 @inline function flux_spec(param_set::APS; kwargs...)
     return FluxSpecs(param_set; kwargs...)
 end
 
-gustiness_constant(val::Real) = ConstantGustiness(val)
-
-@inline gustiness_callable(fn) = FunctionalGustiness(fn)
+gustiness_constant(val::Real) = ConstantGustinessSpec(val)
 
 """
     build_surface_flux_inputs(param_set, args...)
@@ -59,32 +34,35 @@ function build_surface_flux_inputs(
     Tin::FT,
     qin::FT,
     ρin::FT,
-    Ts,
-    qs,
+    Ts_guess::FT,
+    qs_guess::FT,
     Φs::FT,
     Δz::FT,
     d::FT,
-    u_in,
+    u_int,
     u_sfc,
-    roughness,
-    gustiness,
+    config::SurfaceFluxConfig,
     flux_specs::FluxSpecs{FT},
+    update_Ts!,
+    update_qs!,
 ) where {FT}
-    normalized_roughness = normalize_roughness(roughness, FT)
+    roughness_model = instantiate_roughness(param_set, config.roughness)
+    gustiness_model = instantiate_gustiness(param_set, config.gustiness)
     return SurfaceFluxInputs(
         Tin,
         qin,
         ρin,
-        Ts,
-        qs,
+        Ts_guess,
+        qs_guess,
         Φs,
         Δz,
         d,
-        u_in,
+        u_int,
         u_sfc,
-        gustiness,
-        normalized_roughness.momentum,
-        normalized_roughness.scalar,
+        roughness_model,
+        gustiness_model,
+        update_Ts!,
+        update_qs!,
         flux_specs,
     )
 end

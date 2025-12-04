@@ -3,20 +3,7 @@ function non_zero(v::FT) where {FT}
     return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
 end
 
-@inline resolve_quantity(value::Number, ctx) = value
-@inline resolve_quantity(::Nothing, ctx) = nothing
-@inline resolve_quantity(spec::SurfaceScalar, ctx) = spec.value
-@inline function resolve_quantity(spec::SurfaceCallable, ctx)
-    return spec.fn(ctx)
-end
-@inline function resolve_quantity(callable, ctx)
-    return callable(ctx)
-end
-
-@inline gustiness_value(model::ConstantGustiness, inputs, ctx) = model.value
-@inline function gustiness_value(model::FunctionalGustiness, inputs, ctx)
-    return model.fn(inputs, ctx)
-end
+@inline gustiness_value(model::ConstantGustinessModel, inputs, ctx) = model.value
 
 @inline z_in(inputs::SurfaceFluxInputs) = inputs.d + inputs.Δz
 @inline z_sfc(inputs::SurfaceFluxInputs) = inputs.d
@@ -24,8 +11,8 @@ end
 
 @inline function Δu_components(inputs::SurfaceFluxInputs)
     return (
-        inputs.u_in[1] - inputs.u_sfc[1],
-        inputs.u_in[2] - inputs.u_sfc[2],
+        inputs.u_int[1] - inputs.u_sfc[1],
+        inputs.u_int[2] - inputs.u_sfc[2],
     )
 end
 

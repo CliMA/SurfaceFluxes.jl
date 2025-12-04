@@ -11,7 +11,7 @@ const RS = RootSolvers
 
 const SYNTH_T_SURFACE = (261.0, 282.0, 310.0)
 const SYNTH_DELTA_T = (-8.0, -2.0, 3.5)
-const SYNTH_RH_IN = (0, 0.85, 0.99)
+const SYNTH_RH_INT = (0, 0.85, 0.99)
 const SYNTH_DELTA_QT = (-2e-3, 0.0, 3e-3)
 const SYNTH_HEIGHTS = (5.0, 20.0, 80.0)
 const SYNTH_SPEEDS = (1.0, 12.0)
@@ -40,7 +40,7 @@ function synthetic_cases(::Type{FT}) where {FT}
     cases = NamedTuple[]
     for T_sfc in SYNTH_T_SURFACE,
         ΔT in SYNTH_DELTA_T,
-        RH_in in SYNTH_RH_IN,
+        RH_int in SYNTH_RH_INT,
         Δqt in SYNTH_DELTA_QT,
         z in SYNTH_HEIGHTS,
         speed in SYNTH_SPEEDS,
@@ -49,15 +49,15 @@ function synthetic_cases(::Type{FT}) where {FT}
         z0b_factor in SYNTH_Z0B_FACTORS,
         p in SYNTH_PRESSURES
 
-        T_in = FT(T_sfc + ΔT)
-        qt_in = qt_from_RH(FT, RH_in, T_in, p)
+        T_int = FT(T_sfc + ΔT)
+        qt_int = qt_from_RH(FT, RH_int, T_int, p)
         push!(
             cases,
             (
                 T_sfc = FT(T_sfc),
-                T_in = T_in,
-                qt_in = qt_in,
-                qt_sfc = FT(clamp(qt_in + Δqt, 0.0, 1.0)),
+                T_int = T_int,
+                qt_int = qt_int,
+                qt_sfc = FT(clamp(qt_int + Δqt, 0.0, 1.0)),
                 z = FT(z),
                 wind = (
                     FT(speed * wind_dir[1]),
@@ -87,16 +87,16 @@ function build_surface_condition(param_set, case, roughness_model)
     FT = eltype(case.T_sfc)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
-    ρ_in = density_from_state(thermo_params, case.T_in, case.pressure, case.qt_in)
+    ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
     ts_sfc = TD.PhaseEquil_ρTq(thermo_params, ρ_sfc, case.T_sfc, case.qt_sfc)
-    ts_in = TD.PhaseEquil_ρTq(thermo_params, ρ_in, case.T_in, case.qt_in)
+    ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, case.T_int, case.qt_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    state_in = SF.StateValues(case.z, case.wind, ts_in)
-    return SF.ValuesOnly(state_in, state_sfc, case.z0m, case.z0b; roughness_model)
+    state_int = SF.StateValues(case.z, case.wind, ts_int)
+    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b; roughness_model)
 end
 
 function assert_flux_expectations(result, case, FT, param_set, sc)
-    Δqt = case.qt_in - case.qt_sfc
+    Δqt = case.qt_int - case.qt_sfc
     ΔDSEᵥ = SF.ΔDSEᵥ(param_set, sc)
     heat_tolerance = FT(SFP.cp_d(param_set) * TEMP_NEUTRAL_THRESHOLD)
     if abs(ΔDSEᵥ) > heat_tolerance
@@ -111,7 +111,7 @@ function assert_flux_expectations(result, case, FT, param_set, sc)
         @test isapprox(result.shf, FT(0); atol = FT(5e-2))
     end
     if abs(Δqt) > FT(HUMIDITY_NEUTRAL_THRESHOLD)
-        expected_evap_sign = sign(case.qt_sfc - case.qt_in)
+        expected_evap_sign = sign(case.qt_sfc - case.qt_int)
         @test sign(result.evaporation) == expected_evap_sign
     end
     for (stress, wind_component) in zip((result.ρτxz, result.ρτyz), case.wind)
