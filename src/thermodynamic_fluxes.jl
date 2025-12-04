@@ -8,10 +8,11 @@ The sensible heat flux is given by
     SHF = -ρ_sfc * g_h * ΔDSE + VSE_sfc * E
 
 where `ΔDSE = DSE_int - DSE_sfc` is the difference in dry static energy between
-the interior and surface, `g_h` is the heat/moisture conductance, `VSE_sfc` is the static 
-energy of water vapor at the surface temperature, and `E` is the evaporation rate. The 
-second term, `VSE_sfc * E`, accounts for the static energy (i.e., `dry` enthalpy, or 
-sensible heat,plus potential energy) carried by evaporating water.
+the interior and surface, `g_h` is the heat/moisture conductance, `VSE_sfc` is the `dry` 
+static energy of water vapor at the surface temperature, and `E` is the evaporation rate. The 
+second term, `VSE_sfc * E`, accounts for the `dry` static energy `cp_v (T_sfc - T_0) + Φ_sfc`
+(i.e., `dry` enthalpy `cp_v (T_sfc - T_0)`, or sensible heat, plus potential energy Φ_sfc) 
+carried by evaporating water.
 
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed sensible heat flux conditions.
@@ -127,24 +128,24 @@ function buoyancy_flux(
     lhf,
     T_sfc,
     q_tot_sfc,
-    q_liq_sfc, 
-    q_ice_sfc, 
+    q_liq_sfc,
+    q_ice_sfc,
     ρ_sfc,
 )
     grav = SFP.grav(param_set)
     ε_vd = SFP.Rv_over_Rd(param_set)
-    
+
     # Calculate specific heat of moist air at the surface including condensate
     cp_m_sfc = TD.cp_m(thermo_params, q_tot_sfc, q_liq_sfc, q_ice_sfc)
-    
+
     LH_v0 = TP.LH_v0(thermo_params)
 
     # Term 1: Sensible heat flux contribution
     term_shf = shf / (cp_m_sfc * T_sfc)
-    
+
     # Term 2: Latent heat flux contribution
     # This term captures the buoyancy effect of water vapor density changes.
     term_lhf = (ε_vd - 1) * lhf / LH_v0
-    
+
     return (grav / ρ_sfc) * (term_shf + term_lhf)
 end

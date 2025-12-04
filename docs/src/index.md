@@ -15,9 +15,8 @@ The `src/` directory contains the following files organized by functionality:
 
 ### Flux and Exchange Coefficient Methods
 - **`physical_scale_coefficient_methods.jl`**: Computation of physical scale coefficients for finite difference (Byun 1990) and finite volume (Nishizawa 2018) schemes
-- **`momentum_exchange_coefficient_methods.jl`**: Computation of momentum exchange coefficient (Cd) for neutral and stratified conditions
-- **`heat_exchange_coefficient_methods.jl`**: Computation of heat exchange coefficient (Ch) for neutral and stratified conditions
 - **`friction_velocity_methods.jl`**: Friction velocity (u★) computation methods
+- **`conductances.jl`**: Heat conductance, momentum exchange coefficient (Cd), and heat exchange coefficient (Ch) computations
 - **`thermodynamic_fluxes.jl`**: Sensible heat flux, latent heat flux, evaporation rate, and buoyancy flux computations
 
 ### Surface Configuration Helpers
