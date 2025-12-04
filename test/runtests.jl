@@ -42,6 +42,11 @@ end
     include("test_convergence.jl")
 end
 
+@testset "RootSolvers integration tests" begin
+    # Tests for RootSolvers.jl methods (BrentsMethod, SecantMethod)
+    include("test_rootsolvers.jl")
+end
+
 @testset "Quality assurance" begin
     # Meta-tests (Aqua, etc.) that check for common Julia package issues.
     include("aqua.jl")

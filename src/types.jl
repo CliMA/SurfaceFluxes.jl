@@ -6,6 +6,15 @@ abstract type SolverScheme end
 struct LayerAverageScheme <: SolverScheme end
 struct PointValueScheme <: SolverScheme end
 
+### Solver Methods for RootSolvers.jl
+# Abstract type for RootSolvers methods
+abstract type SolverMethod end
+# Fixed point iteration (default, manual implementation)
+struct FixedPointIteration <: SolverMethod end
+# RootSolvers.jl methods - these will be used to solve for stability parameter ζ
+struct BrentsMethod <: SolverMethod end
+struct SecantMethod <: SolverMethod end
+
 ### Roughness Models
 # 1) ScalarRoughness (User prescribed constant values)
 # 2) CharnockRoughness (Charnock u★ dependent formulation)
