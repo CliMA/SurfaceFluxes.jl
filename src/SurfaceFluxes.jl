@@ -25,7 +25,7 @@ include("input_builders.jl")
 include("utilities.jl")
 include("physical_scale_coefficient_methods.jl")
 include("roughness_lengths.jl")
-include("thermodynamic_fluxes.jl")
+include("bulk_fluxes.jl")
 include("friction_velocity_methods.jl")
 include("conductances.jl")
 include("profile_recovery.jl")
@@ -138,6 +138,7 @@ function surface_fluxes(
     d::FT,
     u_int = nothing,
     u_sfc = nothing,
+    roughness_inputs = nothing,
     config::SurfaceFluxConfig = SurfaceFluxConfig(),
     scheme::SolverScheme = PointValueScheme(),
     solver_opts = nothing,
@@ -164,6 +165,7 @@ function surface_fluxes(
         u_int_val,
         u_sfc_val,
         config_val,
+        roughness_inputs,
         flux_specs_val,
         update_Ts!,
         update_qs!,
@@ -179,7 +181,6 @@ function surface_fluxes(
 
     scales = solution.scales
     ρτxz, ρτyz = momentum_fluxes(
-        param_set,
         solution.Cd,
         inputs,
         solution.ρ_sfc,
@@ -390,7 +391,7 @@ function solve_surface_layer(
             shf,
             lhf,
             E,
-            buoyancy_flux,
+            buoy_flux,
         )
 
         has_converged(current, prev_state, tol) && break
@@ -487,20 +488,6 @@ end
            abs(current.u_star - previous.u_star) <= tol &&
            abs(current.q_star - previous.q_star) <= tol &&
            abs(current.dsev_star - previous.dsev_star) <= tol
-end
-
-function momentum_fluxes(
-    param_set::APS,
-    Cd,
-    inputs::SurfaceFluxInputs,
-    ρ_sfc,
-    gustiness,
-)
-    Δu = Δu_components(inputs)
-    ΔU = windspeed(inputs, gustiness)
-    ρτxz = -ρ_sfc * Cd * Δu[1] * ΔU
-    ρτyz = -ρ_sfc * Cd * Δu[2] * ΔU
-    return (ρτxz, ρτyz)
 end
 
 obukhov_similarity_solution(sfc::SurfaceFluxConditions) = sfc.L_MO

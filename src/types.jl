@@ -154,6 +154,7 @@ struct SurfaceFluxInputs{
     FT,
     RM <: AbstractRoughnessModel{FT},
     GM <: AbstractGustinessModel{FT},
+    RI,
     UpdateTs,
     UpdateQs,
     U,
@@ -170,6 +171,7 @@ struct SurfaceFluxInputs{
     u_sfc::U
     roughness_model::RM
     gustiness_model::GM
+    roughness_inputs::RI
     update_Ts!::UpdateTs
     update_qs!::UpdateQs
     shf::Union{Nothing, FT}
@@ -192,16 +194,18 @@ function SurfaceFluxInputs(
     u_sfc,
     roughness_model::RM,
     gustiness_model::GM,
+    roughness_inputs::RI,
     update_Ts!,
     update_qs!,
     flux_specs::FluxSpecs{FT},
-) where {FT, RM <: AbstractRoughnessModel{FT}, GM <: AbstractGustinessModel{FT}}
+) where {FT, RM <: AbstractRoughnessModel{FT}, GM <: AbstractGustinessModel{FT}, RI}
     u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
     return SurfaceFluxInputs{
         FT,
         RM,
         GM,
+        RI,
         typeof(update_Ts!),
         typeof(update_qs!),
         typeof(u_int_tuple),
@@ -218,6 +222,7 @@ function SurfaceFluxInputs(
         u_sfc_tuple,
         roughness_model,
         gustiness_model,
+        roughness_inputs,
         update_Ts!,
         update_qs!,
         flux_specs.shf,

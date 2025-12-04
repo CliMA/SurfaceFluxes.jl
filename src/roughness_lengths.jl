@@ -4,17 +4,17 @@
 # They are intentionally lightweight so they can be inlined inside GPU kernels.
 #
 
-@inline momentum_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx) where {FT} =
+@inline momentum_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
     model.momentum
 
-@inline scalar_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx) where {FT} =
+@inline scalar_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
     model.scalar
 
-@inline function momentum_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx) where {FT}
+@inline function momentum_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
     return model.α * u★^2 / model.grav
 end
 
-@inline scalar_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx) where {FT} =
+@inline scalar_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
     model.scalar
 
 @inline function compute_z0(
@@ -24,7 +24,7 @@ end
     ::UF.MomentumTransport,
     ctx,
 )
-    return momentum_roughness(inputs.roughness_model, u★, sfc_param_set, ctx)
+    return momentum_roughness(inputs.roughness_model, u★, sfc_param_set, ctx, inputs.roughness_inputs)
 end
 
 @inline function compute_z0(
@@ -34,5 +34,5 @@ end
     ::UF.HeatTransport,
     ctx,
 )
-    return scalar_roughness(inputs.roughness_model, u★, sfc_param_set, ctx)
+    return scalar_roughness(inputs.roughness_model, u★, sfc_param_set, ctx, inputs.roughness_inputs)
 end
