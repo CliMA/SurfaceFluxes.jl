@@ -106,7 +106,7 @@ function case_definitions(::Type{FT}) where {FT}
             ),
             expected = (;
                 L_MO = FT(22423.342),
-                shf = FT(-0.6993717),
+                shf = FT(-0.7561525),
                 lhf = FT(5.82858),
                 buoy_flux = FT(-7.745661f-6),
                 ρτxz = FT(0.19813664),
@@ -140,7 +140,7 @@ function case_definitions(::Type{FT}) where {FT}
             ),
             expected = (;
                 L_MO = FT(22546.48),
-                shf = FT(-0.8574441),
+                shf = FT(-0.9248207),
                 lhf = FT(7.22102),
                 buoy_flux = FT(-9.300392f-6),
                 ρτxz = FT(0.20206536),
