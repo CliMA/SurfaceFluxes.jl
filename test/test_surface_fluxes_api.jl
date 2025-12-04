@@ -101,4 +101,3 @@ end
 
     @test config_result.Cd != base_result.Cd
 end
-
