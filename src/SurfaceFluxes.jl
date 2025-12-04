@@ -344,7 +344,6 @@ function solve_surface_layer(
         g_h = heat_conductance(inputs, Ch_val, gustiness)
         g_q = heat_conductance(inputs, Ch_val, gustiness)
         E = evaporation(
-            param_set,
             thermo_params,
             inputs,
             g_q,
@@ -352,7 +351,7 @@ function solve_surface_layer(
             iter_state.qs,
             ρ_sfc,
         )
-        lhf = latent_heat_flux(param_set, thermo_params, inputs, E)
+        lhf = latent_heat_flux(thermo_params, inputs, E)
         shf = sensible_heat_flux(
             param_set,
             thermo_params,

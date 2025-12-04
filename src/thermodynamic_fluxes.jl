@@ -5,16 +5,13 @@ Computes the sensible heat flux at the surface.
 
 The sensible heat flux is given by
 
-    SHF = -ρ_sfc * g_h * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
+    SHF = -ρ_sfc * g_h * ΔDSE + VSE_sfc * E
 
 where `ΔDSE = DSE_int - DSE_sfc` is the difference in dry static energy between
-the interior and surface, `g_h` is the heat conductance, `hv_sfc` is the specific
-enthalpy of water vapor at the surface temperature, `Φ_sfc` is the surface geopotential,
-`LH_v0` is the latent heat of vaporization at the reference temperature, and `E` is
-the evaporation rate.
-
-The second term `(hv_sfc + Φ_sfc - LH_v0) * E` accounts for the sensible heat and 
-potential energy advected by evaporating water.
+the interior and surface, `g_h` is the heat/moisture conductance, `VSE_sfc` is the static 
+energy of water vapor at the surface temperature, and `E` is the evaporation rate. The 
+second term, `VSE_sfc * E`, accounts for the static energy (i.e., `dry` enthalpy, or 
+sensible heat,plus potential energy) carried by evaporating water.
 
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed sensible heat flux conditions.
@@ -32,28 +29,28 @@ function sensible_heat_flux(
     if inputs.shf !== nothing
         return inputs.shf
     end
-    LH_v0 = TP.LH_v0(thermo_params)
-    hv_sfc = TD.specific_enthalpy_vapor(thermo_params, T_sfc)
-    Φ_int = interior_geopotential(param_set, inputs)
     Φ_sfc = surface_geopotential(inputs)
+    Φ_int = interior_geopotential(param_set, inputs)
     DSE_in = TD.dry_static_energy(thermo_params, T_int, Φ_int)
     DSE_sfc = TD.dry_static_energy(thermo_params, T_sfc, Φ_sfc)
     ΔDSE = DSE_in - DSE_sfc
-    return -ρ_sfc * g_h * ΔDSE + (hv_sfc + Φ_sfc - LH_v0) * E
+    VSE_sfc = TD.vapor_static_energy(thermo_params, T_sfc, Φ_sfc)
+    return -ρ_sfc * g_h * ΔDSE + VSE_sfc * E
 end
 
 """
-    evaporation(param_set, thermo_params, inputs, g_h, q_v_int, q_v_sfc, ρ_sfc)
+    evaporation(thermo_params, inputs, g_h, q_vap_int, q_vap_sfc, ρ_sfc)
 
 Computes the evaporation rate at the surface.
 
 The evaporation rate is given by
 
-    E = -ρ_sfc * g_h * Δq_v
+    E = -ρ_sfc * g_h * Δq_vap
 
-where `Δq_v = q_v_int - q_v_sfc` is the difference in vapor specific humidity between
-the interior and surface, `g_h` is the moisture conductance, and `ρ_sfc` is the
-surface air density. Here `q_v_int` and `q_v_sfc` are the vapor specific humidities
+where `Δq_vap = q_vap_int - q_vap_sfc` is the difference in vapor specific humidity between
+the interior and surface, `g_h` is the heat/moisture conductance (heat and moisture 
+conductances must be equal for energetic consistency), and `ρ_sfc` is the
+surface air density. Here `q_vap_int` and `q_vap_sfc` are the vapor specific humidities
 (not total specific humidity) at the interior and surface, respectively.
 
 If `inputs.lhf` is provided (not `nothing`), the function returns the evaporation
@@ -61,24 +58,23 @@ rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 `LH_v0` is the latent heat of vaporization at the reference temperature.
 """
 function evaporation(
-    param_set::APS,
     thermo_params,
     inputs::SurfaceFluxInputs,
     g_h,
-    q_v_int,
-    q_v_sfc,
+    q_vap_int,
+    q_vap_sfc,
     ρ_sfc,
 )
     if inputs.lhf !== nothing
         LH_v0 = TP.LH_v0(thermo_params)
         return inputs.lhf / LH_v0
     end
-    Δq_v = q_v_int - q_v_sfc
-    return -ρ_sfc * g_h * Δq_v
+    Δq_vap = q_vap_int - q_vap_sfc
+    return -ρ_sfc * g_h * Δq_vap
 end
 
 """
-    latent_heat_flux(param_set, thermo_params, inputs, E)
+    latent_heat_flux(thermo_params, inputs, E)
 
 Computes the latent heat flux at the surface.
 
@@ -93,7 +89,6 @@ If `inputs.lhf` is provided (not `nothing`), the function returns that value dir
 allowing for prescribed latent heat flux conditions.
 """
 function latent_heat_flux(
-    param_set::APS,
     thermo_params,
     inputs::SurfaceFluxInputs,
     E,
