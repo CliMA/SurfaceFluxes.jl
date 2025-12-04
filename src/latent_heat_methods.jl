@@ -27,19 +27,7 @@ Compute and return the latent heat flux
 function latent_heat_flux(
     param_set,
     Ch,
-    sc::Union{ValuesOnly},
-    scheme,
-)
-    LH_v0 = SFP.LH_v0(param_set)
-    E = evaporation(param_set, sc, Ch)
-    lhf = LH_v0 * E
-    return lhf
-end
-
-function latent_heat_flux(
-    param_set,
-    Ch,
-    sc::Union{Coefficients},
+    sc::Union{ValuesOnly, Coefficients},
     scheme,
 )
     LH_v0 = SFP.LH_v0(param_set)
