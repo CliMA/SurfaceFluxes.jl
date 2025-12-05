@@ -8,6 +8,9 @@ end
 @inline z_in(inputs::SurfaceFluxInputs) = inputs.d + inputs.Δz
 @inline z_sfc(inputs::SurfaceFluxInputs) = inputs.d
 @inline Δz(inputs::SurfaceFluxInputs) = inputs.Δz
+@inline Δz(inputs::Fluxes) = inputs.state_int.z - inputs.state_sfc.z
+@inline Δz(inputs::FluxesAndFrictionVelocity) = inputs.state_int.z - inputs.state_sfc.z
+@inline Δz(inputs::ValuesOnly) = inputs.state_int.z - inputs.state_sfc.z
 
 @inline function Δu_components(inputs::SurfaceFluxInputs)
     return (

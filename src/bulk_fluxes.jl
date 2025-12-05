@@ -27,8 +27,9 @@ function sensible_heat_flux(
     ρ_sfc,
     E,
 )
-    if inputs.shf !== nothing
-        return inputs.shf
+    shf_in = inputs.shf
+    if shf_in !== nothing
+        return shf_in
     end
     Φ_sfc = surface_geopotential(inputs)
     Φ_int = interior_geopotential(param_set, inputs)
@@ -66,9 +67,10 @@ function evaporation(
     q_vap_sfc,
     ρ_sfc,
 )
-    if inputs.lhf !== nothing
+    lhf_in = inputs.lhf
+    if lhf_in !== nothing
         LH_v0 = TP.LH_v0(thermo_params)
-        return inputs.lhf / LH_v0
+        return lhf_in / LH_v0
     end
     Δq_vap = q_vap_int - q_vap_sfc
     return -ρ_sfc * g_h * Δq_vap
@@ -94,8 +96,9 @@ function latent_heat_flux(
     inputs::SurfaceFluxInputs,
     E,
 )
-    if inputs.lhf !== nothing
-        return inputs.lhf
+    lhf_in = inputs.lhf
+    if lhf_in !== nothing
+        return lhf_in
     end
     LH_v0 = TP.LH_v0(thermo_params)
     return LH_v0 * E

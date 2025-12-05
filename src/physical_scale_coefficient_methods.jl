@@ -15,7 +15,7 @@ for the FV scheme.
 """
 function compute_physical_scale_coeff(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     L_MO,
     𝓁,
     transport,
@@ -53,7 +53,7 @@ for the Finite Differences scheme.
 """
 function compute_physical_scale_coeff(
     param_set,
-    inputs::SurfaceFluxInputs,
+    inputs,
     L_MO,
     𝓁,
     transport,

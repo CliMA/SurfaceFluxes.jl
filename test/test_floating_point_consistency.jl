@@ -6,6 +6,14 @@
 # 2. Identical-state test: compares Float32 vs Float64 solutions over a grid of
 #    heights and roughness lengths to make sure both precisions agree within 1%.
 
+using Test
+include("test_utils.jl")
+import SurfaceFluxes as SF
+import SurfaceFluxes.Parameters as SFP
+import SurfaceFluxes.UniversalFunctions as UF
+import Thermodynamics as TD
+import ClimaParams as CP
+
 const NEAR_ZERO_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160, 320, 640)
 const IDENTICAL_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160)
 const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
@@ -24,7 +32,7 @@ end
     @test sign(SF.non_zero(0.0)) == 1
 
     for FT in FLOAT_TYPES
-        param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+        param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         ts_intt = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
         ts_sfc = TD.PhaseEquil{FT}(FT(1.2176297), FT(102852.51), FT(45087.812), FT(0.013232904), FT(291.96683))
 
@@ -41,7 +49,7 @@ end
     sol_mat = Array{Float64, 4}(undef, 2, length(IDENTICAL_Z_LEVELS), length(IDENTICAL_Z0), length(IDENTICAL_Z0))
 
     for (ii, FT) in enumerate(FLOAT_TYPES)
-        param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+        param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         ts = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
 
         for (jj, z_int) in enumerate(IDENTICAL_Z_LEVELS),

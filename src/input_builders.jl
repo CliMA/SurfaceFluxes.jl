@@ -1,18 +1,5 @@
-"""
-    roughness_lengths(momentum; scalar=momentum)
-
-Convenience constructor that pairs the momentum and scalar roughness
-specifications.
-"""
-struct RoughnessLengths{FT}
-    momentum::FT
-    scalar::FT
-end
-
-roughness_lengths(momentum; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
-
-@inline function default_roughness_lengths(::APS{FT}) where {FT}
-    return RoughnessLengths{FT}(FT(1e-3), FT(1e-4))
+@inline function instantiate_gustiness(::APS{FT}, spec::ConstantGustinessSpec) where {FT}
+    return ConstantGustinessModel{FT}(convert(FT, spec.value))
 end
 
 @inline function flux_spec(param_set::APS; kwargs...)

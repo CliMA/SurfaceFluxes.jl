@@ -21,10 +21,10 @@ const APS = SFP.AbstractSurfaceFluxesParameters
 
 include("types.jl")
 include("thermo_primitives.jl")
+include("roughness_lengths.jl")
 include("input_builders.jl")
 include("utilities.jl")
 include("physical_scale_coefficient_methods.jl")
-include("roughness_lengths.jl")
 include("bulk_fluxes.jl")
 include("friction_velocity_methods.jl")
 include("conductances.jl")
@@ -88,16 +88,7 @@ end
 @inline FluxSpecs(param_set::APS{FT}; kwargs...) where {FT} = FluxSpecs(FT; kwargs...)
 @inline SolverOptions(param_set::APS{FT}; kwargs...) where {FT} = SolverOptions(FT; kwargs...)
 
-"""
-    charnock_momentum(; α = 0.011, scalar = 1e-4)
 
-Convenience helper returning a roughness specification that applies the
-Charnock relation for the momentum roughness length while keeping a scalar
-roughness length fixed.
-"""
-@inline function charnock_momentum(; α = 0.011, scalar = 1e-4)
-    return CharnockRoughnessSpec(α, scalar)
-end
 
 """
     surface_fluxes(param_set, Tin, qin, ρin, Ts_guess, qs_guess, Φs, Δz, d,
@@ -202,6 +193,66 @@ function surface_fluxes(
     )
 end
 
+function surface_fluxes(
+    param_set::APS,
+    sc::Union{Fluxes, FluxesAndFrictionVelocity, ValuesOnly},
+    scheme::SolverScheme = PointValueScheme();
+    kwargs...,
+)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    ts_int = sc.state_int.ts
+    ts_sfc = sc.state_sfc.ts
+    
+    Tin = TD.air_temperature(thermo_params, ts_int)
+    qin = TD.total_specific_humidity(thermo_params, ts_int)
+    ρin = TD.air_density(thermo_params, ts_int)
+    
+    Ts_guess = TD.air_temperature(thermo_params, ts_sfc)
+    qs_guess = TD.total_specific_humidity(thermo_params, ts_sfc)
+    
+    grav = SFP.grav(param_set)
+    Φs = grav * sc.state_sfc.z
+    Δz = sc.state_int.z - sc.state_sfc.z
+    d = zero(Δz)
+    
+    u_int = sc.state_int.u
+    u_sfc = sc.state_sfc.u
+    
+    roughness = roughness_lengths(sc.z0m, scalar = sc.z0b)
+    config = SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0))) # Default gustiness?
+    
+    # Handle prescribed fluxes/ustar if present
+    flux_specs = if sc isa Fluxes
+        FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf)
+    elseif sc isa FluxesAndFrictionVelocity
+        FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf, ustar = sc.ustar)
+    else
+        FluxSpecs(param_set)
+    end
+    
+    return surface_fluxes(
+        param_set,
+        Tin,
+        qin,
+        ρin,
+        Ts_guess,
+        qs_guess,
+        Φs,
+        Δz,
+        d,
+        u_int,
+        u_sfc,
+
+        nothing, # roughness_inputs
+        config,
+        scheme,
+        SolverOptions(float_type(param_set); kwargs...),
+        flux_specs,
+        nothing, # update_Ts!
+        nothing, # update_qs!
+    )
+end
+
 function solve_surface_layer(
     param_set::APS,
     thermo_params,
@@ -230,11 +281,16 @@ function solve_surface_layer(
     iter_state.Ts = inputs.Ts_guess
     iter_state.qs = inputs.qs_guess
     iter_state.ρ_sfc = ρ_int
-    inputs.ustar !== nothing && (iter_state.ustar = inputs.ustar)
-    inputs.shf !== nothing && (iter_state.shf = inputs.shf)
-    inputs.lhf !== nothing && (iter_state.lhf = inputs.lhf)
-    inputs.Cd !== nothing && (iter_state.Cd = inputs.Cd)
-    inputs.Ch !== nothing && (iter_state.Ch = inputs.Ch)
+    ustar_in = inputs.ustar
+    ustar_in !== nothing && (iter_state.ustar = ustar_in)
+    shf_in = inputs.shf
+    shf_in !== nothing && (iter_state.shf = shf_in)
+    lhf_in = inputs.lhf
+    lhf_in !== nothing && (iter_state.lhf = lhf_in)
+    Cd_in = inputs.Cd
+    Cd_in !== nothing && (iter_state.Cd = Cd_in)
+    Ch_in = inputs.Ch
+    Ch_in !== nothing && (iter_state.Ch = Ch_in)
     ctx0 = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
     iter_state.gustiness = gustiness_value(inputs.gustiness_model, inputs, ctx0)
 
@@ -311,8 +367,9 @@ function solve_surface_layer(
             grav,
         )
 
-        Cd_val =
-            inputs.Cd === nothing ?
+        Cd_in = inputs.Cd
+        Cd_val::FT =
+            Cd_in === nothing ?
             momentum_exchange_coefficient(
                 param_set,
                 current.L_star,
@@ -323,10 +380,11 @@ function solve_surface_layer(
                 tol_neutral,
                 gustiness,
                 ΔDSE_val,
-            ) : inputs.Cd
+            ) : Cd_in
 
-        Ch_val =
-            inputs.Ch === nothing ?
+        Ch_in = inputs.Ch
+        Ch_val::FT =
+            Ch_in === nothing ?
             heat_exchange_coefficient(
                 param_set,
                 current.L_star,
@@ -338,11 +396,11 @@ function solve_surface_layer(
                 tol_neutral,
                 gustiness,
                 ΔDSE_val,
-            ) : inputs.Ch
+            ) : Ch_in
 
         g_h = heat_conductance(inputs, Ch_val, gustiness)
         g_q = heat_conductance(inputs, Ch_val, gustiness)
-        E = evaporation(
+        E::FT = evaporation(
             thermo_params,
             inputs,
             g_q,
@@ -350,8 +408,8 @@ function solve_surface_layer(
             iter_state.qs,
             ρ_sfc,
         )
-        lhf = latent_heat_flux(thermo_params, inputs, E)
-        shf = sensible_heat_flux(
+        lhf::FT = latent_heat_flux(thermo_params, inputs, E)
+        shf::FT = sensible_heat_flux(
             param_set,
             thermo_params,
             inputs,
