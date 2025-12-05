@@ -277,4 +277,50 @@ end
             end
         end
     end
+    
+    @testset "Richardson Number" begin
+        for FT in (Float32, Float64)
+            ζ_grid = range(FT(-5), FT(5), length = 100)
+            for ufp in universal_parameter_sets(FT)
+                # 1. Ri(0) should be 0
+                @test isapprox(UF.richardson_number(ufp, FT(0)), FT(0); atol = eps(FT))
+
+                # 2. Consistency check: Ri = ζ * ϕ_h / ϕ_m^2
+                for ζ in ζ_grid
+                    Ri = UF.richardson_number(ufp, ζ)
+                    ϕ_m = UF.phi(ufp, ζ, UF.MomentumTransport())
+                    ϕ_h = UF.phi(ufp, ζ, UF.HeatTransport())
+                    expected = ζ * ϕ_h / ϕ_m^2
+                    @test isapprox(Ri, expected; rtol = sqrt(eps(FT)))
+                end
+            end
+        end
+    end
+
+    @testset "Dimensionless Profile" begin
+        for FT in (Float32, Float64)
+            z0 = FT(0.1)
+            Δz = FT(10)
+            ζ_grid = range(FT(-2), FT(2), length = 20)
+            
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
+                for ζ in ζ_grid
+                    # 1. Consistency with manual calculation
+                    # F = log(Δz/z0) - ψ(ζ) + ψ(ζ * z0/Δz)
+                    F = UF.dimensionless_profile(ufp, Δz, ζ, z0, transport)
+                    
+                    ψ_ζ = UF.psi(ufp, ζ, transport)
+                    ψ_z0 = UF.psi(ufp, ζ * z0 / Δz, transport)
+                    expected = log(Δz / z0) - ψ_ζ + ψ_z0
+                    
+                    @test isapprox(F, expected; rtol = sqrt(eps(FT)))
+                end
+                
+                # 2. Neutral limit (ζ -> 0)
+                # Should approach log(Δz/z0)
+                F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport)
+                @test isapprox(F_neutral, log(Δz / z0); atol = eps(FT))
+            end
+        end
+    end
 end
