@@ -732,17 +732,11 @@ Grachev heat stability correction `ψ_h`.
 end
 
 """
-    dimensionless_profile(uf_params, Δz, ζ, z0, transport)
+    velocity_profile(uf_params, Δz, ζ, z0, transport)
 
-The dimensionless vertical profile of the variable (momentum or scalar).
-Defined as:
-
-    F(z) = ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z)
-
-This represents the integral of the dimensionless gradient function ϕ(ζ)/z
-from roughness length z0 to the given height z.
+Compute the velocity profile (log law + stability correction).
 """
-@inline function dimensionless_profile(uf_params, Δz, ζ, z0, transport)
+@inline function velocity_profile(uf_params, Δz, ζ, z0, transport)
     return log(Δz / z0) -
            psi(uf_params, ζ, transport) +
            psi(uf_params, z0 * ζ / Δz, transport)
