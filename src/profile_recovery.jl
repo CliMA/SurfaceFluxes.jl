@@ -1,19 +1,37 @@
+"""
+    compute_profile_value(param_set, L_MO, z0, Δz, scale, val_sfc, transport)
 
-function recover_profile(
+Compute the value of a variable (momentum or scalar) at height `Δz` (height above surface).
+
+# Arguments
+- `param_set`: Parameter set
+- `L_MO`: Monin-Obukhov length [m]
+- `z0`: Roughness length [m]
+- `Δz`: Height above the surface [m]
+- `scale`: Similarity scale (u_star, theta_star, etc.)
+- `val_sfc`: Surface value of the variable
+- `transport`: Transport type (`MomentumTransport` or `HeatTransport`)
+
+# Formula:
+
+    X(Δz) = (scale / κ) * F_z + val_sfc
+
+where `F_z` is the dimensionless profile at height `Δz`.
+"""
+function compute_profile_value(
     param_set::APS,
     L_MO,
-    𝓁,
-    Z,
-    X_star,
-    X_sfc,
+    z0,
+    Δz,
+    scale,
+    val_sfc,
     transport,
-    scheme::Union{LayerAverageScheme, PointValueScheme},
 )
-    uf = SFP.uf_params(param_set)
-    𝜅 = SFP.von_karman_const(param_set)
-    num1 = log(Z / 𝓁)
-    num2 = -UF.psi(uf, Z / L_MO, transport)
-    num3 = UF.psi(uf, 𝓁 / L_MO, transport)
-    Σnum = num1 + num2 + num3
-    return Σnum * X_star / 𝜅 + X_sfc
+    uf_params = SFP.uf_params(param_set)
+    κ = SFP.von_karman_const(param_set)
+    ζ = Δz / L_MO
+
+    F = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport)
+
+    return F * scale / κ + val_sfc
 end

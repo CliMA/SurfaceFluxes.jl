@@ -1,10 +1,27 @@
+"""
+    heat_conductance(inputs, Ch, gustiness)
+
+Compute the heat conductance (speed * Ch).
+"""
 @inline heat_conductance(inputs::SurfaceFluxInputs, Ch, gustiness) =
     Ch * windspeed(inputs, gustiness)
 
 """
     drag_coefficient(param_set, L_MO, z0m, Δz)
 
-Compute and return `Cd`, the drag coefficient, for the current similarity state.
+Compute the drag coefficient `Cd` for momentum exchange.
+
+# Arguments
+- `param_set`: Parameter set
+- `L_MO`: Monin-Obukhov length [m]
+- `z0m`: Roughness length for momentum [m]
+- `Δz`: Height difference between the surface and the reference height [m]
+
+# Formula:
+
+    Cd = (κ / F_m)^2
+
+where `F_m` is the dimensionless velocity profile.
 """
 function drag_coefficient(
     param_set::APS,
@@ -24,9 +41,20 @@ end
 """
     heat_exchange_coefficient(param_set, L_MO, z0m, z0b, Δz)
 
-Compute and return `Ch`, the heat exchange coefficient, for the current
-similarity state. Neutral and non-neutral regimes follow the log-law and MOST
-formulations, respectively.
+Compute the heat exchange coefficient `Ch` for scalar exchange.
+
+# Arguments
+- `param_set`: Parameter set
+- `L_MO`: Monin-Obukhov length [m]
+- `z0m`: Roughness length for momentum [m]
+- `z0b`: Roughness length for scalars (heat/moisture) [m]
+- `Δz`: Height difference between the surface and the reference height [m]
+
+# Formula:
+
+    Ch = κ^2 / (F_m * F_h)
+
+where `F_m` and `F_h` are the dimensionless profiles for momentum and scalars, respectively.
 """
 function heat_exchange_coefficient(
     param_set::APS,
