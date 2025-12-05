@@ -278,20 +278,24 @@ end
         end
     end
     
-    @testset "Richardson Number" begin
+    @testset "Bulk Richardson Number" begin
         for FT in (Float32, Float64)
             ζ_grid = range(FT(-5), FT(5), length = 100)
+            Δz = FT(10)
+            z0m = FT(0.1)
+            z0b = FT(0.1)
+            
             for ufp in universal_parameter_sets(FT)
-                # 1. Ri(0) should be 0
-                @test isapprox(UF.richardson_number(ufp, FT(0)), FT(0); atol = eps(FT))
+                # 1. Ri_b(0) should be 0
+                @test isapprox(UF.bulk_richardson_number(ufp, Δz, FT(0), z0m, z0b), FT(0); atol = eps(FT))
 
-                # 2. Consistency check: Ri = ζ * ϕ_h / ϕ_m^2
+                # 2. Consistency check: Ri_b = ζ * F_h / F_m^2
                 for ζ in ζ_grid
-                    Ri = UF.richardson_number(ufp, ζ)
-                    ϕ_m = UF.phi(ufp, ζ, UF.MomentumTransport())
-                    ϕ_h = UF.phi(ufp, ζ, UF.HeatTransport())
-                    expected = ζ * ϕ_h / ϕ_m^2
-                    @test isapprox(Ri, expected; rtol = sqrt(eps(FT)))
+                    Ri_b = UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0b)
+                    F_m = UF.dimensionless_profile(ufp, Δz, ζ, z0m, UF.MomentumTransport())
+                    F_h = UF.dimensionless_profile(ufp, Δz, ζ, z0b, UF.HeatTransport())
+                    expected = ζ * F_h / F_m^2
+                    @test isapprox(Ri_b, expected; rtol = sqrt(eps(FT)))
                 end
             end
         end

@@ -732,16 +732,19 @@ Grachev heat stability correction `ψ_h`.
 end
 
 """
-    richardson_number(uf_params, ζ)
+    bulk_richardson_number(uf_params, Δz, ζ, z0m, z0b)
 
-Compute the Gradient Richardson number at a given stability parameter ζ.
-Defined as:
-    Ri(ζ) = ζ * ϕ_h(ζ) / ϕ_m(ζ)^2
+Compute the bulk Richardson number at a given stability parameter ζ,
+defined as:
+
+    Ri_b(ζ) = ζ * F_h(ζ) / F_m(ζ)^2
+
+where F_m and F_h are the dimensionless profiles for momentum and heat.
 """
-function richardson_number(uf_params, ζ)
-    ϕ_m = phi(uf_params, ζ, MomentumTransport())
-    ϕ_h = phi(uf_params, ζ, HeatTransport())
-    return ζ * ϕ_h / ϕ_m^2
+function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0b)
+    F_m = dimensionless_profile(uf_params, Δz, ζ, z0m, MomentumTransport())
+    F_h = dimensionless_profile(uf_params, Δz, ζ, z0b, HeatTransport())
+    return ζ * F_h / F_m^2
 end
 
 """
