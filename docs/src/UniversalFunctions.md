@@ -103,7 +103,10 @@ where $y = (1 - b_h \zeta)^{1/2}$.
 
 ### Stable Conditions ($\zeta \ge 0$)
 
-For stable conditions, the Businger-Dyer functions are linear. **Note:** In our implementation, we scale the heat functions by $\text{Pr}_0$ so that $\phi_h(0) = \text{Pr}_0$. This ensures consistency with other parameterizations like Gryanik et al. (2020) and proper behavior of the dimensionless profiles.
+For stable conditions, the Businger-Dyer functions are linear. 
+
+!!! note "Neutral Prandtl Number"
+    In our implementation, we scale the heat functions by $\text{Pr}_0$ so that $\phi_h(0) = \text{Pr}_0$. This ensures consistency with other parameterizations like Gryanik et al. (2020) and proper behavior of the dimensionless profiles.
 
 ```math
 \begin{equation}
@@ -117,18 +120,19 @@ and
 \end{equation}
 ```
 
-The integrated forms are:
+The integrated forms are (Nishizawa & Kitamura 2018, Eqs. A3-A4 for $L \ge 0$):
 ```math
 \begin{equation}
 \psi_m(\zeta) = -a_m \zeta
 \end{equation}
 ```
-and
+and 
 ```math
 \begin{equation}
-\psi_h(\zeta) = -a_h \zeta.
+\psi_h(\zeta) = -a_h \zeta,
 \end{equation}
 ```
+where in the second equation we have applied the scaling by $\text{Pr}_0$ relative to the equations in Nishizawa & Kitamura (2018).
 
 ### Volume-Averaged Forms
 
@@ -151,7 +155,7 @@ and
 
 **Unstable Conditions ($\zeta < 0$):**
 
-For unstable conditions, computations follow Nishizawa & Kitamura (2018), with appropriate scaling for heat.
+For unstable conditions, computations follow Nishizawa & Kitamura (2018, Eqs. A5-A6), with appropriate \text{Pr}_0$scaling for heat.
 
 For momentum:
 ```math
@@ -159,7 +163,7 @@ For momentum:
 \Psi_m(\zeta) = \ln\left[\frac{(1 + x)^2(1 + x^2)}{8}\right] - 2\tan^{-1}(x) + \frac{\pi}{2} - 1 + \frac{1 - x^3}{3b_m \zeta/4},
 \end{equation}
 ```
-where $x = (1 - b_m \zeta)^{1/4}$.
+where $x = (1 - b_m \zeta)^{1/4}$. For small $\zeta$, this reduces to $\Psi_m(\zeta) \approx -b_m \zeta/8$ (Nishizawa & Kitamura 2018, Eq. A13).
 
 For heat:
 ```math
@@ -167,7 +171,7 @@ For heat:
 \Psi_h(\zeta) = \text{Pr}_0 \left[ 2\ln\left(\frac{1 + y}{2}\right) + \frac{2(1 - y)}{b_h \zeta} - 1 \right],
 \end{equation}
 ```
-where $y = (1 - b_h \zeta)^{1/2}$.
+where $y = (1 - b_h \zeta)^{1/2}$. For small $\zeta$, this reduces to $\Psi_h(\zeta) \approx - \text{Pr}_0 b_h \zeta/4$ (Nishizawa & Kitamura 2018, Eq. A14, with the scaling by $\text{Pr}_0$ applied).
 
 ---
 
