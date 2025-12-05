@@ -26,12 +26,13 @@ function compute_profile_value(
     scale,
     val_sfc,
     transport,
+    scheme = UF.PointValueScheme(),
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
     ζ = Δz / L_MO
 
-    F = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport)
+    F = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport, scheme)
 
     return F * scale / κ + val_sfc
 end

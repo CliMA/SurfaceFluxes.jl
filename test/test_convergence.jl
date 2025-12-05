@@ -17,7 +17,7 @@ const SYNTH_HEIGHTS = (5.0, 20.0, 80.0)
 const SYNTH_SPEEDS = (1.0, 12.0)
 const SYNTH_WIND_DIRS = ((1.0, 0.0), (-0.7, 0.4))
 const SYNTH_Z0M = (1e-5, 8e-4, 3e-3)
-const SYNTH_Z0B_FACTORS = (0.1, 1.0, 10.0)
+const SYNTH_Z0h_FACTORS = (0.1, 1.0, 10.0)
 const SYNTH_PRESSURES = (9.5e4, 1.0e5)
 
 const TEMP_NEUTRAL_THRESHOLD = 0.3
@@ -46,7 +46,7 @@ function synthetic_cases(::Type{FT}) where {FT}
         speed in SYNTH_SPEEDS,
         wind_dir in SYNTH_WIND_DIRS,
         z0m in SYNTH_Z0M,
-        z0h_factor in SYNTH_Z0B_FACTORS,
+        z0h_factor in SYNTH_Z0h_FACTORS,
         p in SYNTH_PRESSURES
 
         T_int = FT(T_sfc + ΔT)

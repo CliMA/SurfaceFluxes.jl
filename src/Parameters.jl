@@ -17,6 +17,9 @@ Base.@kwdef struct SurfaceFluxesParameters{
     TP <: TDPS{FT},
 } <: AbstractSurfaceFluxesParameters{FT}
     von_karman_const::FT
+    z0m_fixed::FT
+    z0s_fixed::FT
+    charnock_alpha::FT
     ufp::AUFPS
     thermo_params::TP
 end
@@ -24,6 +27,9 @@ end
 thermodynamics_params(ps::SurfaceFluxesParameters) = ps.thermo_params
 uf_params(ps::SurfaceFluxesParameters) = ps.ufp
 von_karman_const(ps::SurfaceFluxesParameters) = ps.von_karman_const
+z0m_fixed(ps::SurfaceFluxesParameters) = ps.z0m_fixed
+z0s_fixed(ps::SurfaceFluxesParameters) = ps.z0s_fixed
+charnock_alpha(ps::SurfaceFluxesParameters) = ps.charnock_alpha
 
 for var in fieldnames(TDPS)
     @eval $var(ps::ASFP) = TD.Parameters.$var(thermodynamics_params(ps))

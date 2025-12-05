@@ -405,6 +405,7 @@ function solve_surface_layer(
                 current.L_star,
                 current.ell_u,
                 inputs.Δz,
+                scheme,
             ) : Cd_in
 
         Ch_in = inputs.Ch
@@ -416,6 +417,7 @@ function solve_surface_layer(
                 current.ell_u,
                 current.ell_theta,
                 inputs.Δz,
+                scheme,
             ) : Ch_in
 
         g_h = heat_conductance(inputs, Ch_val, gustiness)
