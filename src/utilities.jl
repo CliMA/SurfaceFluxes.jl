@@ -3,7 +3,7 @@ function non_zero(v::FT) where {FT}
     return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
 end
 
-@inline gustiness_value(model::ConstantGustinessModel, inputs, ctx) = model.value
+@inline gustiness_value(spec::ConstantGustinessSpec, inputs, ctx) = spec.value
 
 @inline z_in(inputs::SurfaceFluxInputs) = inputs.d + inputs.Δz
 @inline z_sfc(inputs::SurfaceFluxInputs) = inputs.d

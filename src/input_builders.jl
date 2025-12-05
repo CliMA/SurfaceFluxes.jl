@@ -1,6 +1,4 @@
-@inline function instantiate_gustiness(::APS{FT}, spec::ConstantGustinessSpec) where {FT}
-    return ConstantGustinessModel{FT}(convert(FT, spec.value))
-end
+
 
 @inline function flux_spec(param_set::APS; kwargs...)
     return FluxSpecs(param_set; kwargs...)
@@ -34,8 +32,6 @@ function build_surface_flux_inputs(
     update_Ts!,
     update_qs!,
 ) where {FT}
-    roughness_model = instantiate_roughness(param_set, config.roughness)
-    gustiness_model = instantiate_gustiness(param_set, config.gustiness)
     return SurfaceFluxInputs(
         Tin,
         qin,
@@ -47,8 +43,8 @@ function build_surface_flux_inputs(
         d,
         u_int,
         u_sfc,
-        roughness_model,
-        gustiness_model,
+        config.roughness,
+        config.gustiness,
         roughness_inputs,
         update_Ts!,
         update_qs!,

@@ -42,29 +42,9 @@ end
 SurfaceFluxConfig(; roughness = DefaultRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
     SurfaceFluxConfig(roughness, gustiness)
 
-struct FixedRoughnessModel{FT} <: AbstractRoughnessModel{FT}
-    momentum::FT
-    scalar::FT
-end
 
-struct CharnockRoughnessModel{FT} <: AbstractRoughnessModel{FT}
-    α::FT
-    scalar::FT
-    grav::FT
-end
 
-@inline function instantiate_roughness(param_set::APS{FT}, ::DefaultRoughnessSpec) where {FT}
-    defaults = default_roughness_lengths(param_set)
-    return FixedRoughnessModel{FT}(defaults.momentum, defaults.scalar)
-end
 
-@inline function instantiate_roughness(param_set::APS{FT}, spec::FixedRoughnessSpec) where {FT}
-    return FixedRoughnessModel{FT}(convert(FT, spec.momentum), convert(FT, spec.scalar))
-end
-
-@inline function instantiate_roughness(param_set::APS{FT}, spec::CharnockRoughnessSpec) where {FT}
-    return CharnockRoughnessModel{FT}(convert(FT, spec.α), convert(FT, spec.scalar), SFP.grav(param_set))
-end
 
 """
     charnock_momentum(; α = 0.011, scalar = 1e-4)
@@ -76,18 +56,32 @@ roughness length fixed.
 @inline function charnock_momentum(; α = 0.011, scalar = 1e-4)
     return CharnockRoughnessSpec(α, scalar)
 end
-@inline momentum_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
-    model.momentum
-
-@inline scalar_roughness(model::FixedRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
-    model.scalar
-
-@inline function momentum_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
-    return model.α * u★^2 / model.grav
+@inline function momentum_roughness(spec::FixedRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return spec.momentum
 end
 
-@inline scalar_roughness(model::CharnockRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT} =
-    model.scalar
+@inline function scalar_roughness(spec::FixedRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return spec.scalar
+end
+
+@inline function momentum_roughness(::DefaultRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    defaults = default_roughness_lengths(sfc_param_set)
+    return defaults.momentum
+end
+
+@inline function scalar_roughness(::DefaultRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    defaults = default_roughness_lengths(sfc_param_set)
+    return defaults.scalar
+end
+
+@inline function momentum_roughness(spec::CharnockRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    grav = SFP.grav(sfc_param_set)
+    return spec.α * u★^2 / grav
+end
+
+@inline function scalar_roughness(spec::CharnockRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return spec.scalar
+end
 
 @inline function compute_z0(
     u★,

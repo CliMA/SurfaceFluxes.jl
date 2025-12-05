@@ -83,7 +83,7 @@ function density_from_state(thermo_params, T, pressure, qt)
     return TD.air_density(thermo_params, T, pressure, q_pt)
 end
 
-function build_surface_condition(param_set, case, roughness_model)
+function build_surface_condition(param_set, case)
     FT = eltype(case.T_sfc)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
@@ -92,12 +92,31 @@ function build_surface_condition(param_set, case, roughness_model)
     ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, case.T_int, case.qt_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
     state_int = SF.StateValues(case.z, case.wind, ts_int)
-    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b; roughness_model)
+    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b)
+end
+
+function compute_ΔDSEᵥ(param_set, sc)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    ts_int = sc.state_int.ts
+    ts_sfc = sc.state_sfc.ts
+    T_int = TD.air_temperature(thermo_params, ts_int)
+    T_sfc = TD.air_temperature(thermo_params, ts_sfc)
+    ρ_int = TD.air_density(thermo_params, ts_int)
+    ρ_sfc = TD.air_density(thermo_params, ts_sfc)
+    q_int = TD.total_specific_humidity(thermo_params, ts_int)
+    q_sfc = TD.total_specific_humidity(thermo_params, ts_sfc)
+    phase_int = TD.PhasePartition(q_int)
+    phase_sfc = TD.PhasePartition(q_sfc)
+    grav = SFP.grav(param_set)
+    Φ_int = grav * sc.state_int.z
+    Φ_sfc = grav * sc.state_sfc.z
+    
+    return SF.ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
 end
 
 function assert_flux_expectations(result, case, FT, param_set, sc)
     Δqt = case.qt_int - case.qt_sfc
-    ΔDSEᵥ = SF.ΔDSEᵥ(param_set, sc)
+    ΔDSEᵥ = compute_ΔDSEᵥ(param_set, sc)
     heat_tolerance = FT(SFP.cp_d(param_set) * TEMP_NEUTRAL_THRESHOLD)
     if abs(ΔDSEᵥ) > heat_tolerance
         expected_heat_sign = -sign(ΔDSEᵥ)
@@ -128,21 +147,27 @@ end
 
 @testset "SurfaceFluxes convergence matrix" begin
     schemes = (SF.PointValueScheme(), SF.LayerAverageScheme())
-    roughness_models = (SF.ScalarRoughness(), SF.CharnockRoughness())
     for FT in (Float32, Float64)
+        # Define roughness configs as functions of (z0m, z0b)
+        roughness_config_factories = (
+            (z0m, z0b) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, scalar=z0b), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0b) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0b), SF.ConstantGustinessSpec(FT(1.0))),
+        )
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
             param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
             tol_neutral = FT(SF.Parameters.cp_d(param_set) / 1e5)  # TODO: remove tol_neutral as a relevant threshold
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
-            for case in cases, roughness_model in roughness_models, scheme in scheme_set
-                sc = build_surface_condition(param_set, case, roughness_model)
+            for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
+                sc = build_surface_condition(param_set, case)
+                config = config_factory(case.z0m, case.z0b)
                 result = SF.surface_fluxes(
                     param_set,
                     sc,
                     scheme;
                     maxiter = 15,
                     tol_neutral = tol_neutral,
+                    config = config,
                 )
                 assert_flux_expectations(result, case, FT, param_set, sc)
             end

@@ -2,6 +2,7 @@
 
 using SurfaceFluxes
 using JET
+using Test
 
 # Test an expression for allocations and type stability, then return the result.
 #

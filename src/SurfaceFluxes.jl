@@ -195,8 +195,9 @@ end
 
 function surface_fluxes(
     param_set::APS,
-    sc::Union{Fluxes, FluxesAndFrictionVelocity, ValuesOnly},
+    sc::Union{Fluxes, FluxesAndFrictionVelocity, ValuesOnly, Coefficients},
     scheme::SolverScheme = PointValueScheme();
+    config = nothing,
     kwargs...,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
@@ -218,14 +219,20 @@ function surface_fluxes(
     u_int = sc.state_int.u
     u_sfc = sc.state_sfc.u
     
-    roughness = roughness_lengths(sc.z0m, scalar = sc.z0b)
-    config = SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0))) # Default gustiness?
+    config_val = if config !== nothing
+        config
+    else
+        roughness = roughness_lengths(sc.z0m, scalar = sc.z0b)
+        SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0)))
+    end
     
     # Handle prescribed fluxes/ustar if present
     flux_specs = if sc isa Fluxes
         FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf)
     elseif sc isa FluxesAndFrictionVelocity
         FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf, ustar = sc.ustar)
+    elseif sc isa Coefficients
+        FluxSpecs(param_set; Cd = sc.Cd, Ch = sc.Ch)
     else
         FluxSpecs(param_set)
     end
@@ -244,7 +251,7 @@ function surface_fluxes(
         u_sfc,
 
         nothing, # roughness_inputs
-        config,
+        config_val,
         scheme,
         SolverOptions(float_type(param_set); kwargs...),
         flux_specs,
