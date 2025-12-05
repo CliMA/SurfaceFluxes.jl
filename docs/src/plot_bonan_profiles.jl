@@ -78,30 +78,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -145,30 +141,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -213,30 +205,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -289,30 +277,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -355,30 +339,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -423,30 +403,26 @@ for il in 1:10
     )
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
             sc.z0b,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end

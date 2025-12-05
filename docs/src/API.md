@@ -21,7 +21,7 @@ SurfaceFluxes.SurfaceFluxConditions
 
 ```@docs
 SurfaceFluxes.SolverOptions
-SurfaceFluxes.recover_profile
+SurfaceFluxes.compute_profile_value
 ```
 
 ## Universal Functions Module
