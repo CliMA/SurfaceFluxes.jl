@@ -19,6 +19,11 @@ import .Parameters
 const SFP = Parameters
 const APS = SFP.AbstractSurfaceFluxesParameters
 
+const SolverScheme = UF.SolverScheme
+const LayerAverageScheme = UF.LayerAverageScheme
+const PointValueScheme = UF.PointValueScheme
+
+
 include("types.jl")
 include("thermo_primitives.jl")
 include("roughness_lengths.jl")
@@ -346,10 +351,10 @@ function solve_surface_layer(
             κ = SFP.von_karman_constant(param_set)
             L_star = FT(10) # Initial guess for L_star
             ζ = inputs.Δz / L_star
-            χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u₀, UF.MomentumTransport())
-            χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport())
-            χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q₀, UF.HeatTransport())
-            χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport())
+            χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u₀, UF.MomentumTransport(), scheme)
+            χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport(), scheme)
+            χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q₀, UF.HeatTransport(), scheme)
+            χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport(), scheme)
             u_star = χu * ΔU
             dsev_star = χDSE * ΔDSE_val
             q_star = iszero(Δq_val) ? zero(FT) : χq * Δq_val
@@ -536,10 +541,10 @@ function iterate_interface_fluxes(
         L_star = u_star^2 / (κ * b_star)
     end
     ζ = inputs.Δz / L_star
-    χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u, UF.MomentumTransport())
-    χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport())
-    χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q, UF.HeatTransport())
-    χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport())
+    χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u, UF.MomentumTransport(), scheme)
+    χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport(), scheme)
+    χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q, UF.HeatTransport(), scheme)
+    χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport(), scheme)
     u_star = χu * ΔU
     dsev_star = χDSE * ΔDSE_val
     q_star = iszero(Δq_val) ? zero(FT) : χq * Δq_val

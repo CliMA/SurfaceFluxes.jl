@@ -1,10 +1,5 @@
 
-### Stability Correction Function Approximations
-# 1) `LayerAverageScheme`: Follows Nishizawa & Kitamura (2018) for FV approximations
-# 2) `PointValueScheme`: Standard finite difference stencil assumption
-abstract type SolverScheme end
-struct LayerAverageScheme <: SolverScheme end
-struct PointValueScheme <: SolverScheme end
+
 
 """
     Surface flux configuration specs
