@@ -25,12 +25,7 @@ struct SurfaceFluxConfig{R <: AbstractRoughnessSpec, G <: AbstractGustinessSpec}
     gustiness::G
 end
 
-abstract type AbstractRoughnessModel{FT} end
-abstract type AbstractGustinessModel{FT} end
 
-struct ConstantGustinessModel{FT} <: AbstractGustinessModel{FT}
-    value::FT
-end
 
 const FluxOption{FT} = Union{Nothing, FT}
 
@@ -102,8 +97,8 @@ passed to the functional surface flux solver.
 """
 struct SurfaceFluxInputs{
     FT,
-    RM <: AbstractRoughnessModel{FT},
-    GM <: AbstractGustinessModel{FT},
+    RM <: AbstractRoughnessSpec,
+    GM <: AbstractGustinessSpec,
     RI,
     UpdateTs,
     UpdateQs,
@@ -148,7 +143,7 @@ function SurfaceFluxInputs(
     update_Ts!,
     update_qs!,
     flux_specs::FluxSpecs{FT},
-) where {FT, RM <: AbstractRoughnessModel{FT}, GM <: AbstractGustinessModel{FT}, RI}
+) where {FT, RM <: AbstractRoughnessSpec, GM <: AbstractGustinessSpec, RI}
     u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
     return SurfaceFluxInputs{
@@ -353,6 +348,15 @@ end
 struct ValuesOnly{S, FT}
     state_int::S
     state_sfc::S
+    z0m::FT
+    z0b::FT
+end
+
+struct Coefficients{S, FT}
+    state_int::S
+    state_sfc::S
+    Cd::FT
+    Ch::FT
     z0m::FT
     z0b::FT
 end

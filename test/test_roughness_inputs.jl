@@ -6,7 +6,8 @@ import Thermodynamics as TD
 import ClimaParams
 
 # Define a custom roughness model that uses LAI
-struct LAIRoughnessModel{FT} <: SF.AbstractRoughnessModel{FT}
+# Define a custom roughness spec that uses LAI
+struct LAIRoughnessSpec{FT} <: SF.AbstractRoughnessSpec
     base_z0::FT
 end
 
@@ -16,13 +17,13 @@ end
 # SF exports them? Let's check. No, they are not exported.
 # So we need to extend SF.momentum_roughness etc.
 
-function SF.momentum_roughness(model::LAIRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+function SF.momentum_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
     # Simple fake formula: z0 = base_z0 * LAI
-    return model.base_z0 * roughness_inputs.LAI
+    return spec.base_z0 * roughness_inputs.LAI
 end
 
-function SF.scalar_roughness(model::LAIRoughnessModel{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
-    return model.base_z0 * roughness_inputs.LAI * FT(0.1)
+function SF.scalar_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+    return spec.base_z0 * roughness_inputs.LAI * FT(0.1)
 end
 
 @testset "Roughness Inputs Verification" begin
@@ -49,14 +50,7 @@ end
     # We need to bypass the config struct if it enforces types, or make a custom spec.
     # SurfaceFluxConfig requires AbstractRoughnessSpec.
     
-    struct LAIRoughnessSpec{FT} <: SF.AbstractRoughnessSpec
-        base_z0::FT
-    end
-    
-    # We need to extend instantiate_roughness
-    function SF.instantiate_roughness(param_set::SF.APS{FT}, spec::LAIRoughnessSpec) where {FT}
-        return LAIRoughnessModel{FT}(convert(FT, spec.base_z0))
-    end
+
 
     config = SF.SurfaceFluxConfig(
         LAIRoughnessSpec(0.01),
