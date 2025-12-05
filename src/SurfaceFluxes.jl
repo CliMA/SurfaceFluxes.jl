@@ -27,7 +27,7 @@ include("utilities.jl")
 include("physical_scale_coefficient_methods.jl")
 include("bulk_fluxes.jl")
 include("friction_velocity_methods.jl")
-include("conductances.jl")
+include("exchange_coefficients.jl")
 include("profile_recovery.jl")
 
 @inline float_type(::APS{FT}) where {FT} = FT
@@ -343,19 +343,37 @@ function solve_surface_layer(
             ell_u₀ = compute_z0(u_star₀, param_set, inputs, UF.MomentumTransport(), ctx)
             ell_theta₀ = compute_z0(u_star₀, param_set, inputs, UF.HeatTransport(), ctx)
             ell_q₀ = ell_theta₀
-            δ = iszero(ΔDSE_val) ? one(FT) : sign(ΔDSE_val)
-            L_init = δ ≥ 0 ? FT(10) : FT(-10)
-            prev_state = SimilarityScales(
-                u_star₀,
-                FT(δ),
-                FT(δ),
-                L_init,
-                FT(δ),
-                ell_u₀,
-                ell_theta₀,
-                ell_q₀,
-            )
+            κ = SFP.von_karman_constant(param_set)
+            L_star = FT(10) # Initial guess for L_star
+            ζ = inputs.Δz / L_star
+            χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u₀, UF.MomentumTransport())
+            χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport())
+            χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q₀, UF.HeatTransport())
+            χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta₀, UF.HeatTransport())
+            u_star = χu * ΔU
+            dsev_star = χDSE * ΔDSE_val
+            q_star = iszero(Δq_val) ? zero(FT) : χq * Δq_val
+            theta_v_star = χθ * Δθᵥ_val
+            return SimilarityScales(u_star, dsev_star, q_star, L_star, theta_v_star, ell_u₀, ell_theta₀, ell_q₀)
         end
+
+        current = iterate_interface_fluxes(
+            param_set,
+            inputs,
+            gustiness,
+            prev_state,
+            scheme,
+            tol_neutral,
+            uf_params,
+            ctx,
+            ΔU,
+            ΔDSE_val,
+            Δθᵥ_val,
+            Δq_val,
+            DSEᵥ_int_val,
+            grav,
+        )
+
 
         current = iterate_interface_fluxes(
             param_set,
@@ -377,16 +395,11 @@ function solve_surface_layer(
         Cd_in = inputs.Cd
         Cd_val::FT =
             Cd_in === nothing ?
-            momentum_exchange_coefficient(
+            drag_coefficient(
                 param_set,
                 current.L_star,
-                current.u_star,
                 current.ell_u,
-                inputs,
-                scheme,
-                tol_neutral,
-                gustiness,
-                ΔDSE_val,
+                inputs.Δz,
             ) : Cd_in
 
         Ch_in = inputs.Ch
@@ -395,14 +408,9 @@ function solve_surface_layer(
             heat_exchange_coefficient(
                 param_set,
                 current.L_star,
-                current.u_star,
                 current.ell_u,
                 current.ell_theta,
-                inputs,
-                scheme,
-                tol_neutral,
-                gustiness,
-                ΔDSE_val,
+                inputs.Δz,
             ) : Ch_in
 
         g_h = heat_conductance(inputs, Ch_val, gustiness)
@@ -497,12 +505,6 @@ end
     )
 end
 
-@inline function compute_Fₘₕ(inputs::SurfaceFluxInputs, ufₛ, ζ, 𝓁, transport)
-    return log(inputs.Δz / 𝓁) -
-           UF.psi(ufₛ, ζ, transport) +
-           UF.psi(ufₛ, 𝓁 * ζ / inputs.Δz, transport)
-end
-
 function iterate_interface_fluxes(
     param_set::APS,
     inputs::SurfaceFluxInputs,
@@ -534,16 +536,19 @@ function iterate_interface_fluxes(
         L_star = u_star^2 / (κ * b_star)
     end
     ζ = inputs.Δz / L_star
-    χu = κ / compute_Fₘₕ(inputs, uf_params, ζ, ell_u, UF.MomentumTransport())
-    χDSE = κ / compute_Fₘₕ(inputs, uf_params, ζ, ell_theta, UF.HeatTransport())
-    χq = κ / compute_Fₘₕ(inputs, uf_params, ζ, ell_q, UF.HeatTransport())
-    χθ = κ / compute_Fₘₕ(inputs, uf_params, ζ, ell_theta, UF.HeatTransport())
+    χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u, UF.MomentumTransport())
+    χDSE = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport())
+    χq = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_q, UF.HeatTransport())
+    χθ = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_theta, UF.HeatTransport())
     u_star = χu * ΔU
     dsev_star = χDSE * ΔDSE_val
     q_star = iszero(Δq_val) ? zero(FT) : χq * Δq_val
     theta_v_star = χθ * Δθᵥ_val
     return SimilarityScales(u_star, dsev_star, q_star, L_star, theta_v_star, ell_u, ell_theta, ell_q)
 end
+
+
+
 
 @inline function has_converged(current, previous, tol)
     if previous === nothing
