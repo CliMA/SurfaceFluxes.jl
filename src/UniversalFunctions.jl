@@ -295,12 +295,12 @@ Businger heat-gradient similarity `ϕ_h`.
 """
 @inline function phi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
+    _Pr_0 = FT(Pr_0(p))
     if ζ < 0
-        return _phi_h_unstable(ζ, b_h(p))
+        return _Pr_0 * _phi_h_unstable(ζ, b_h(p))
     else
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return _a_h * ζ / _π_group + FT(1)
+        return _Pr_0 + _a_h * ζ 
     end
 end
 
@@ -334,11 +334,11 @@ Businger heat stability correction `ψ_h`.
 @inline function psi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
     if ζ < 0
-        return _psi_h_unstable(ζ, b_h(p))
+        _Pr_0 = FT(Pr_0(p))
+        return _Pr_0 * _psi_h_unstable(ζ, b_h(p))
     else
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / _π_group
+        return -_a_h * ζ
     end
 end
 
@@ -374,10 +374,10 @@ Volume-averaged Businger heat stability correction `Ψ_h`.
     FT = eltype(ζ)
     if ζ >= 0
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / (FT(2) * _π_group)
+        return -_a_h * ζ / FT(2)
     else
-        return _Psi_h_unstable(ζ, b_h(p))
+        _Pr_0 = FT(Pr_0(p))
+        return _Pr_0 * _Psi_h_unstable(ζ, b_h(p))
     end
 end
 
@@ -452,7 +452,7 @@ Gryanik heat-gradient similarity `ϕ_h`.
         _b_h = FT(b_h(p))
         return _Pr_0 * (FT(1) + (_a_h * ζ) / (FT(1) + _b_h * ζ))
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _phi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -498,7 +498,7 @@ Gryanik heat stability correction `ψ_h`.
         _b_h = FT(b_h(p))
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -578,7 +578,7 @@ Volume-averaged Gryanik heat stability correction `Ψ_h`.
         # Ψ_h(ζ) = -[Pr_0 * a_h / (b_h * ζ)] * ((1/b_h + ζ) * ln(1 + b_h * ζ) - ζ)
         return -_a_h / _b_h / ζ * _Pr_0 * ((FT(1) / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _Psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -768,7 +768,7 @@ Grachev heat stability correction `ψ_h`.
 end
 
 """
-    bulk_richardson_number(uf_params, Δz, ζ, z0m, z0b)
+    bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h)
 
 Compute the bulk Richardson number at a given stability parameter ζ,
 defined as:
@@ -777,20 +777,20 @@ defined as:
 
 where F_m and F_h are the dimensionless profiles for momentum and heat.
 """
-function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0b, scheme)
+function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h, scheme)
     F_m = dimensionless_profile(uf_params, Δz, ζ, z0m, MomentumTransport(), scheme)
-    F_h = dimensionless_profile(uf_params, Δz, ζ, z0b, HeatTransport(), scheme)
+    F_h = dimensionless_profile(uf_params, Δz, ζ, z0h, HeatTransport(), scheme)
     return ζ * F_h / F_m^2
 end
 
 # Default to PointValueScheme
-function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0b)
+function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h)
     return bulk_richardson_number(
         uf_params,
         Δz,
         ζ,
         z0m,
-        z0b,
+        z0h,
         PointValueScheme(),
     )
 end
@@ -815,8 +815,8 @@ Defined as
 
 This represents the integral of the dimensionless gradient function ϕ(ζ)/z
 from roughness length z0 to the given height z. Note that ϕ(0) corresponds
-to the neutral dimensionless gradient (slope), which is typically 1 but may
-differ (e.g., `Pr_0` for heat transport in Gryanik et al., 2020).
+to the neutral dimensionless gradient (slope), which is typically `Pr_0` for 
+heat transport (unified for Businger and Gryanik) or 1 for momentum.
 """
 @inline function dimensionless_profile(
     uf_params,
@@ -855,7 +855,7 @@ Derivation follows Nishizawa & Kitamura (2018), adapted for generalized neutral 
     F_ave(z) = Slope * (ln(z/z0) - R_z0) - Ψ(ζ) + (z0/z) * Ψ(ζ * z0/z) + R_z0 * ψ(ζ * z0/z)
 
 where:
- - Slope = ϕ(0) (e.g. 1 or Pr_0)
+ - Slope = ϕ(0) (e.g., 1 for momentum or Pr_0 for heat)
  - R_z0 = 1 - z0/z (Approximation of geometric factor)
 """
 @inline function dimensionless_profile(

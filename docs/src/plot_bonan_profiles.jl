@@ -93,7 +93,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -156,7 +156,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -220,7 +220,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -292,7 +292,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -354,7 +354,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -418,7 +418,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            sc.z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,

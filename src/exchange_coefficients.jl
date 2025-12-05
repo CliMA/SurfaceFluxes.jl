@@ -31,7 +31,7 @@ function drag_coefficient(
 end
 
 """
-    heat_exchange_coefficient(param_set, L_MO, z0m, z0b, Δz)
+    heat_exchange_coefficient(param_set, L_MO, z0m, z0h, Δz)
 
 Compute the heat exchange coefficient `Ch` for scalar exchange.
 
@@ -39,7 +39,7 @@ Compute the heat exchange coefficient `Ch` for scalar exchange.
 - `param_set`: Parameter set
 - `L_MO`: Monin-Obukhov length [m]
 - `z0m`: Roughness length for momentum [m]
-- `z0b`: Roughness length for scalars (heat/moisture) [m]
+- `z0h`: Roughness length for scalars (heat/moisture) [m]
 - `Δz`: Height difference between the surface and the reference height [m]
 
 # Formula:
@@ -52,7 +52,7 @@ function heat_exchange_coefficient(
     param_set::APS,
     L_MO,
     z0m,
-    z0b,
+    z0h,
     Δz,
 )
     uf_params = SFP.uf_params(param_set)
@@ -60,7 +60,7 @@ function heat_exchange_coefficient(
     ζ = Δz / L_MO
 
     F_m = UF.dimensionless_profile(uf_params, Δz, ζ, z0m, UF.MomentumTransport())
-    F_h = UF.dimensionless_profile(uf_params, Δz, ζ, z0b, UF.HeatTransport())
+    F_h = UF.dimensionless_profile(uf_params, Δz, ζ, z0h, UF.HeatTransport())
 
     Ch = κ^2 / (F_m * F_h)
     return Ch

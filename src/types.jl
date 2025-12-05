@@ -327,7 +327,7 @@ struct Fluxes{S, FT}
     shf::FT
     lhf::FT
     z0m::FT
-    z0b::FT
+    z0h::FT
 end
 
 struct FluxesAndFrictionVelocity{S, FT}
@@ -337,14 +337,14 @@ struct FluxesAndFrictionVelocity{S, FT}
     lhf::FT
     ustar::FT
     z0m::FT
-    z0b::FT
+    z0h::FT
 end
 
 struct ValuesOnly{S, FT}
     state_int::S
     state_sfc::S
     z0m::FT
-    z0b::FT
+    z0h::FT
 end
 
 struct Coefficients{S, FT}
@@ -353,5 +353,5 @@ struct Coefficients{S, FT}
     Cd::FT
     Ch::FT
     z0m::FT
-    z0b::FT
+    z0h::FT
 end

@@ -46,7 +46,7 @@ function synthetic_cases(::Type{FT}) where {FT}
         speed in SYNTH_SPEEDS,
         wind_dir in SYNTH_WIND_DIRS,
         z0m in SYNTH_Z0M,
-        z0b_factor in SYNTH_Z0B_FACTORS,
+        z0h_factor in SYNTH_Z0B_FACTORS,
         p in SYNTH_PRESSURES
 
         T_int = FT(T_sfc + ΔT)
@@ -64,7 +64,7 @@ function synthetic_cases(::Type{FT}) where {FT}
                     FT(speed * wind_dir[2]),
                 ),
                 z0m = FT(z0m),
-                z0b = FT(max(z0m * z0b_factor, 1e-6)),
+                z0h = FT(max(z0m * z0h_factor, 1e-6)),
                 pressure = FT(p),
             ),
         )
@@ -92,7 +92,7 @@ function build_surface_condition(param_set, case)
     ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, case.T_int, case.qt_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
     state_int = SF.StateValues(case.z, case.wind, ts_int)
-    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b)
+    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0h)
 end
 
 function compute_ΔDSEᵥ(param_set, sc)
@@ -148,10 +148,10 @@ end
 @testset "SurfaceFluxes convergence matrix" begin
     schemes = (SF.PointValueScheme(), SF.LayerAverageScheme())
     for FT in (Float32, Float64)
-        # Define roughness configs as functions of (z0m, z0b)
+        # Define roughness configs as functions of (z0m, z0h)
         roughness_config_factories = (
-            (z0m, z0b) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, scalar=z0b), SF.ConstantGustinessSpec(FT(1.0))),
-            (z0m, z0b) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0b), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
         )
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
@@ -160,7 +160,7 @@ end
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
             for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
                 sc = build_surface_condition(param_set, case)
-                config = config_factory(case.z0m, case.z0b)
+                config = config_factory(case.z0m, case.z0h)
                 result = SF.surface_fluxes(
                     param_set,
                     sc,

@@ -43,14 +43,14 @@ else
         ρ_int = FT(1.13)
         qt_sfc = FT(0.01)
         qt_int = FT(0.009)
-        z0b = FT(0.001)
+        z0h = FT(0.001)
         reference = Vector{FT}(undef, length(data.z))
         for ii in eachindex(data.z)
             ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, data.theta_sfc[ii], qt_sfc)
             ts_int = TD.PhaseEquil_ρθq(thermo_params, ρ_int, data.theta[ii], qt_int)
             state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
             state_int = SF.StateValues(data.z[ii], (data.speed[ii], FT(0)), ts_int)
-            sc = SF.ValuesOnly(state_int, state_sfc, data.z0[ii], z0b)
+            sc = SF.ValuesOnly(state_int, state_sfc, data.z0[ii], z0h)
             reference[ii] = SF.surface_fluxes(param_set, sc).L_MO
         end
         return reference
@@ -67,7 +67,7 @@ else
         θ_sfc = ArrayType(data.theta_sfc)
         z0 = ArrayType(data.z0)
         speed = ArrayType(data.speed)
-        z0b = FT(0.001)
+        z0h = FT(0.001)
 
         thermo_params = SFP.thermodynamics_params(param_set)
         ρ_sfc = FT(1.15)
@@ -81,7 +81,7 @@ else
         state_int = map(z, speed, ts_int) do z_i, speed_i, ts_int_i
             SF.StateValues(z_i, (speed_i, zero(speed_i)), ts_int_i)
         end
-        sc = SF.ValuesOnly.(state_int, state_sfc, z0, z0b)
+        sc = SF.ValuesOnly.(state_int, state_sfc, z0, z0h)
         gpu_outputs = map(sfc -> SF.surface_fluxes(param_set, sfc).L_MO, sc)
         return Array(gpu_outputs), reference
     end

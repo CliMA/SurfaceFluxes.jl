@@ -268,10 +268,9 @@ end
                     # Slope is Pr_0 * a_h
                     expected_h = -FT(ufp.Pr_0) * FT(ufp.a_h) * ζ_tiny / 2
                 else
-                    # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
-                    # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
-                    # Slope is a_h / Pr_0.
-                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    # Businger Heat: phi_h ~ Pr_0 + a_h * ζ
+                    # Psi_h ~ -a_h * ζ / 2
+                    expected_h = -FT(ufp.a_h) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end
@@ -286,7 +285,7 @@ end
             ζ_grid = range(FT(-5), FT(5), length = 100)
             Δz = FT(10)
             z0m = FT(0.1)
-            z0b = FT(0.01)
+            z0h = FT(0.01)
             
             schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
 
@@ -298,12 +297,12 @@ end
 
                 # 1. Neutral limit: Ri_b(0) should be 0
                 # Because thermal stratification is zero, buoyancy production is zero.
-                @test isapprox(UF.bulk_richardson_number(ufp, Δz, FT(0), z0m, z0b, scheme), FT(0); atol = eps(FT))
+                @test isapprox(UF.bulk_richardson_number(ufp, Δz, FT(0), z0m, z0h, scheme), FT(0); atol = eps(FT))
 
                 # 2. Continuity near neutral limit
                 ε = sqrt(eps(FT))
-                Rib_pos = UF.bulk_richardson_number(ufp, Δz, ε, z0m, z0b, scheme)
-                Rib_neg = UF.bulk_richardson_number(ufp, Δz, -ε, z0m, z0b, scheme)
+                Rib_pos = UF.bulk_richardson_number(ufp, Δz, ε, z0m, z0h, scheme)
+                Rib_neg = UF.bulk_richardson_number(ufp, Δz, -ε, z0m, z0h, scheme)
                 # Should be small and order of ε
                 @test isapprox(Rib_pos, FT(0); atol=10ε)
                 @test isapprox(Rib_neg, FT(0); atol=10ε)
@@ -315,7 +314,7 @@ end
                 # We check if Ri_b(ζ_{i+1}) > Ri_b(ζ_i).
                 
                 # Compute Ri_b across the grid
-                Ris = [UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0b, scheme) for ζ in ζ_grid]
+                Ris = [UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0h, scheme) for ζ in ζ_grid]
                 
                 # Check sorted
                 @test issorted(Ris)

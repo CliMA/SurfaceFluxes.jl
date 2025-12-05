@@ -227,7 +227,7 @@ function surface_fluxes(
     config_val = if config !== nothing
         config
     else
-        roughness = roughness_lengths(sc.z0m, scalar = sc.z0b)
+        roughness = roughness_lengths(sc.z0m, scalar = sc.z0h)
         SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0)))
     end
     

@@ -19,10 +19,10 @@ const IDENTICAL_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160)
 const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
 const FLOAT_TYPES = (Float32, Float64)
 
-function build_values_only_case(FT, z_int, ts_int, ts_sfc, z0m, z0b)
+function build_values_only_case(FT, z_int, ts_int, ts_sfc, z0m, z0h)
     state_int = SF.StateValues(FT(z_int), (FT(0), FT(0)), ts_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly(state_int, state_sfc, FT(z0m), FT(z0b))
+    return SF.ValuesOnly(state_int, state_sfc, FT(z0m), FT(z0h))
 end
 
 @testset "SurfaceFluxes - Near-zero Obukhov length" begin
@@ -54,9 +54,9 @@ end
 
         for (jj, z_int) in enumerate(IDENTICAL_Z_LEVELS),
             (kk, z0m) in enumerate(IDENTICAL_Z0),
-            (ll, z0b) in enumerate(IDENTICAL_Z0)
+            (ll, z0h) in enumerate(IDENTICAL_Z0)
 
-            sc = build_values_only_case(FT, z_int, ts, ts, z0m, z0b)
+            sc = build_values_only_case(FT, z_int, ts, ts, z0m, z0h)
             sfc_output = surface_fluxes_wrapper(param_set, sc; maxiter = 20)
             L = isinf(sfc_output.L_MO) ? FT(1e6) : sfc_output.L_MO
             sol_mat[ii, jj, kk, ll] = Float64(L)

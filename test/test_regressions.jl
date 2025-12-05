@@ -21,7 +21,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-19.07545), FT(16.88031)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.2595116f0,
                 99902.82f0,
@@ -55,7 +55,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-0.168524), FT(-0.000566946)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.2605726f0,
                 100331.47f0,
@@ -89,7 +89,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-14.154735), FT(-5.1905923)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.1730341f0,
                 98689.72f0,
@@ -123,7 +123,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-13.526638), FT(-8.794365)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.1698402f0,
                 98647.89f0,
@@ -157,7 +157,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-41.34482), FT(-23.609104)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.2182463f0,
                 96874.9f0,
@@ -191,7 +191,7 @@ function case_definitions(::Type{FT}) where {FT}
             u_int = (FT(-0.75088084), FT(-0.09317328)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
+            z0h = FT(1e-5),
             ts_int = TD.PhaseEquil{FT}(
                 1.2317619f0,
                 99965.086f0,
@@ -238,7 +238,7 @@ const CASE_NUMERIC_FIELDS = (
 function build_values_only_case(case, ::Type{FT}) where {FT}
     state_sfc = SF.StateValues(FT(0), case.u_sfc, case.ts_sfc)
     state_int = SF.StateValues(case.Δz, case.u_int, case.ts_int)
-    sc = SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0b)
+    sc = SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0h)
     return sc, state_int, state_sfc
 end
 
@@ -290,7 +290,7 @@ end
     base_sc, state_int, state_sfc = build_values_only_case(base_case, FT)
     base_result = surface_fluxes_wrapper(param_set, base_sc)
 
-    z0m, z0b = base_case.z0m, base_case.z0b
+    z0m, z0h = base_case.z0m, base_case.z0h
     @testset "Flux-prescribed container" begin
         flux_sc = SF.Fluxes(
             state_int,
@@ -298,7 +298,7 @@ end
             base_result.shf,
             base_result.lhf,
             z0m,
-            z0b,
+            z0h,
         )
         flux_result = surface_fluxes_wrapper(param_set, flux_sc)
         @test isapprox(flux_result.L_MO, base_result.L_MO; rtol = FT(1e-3))
@@ -312,7 +312,7 @@ end
             base_result.lhf,
             base_result.ustar,
             z0m,
-            z0b,
+            z0h,
         )
         result_fluxustar = surface_fluxes_wrapper(param_set, fluxustar_sc)
         @test isapprox(

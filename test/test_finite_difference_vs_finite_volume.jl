@@ -12,7 +12,7 @@ function compute_physical_scale_coeff_with_checks(
     L_MO,
     scheme,
     z0m,
-    z0b,
+    z0h,
 )
     @test_allocs_and_ts SF.compute_physical_scale_coeff(
         param_set,
@@ -128,7 +128,7 @@ end
 
             # State containers for different computation modes
             z0m = z0[ii]
-            z0b = FloatType(0.001)
+            z0h = FloatType(0.001)
 
             state_containers = (
                 SF.Fluxes(
@@ -137,7 +137,7 @@ end
                     FloatType(0),
                     FloatType(0),
                     z0m,
-                    z0b,
+                    z0h,
                 ),
                 SF.FluxesAndFrictionVelocity(
                     state_int,
@@ -146,9 +146,9 @@ end
                     FloatType(0),
                     u_star[ii],
                     z0m,
-                    z0b,
+                    z0h,
                 ),
-                SF.ValuesOnly(state_int, state_sfc, z0m, z0b),
+                SF.ValuesOnly(state_int, state_sfc, z0m, z0h),
             )
 
             point_scales = FloatType[]
@@ -162,7 +162,7 @@ end
                     L_MO,
                     SF.PointValueScheme(),
                     z0m,
-                    z0b,
+                    z0h,
                 )
 
                 # Layer-averaged scheme
@@ -172,7 +172,7 @@ end
                     L_MO,
                     SF.LayerAverageScheme(),
                     z0m,
-                    z0b,
+                    z0h,
                 )
 
                 @test isfinite(u_scale_fd) && u_scale_fd > FloatType(0)
