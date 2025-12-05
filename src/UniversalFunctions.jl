@@ -753,13 +753,17 @@ end
 The dimensionless vertical profile of the variable (momentum or scalar).
 Defined as
 
-    F(z) = ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z),
+    F(z) = ϕ(0) * ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z),
 
 This represents the integral of the dimensionless gradient function ϕ(ζ)/z
-from roughness length z0 to the given height z.
+from roughness length z0 to the given height z. Note that ϕ(0) corresponds
+to the neutral dimensionless gradient (slope), which is typically 1 but may
+differ (e.g., `Pr_0` for heat transport in Gryanik et al., 2020).
 """
 @inline function dimensionless_profile(uf_params, Δz, ζ, z0, transport)
-    return log(Δz / z0) -
+    FT = eltype(ζ)
+    slope = phi(uf_params, FT(0), transport)
+    return slope * log(Δz / z0) -
            psi(uf_params, ζ, transport) +
            psi(uf_params, z0 * ζ / Δz, transport)
 end

@@ -310,20 +310,22 @@ end
             for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
                 for ζ in ζ_grid
                     # 1. Consistency with manual calculation
-                    # F = log(Δz/z0) - ψ(ζ) + ψ(ζ * z0/Δz)
+                    # F = slope * log(Δz/z0) - ψ(ζ) + ψ(ζ * z0/Δz)
                     F = UF.dimensionless_profile(ufp, Δz, ζ, z0, transport)
                     
+                    slope = UF.phi(ufp, FT(0), transport)
                     ψ_ζ = UF.psi(ufp, ζ, transport)
                     ψ_z0 = UF.psi(ufp, ζ * z0 / Δz, transport)
-                    expected = log(Δz / z0) - ψ_ζ + ψ_z0
+                    expected = slope * log(Δz / z0) - ψ_ζ + ψ_z0
                     
                     @test isapprox(F, expected; rtol = sqrt(eps(FT)))
                 end
                 
                 # 2. Neutral limit (ζ -> 0)
-                # Should approach log(Δz/z0)
+                # Should approach slope * log(Δz/z0)
                 F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport)
-                @test isapprox(F_neutral, log(Δz / z0); atol = eps(FT))
+                slope = UF.phi(ufp, FT(0), transport)
+                @test isapprox(F_neutral, slope * log(Δz / z0); atol = eps(FT))
             end
         end
     end
