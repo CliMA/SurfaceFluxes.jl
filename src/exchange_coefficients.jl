@@ -1,12 +1,4 @@
 """
-    heat_conductance(inputs, Ch, gustiness)
-
-Compute the heat conductance (speed * Ch).
-"""
-@inline heat_conductance(inputs::SurfaceFluxInputs, Ch, gustiness) =
-    Ch * windspeed(inputs, gustiness)
-
-"""
     drag_coefficient(param_set, L_MO, z0m, Δz)
 
 Compute the drag coefficient `Cd` for momentum exchange.
@@ -73,3 +65,12 @@ function heat_exchange_coefficient(
     Ch = κ^2 / (F_m * F_h)
     return Ch
 end
+
+"""
+    heat_conductance(inputs, Ch, gustiness)
+
+Compute the heat conductance (speed * Ch).
+"""
+@inline heat_conductance(inputs::SurfaceFluxInputs, Ch, gustiness) =
+    Ch * windspeed(inputs, gustiness)
+

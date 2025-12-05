@@ -60,7 +60,7 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -70,7 +70,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
@@ -123,7 +123,7 @@ LMO = FT(-50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -133,7 +133,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
@@ -187,7 +187,7 @@ LMO = FT(-1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -197,7 +197,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
@@ -259,7 +259,7 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -269,7 +269,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
@@ -321,7 +321,7 @@ LMO = FT(50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -331,7 +331,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
@@ -385,7 +385,7 @@ LMO = FT(1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
+    ts_int_test = Thermodynamics.PhaseDry_pθ(
         thermo_params,
         p_int,
         FT(θ_sfc + bonan_data_dθz[il, 1]),
@@ -395,7 +395,7 @@ for il in 1:10
         SF.StateValues(
             FT(bonan_data_duz[il, 2] - canopy_disp),
             (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
+            ts_int_test,
         ),
         SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
         FT(0.6),
