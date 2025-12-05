@@ -19,12 +19,6 @@ const IDENTICAL_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160)
 const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
 const FLOAT_TYPES = (Float32, Float64)
 
-function build_values_only_case(FT, z_int, ts_intt, ts_sfc, z0m, z0b)
-    state_int = SF.StateValues(FT(z_int), (FT(0), FT(0)), ts_intt)
-    state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    return SF.ValuesOnly(state_int, state_sfc, FT(z0m), FT(z0b))
-end
-
 @testset "SurfaceFluxes - Near-zero Obukhov length" begin
     @test sign(SF.non_zero(1.0)) == 1
     @test sign(SF.non_zero(-1.0)) == -1
@@ -33,12 +27,30 @@ end
 
     for FT in FLOAT_TYPES
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
-        ts_intt = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
+        ts_int = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
         ts_sfc = TD.PhaseEquil{FT}(FT(1.2176297), FT(102852.51), FT(45087.812), FT(0.013232904), FT(291.96683))
+        
+        thermo_params = SFP.thermodynamics_params(param_set)
+        
+        T_int = TD.air_temperature(thermo_params, ts_int)
+        q_tot_int = TD.total_specific_humidity(thermo_params, ts_int)
+        ρ_int = TD.air_density(thermo_params, ts_int)
+        T_sfc_guess = TD.air_temperature(thermo_params, ts_sfc)
+        q_vap_sfc_guess = TD.total_specific_humidity(thermo_params, ts_sfc)
 
         for z_int in NEAR_ZERO_Z_LEVELS
-            sc = build_values_only_case(FT, z_int, ts_intt, ts_sfc, 1e-5, 1e-5)
-            sfc_output = surface_fluxes_wrapper(param_set, sc)
+            config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(1e-5), FT(1e-5)), SF.ConstantGustinessSpec(FT(1.0)))
+            
+            sfc_output = SF.surface_fluxes(
+                param_set,
+                T_int, q_tot_int, ρ_int,
+                T_sfc_guess, q_vap_sfc_guess,
+                FT(0), FT(z_int), zero(FT),
+                (FT(0), FT(0)), (FT(0), FT(0)), # Zero wind for near-zero check?
+                nothing,
+                config
+            )
+            
             L_MO = sfc_output.L_MO
             @test L_MO != FT(0)
         end
@@ -51,13 +63,32 @@ end
     for (ii, FT) in enumerate(FLOAT_TYPES)
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         ts = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
+        
+        thermo_params = SFP.thermodynamics_params(param_set)
+        T_int = TD.air_temperature(thermo_params, ts)
+        q_tot_int = TD.total_specific_humidity(thermo_params, ts)
+        ρ_int = TD.air_density(thermo_params, ts)
+        T_sfc_guess = T_int
+        q_vap_sfc_guess = q_tot_int
 
         for (jj, z_int) in enumerate(IDENTICAL_Z_LEVELS),
             (kk, z0m) in enumerate(IDENTICAL_Z0),
-            (ll, z0b) in enumerate(IDENTICAL_Z0)
+            (ll, z0h) in enumerate(IDENTICAL_Z0)
 
-            sc = build_values_only_case(FT, z_int, ts, ts, z0m, z0b)
-            sfc_output = surface_fluxes_wrapper(param_set, sc; maxiter = 20)
+            config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(z0m), FT(z0h)), SF.ConstantGustinessSpec(FT(1.0)))
+            
+            sfc_output = SF.surface_fluxes(
+                param_set,
+                T_int, q_tot_int, ρ_int,
+                T_sfc_guess, q_vap_sfc_guess,
+                FT(0), FT(z_int), zero(FT),
+                (FT(0), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config,
+                SF.PointValueScheme(),
+                SF.SolverOptions(FT; maxiter = 20)
+            )
+            
             L = isinf(sfc_output.L_MO) ? FT(1e6) : sfc_output.L_MO
             sol_mat[ii, jj, kk, ll] = Float64(L)
         end

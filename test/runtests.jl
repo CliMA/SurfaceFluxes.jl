@@ -26,10 +26,12 @@ include("test_utils.jl")  # common testing utilities (e.g. @test_allocs_and_ts)
 include("test_finite_difference_vs_finite_volume.jl")  # Finite-difference vs FV velocity-scale checks
 include("test_floating_point_consistency.jl")         # Float32 vs Float64 and near-zero L_MO consistency
 include("test_surface_fluxes_api.jl")                 # Primitive API regressions
+include("test_coare3.jl")                             # COARE 3.0 roughness tests
 
 @testset "Regression tests" begin
     # Regression tests with predefined (mostly stable) test cases.
     include("test_regressions.jl")
+    include("test_broadcasting.jl")
 end
 
 @testset "Test universal functions" begin
@@ -41,6 +43,12 @@ end
 @testset "Convergence tests" begin
     # Convergence tests for a broad variety of test cases.
     include("test_convergence.jl")
+end
+
+@testset "Physical correctness" begin
+    # Tests for physical consistency (signs of fluxes, positivity of coefficients)
+    include("test_bulk_fluxes.jl")
+    include("test_variance.jl")
 end
 
 @testset "Quality assurance" begin

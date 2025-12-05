@@ -268,31 +268,56 @@ end
                     # Slope is Pr_0 * a_h
                     expected_h = -FT(ufp.Pr_0) * FT(ufp.a_h) * ζ_tiny / 2
                 else
-                    # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
-                    # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
-                    # Slope is a_h / Pr_0.
-                    expected_h = - (FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    # Businger Heat: phi_h ~ Pr_0 + a_h * ζ
+                    # Psi_h ~ -a_h * ζ / 2
+                    expected_h = -FT(ufp.a_h) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end
         end
     end
-    
-    @testset "Richardson Number" begin
-        for FT in (Float32, Float64)
-            ζ_grid = range(FT(-5), FT(5), length = 100)
-            for ufp in universal_parameter_sets(FT)
-                # 1. Ri(0) should be 0
-                @test isapprox(UF.richardson_number(ufp, FT(0)), FT(0); atol = eps(FT))
 
-                # 2. Consistency check: Ri = ζ * ϕ_h / ϕ_m^2
-                for ζ in ζ_grid
-                    Ri = UF.richardson_number(ufp, ζ)
-                    ϕ_m = UF.phi(ufp, ζ, UF.MomentumTransport())
-                    ϕ_h = UF.phi(ufp, ζ, UF.HeatTransport())
-                    expected = ζ * ϕ_h / ϕ_m^2
-                    @test isapprox(Ri, expected; rtol = sqrt(eps(FT)))
+    @testset "Bulk Richardson Number" begin
+        for FT in (Float32, Float64)
+            # Choose a grid that avoids exactly 0 for monotonicity check steps if needed, 
+            # though we test 0 explicitly.
+            # Range including stable and unstable
+            ζ_grid = range(FT(-5), FT(5), length = 100)
+            Δz = FT(10)
+            z0m = FT(0.1)
+            z0h = FT(0.01)
+
+            schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
+
+            for ufp in universal_parameter_sets(FT), scheme in schemes
+                # Skip Grachev for LayerAverageScheme as Psi is not implemented
+                if scheme isa UF.LayerAverageScheme && ufp isa UF.GrachevParams
+                    continue
                 end
+
+                # 1. Neutral limit: Ri_b(0) should be 0
+                # Because thermal stratification is zero, buoyancy production is zero.
+                @test isapprox(UF.bulk_richardson_number(ufp, Δz, FT(0), z0m, z0h, scheme), FT(0); atol = eps(FT))
+
+                # 2. Continuity near neutral limit
+                ε = sqrt(eps(FT))
+                Rib_pos = UF.bulk_richardson_number(ufp, Δz, ε, z0m, z0h, scheme)
+                Rib_neg = UF.bulk_richardson_number(ufp, Δz, -ε, z0m, z0h, scheme)
+                # Should be small and order of ε
+                @test isapprox(Rib_pos, FT(0); atol = 10ε)
+                @test isapprox(Rib_neg, FT(0); atol = 10ε)
+
+                # 3. Monotonicity in ζ
+                # Ri_b should generally increase with ζ.
+                # Ri_b ~ ζ * F_h / F_m^2. 
+                # F_h and F_m are positive and monotonic.
+                # We check if Ri_b(ζ_{i+1}) > Ri_b(ζ_i).
+
+                # Compute Ri_b across the grid
+                Ris = [UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0h, scheme) for ζ in ζ_grid]
+
+                # Check sorted
+                @test issorted(Ris)
             end
         end
     end
@@ -302,24 +327,38 @@ end
             z0 = FT(0.1)
             Δz = FT(10)
             ζ_grid = range(FT(-2), FT(2), length = 20)
-            
-            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS
-                for ζ in ζ_grid
-                    # 1. Consistency with manual calculation
-                    # F = log(Δz/z0) - ψ(ζ) + ψ(ζ * z0/Δz)
-                    F = UF.dimensionless_profile(ufp, Δz, ζ, z0, transport)
-                    
-                    ψ_ζ = UF.psi(ufp, ζ, transport)
-                    ψ_z0 = UF.psi(ufp, ζ * z0 / Δz, transport)
-                    expected = log(Δz / z0) - ψ_ζ + ψ_z0
-                    
-                    @test isapprox(F, expected; rtol = sqrt(eps(FT)))
+
+            schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
+
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS, scheme in schemes
+                # Skip Grachev for LayerAverageScheme
+                if scheme isa UF.LayerAverageScheme && ufp isa UF.GrachevParams
+                    continue
                 end
-                
-                # 2. Neutral limit (ζ -> 0)
-                # Should approach log(Δz/z0)
-                F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport)
-                @test isapprox(F_neutral, log(Δz / z0); atol = eps(FT))
+
+                # 1. Neutral limit (ζ -> 0)
+                F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport, scheme)
+                slope = UF.phi(ufp, FT(0), transport)
+
+                expected_neutral = if scheme isa UF.PointValueScheme
+                    slope * log(Δz / z0)
+                else # LayerAverageScheme
+                    # N&K 2018 approximation: slope * (log(Δz/z0) - (1 - z0/Δz))
+                    slope * (log(Δz / z0) - FT(1) + z0 / Δz)
+                end
+                @test isapprox(F_neutral, expected_neutral; atol = 10 * eps(FT))
+
+                # 2. Continuity near neutral limit
+                ε = sqrt(eps(FT))
+                F_pos = UF.dimensionless_profile(ufp, Δz, ε, z0, transport, scheme)
+                F_neg = UF.dimensionless_profile(ufp, Δz, -ε, z0, transport, scheme)
+                @test isapprox(F_pos, F_neutral; atol = 10ε)
+                @test isapprox(F_neg, F_neutral; atol = 10ε)
+
+                # 3. Monotonicity in ζ
+                # Dimensionless profile F(ζ) should generally increase with ζ (more stable = larger gradient)
+                Fs = [UF.dimensionless_profile(ufp, Δz, ζ, z0, transport, scheme) for ζ in ζ_grid]
+                @test issorted(Fs)
             end
         end
     end

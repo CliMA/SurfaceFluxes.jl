@@ -43,15 +43,31 @@ else
         ρ_int = FT(1.13)
         qt_sfc = FT(0.01)
         qt_int = FT(0.009)
-        z0b = FT(0.001)
+        z0h = FT(0.001)
         reference = Vector{FT}(undef, length(data.z))
+        
+        config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(0.001), z0h), SF.ConstantGustinessSpec(FT(1.0)))
+
         for ii in eachindex(data.z)
             ts_sfc = TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, data.theta_sfc[ii], qt_sfc)
             ts_int = TD.PhaseEquil_ρθq(thermo_params, ρ_int, data.theta[ii], qt_int)
-            state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-            state_int = SF.StateValues(data.z[ii], (data.speed[ii], FT(0)), ts_int)
-            sc = SF.ValuesOnly(state_int, state_sfc, data.z0[ii], z0b)
-            reference[ii] = SF.surface_fluxes(param_set, sc).L_MO
+            T_int = TD.air_temperature(thermo_params, ts_int)
+            T_sfc_guess = TD.air_temperature(thermo_params, ts_sfc)
+            q_tot_int = TD.total_specific_humidity(thermo_params, ts_int)
+            q_vap_sfc_guess = TD.total_specific_humidity(thermo_params, ts_sfc)
+            
+            # Using data.z0[ii] for roughness config
+            local_config = SF.SurfaceFluxConfig(SF.roughness_lengths(data.z0[ii], z0h), SF.ConstantGustinessSpec(FT(1.0)))
+            
+            reference[ii] = SF.surface_fluxes(
+                param_set,
+                T_int, q_tot_int, ρ_int,
+                T_sfc_guess, q_vap_sfc_guess,
+                FT(0), data.z[ii], zero(FT),
+                (data.speed[ii], FT(0)), (FT(0), FT(0)),
+                nothing,
+                local_config
+            ).L_MO
         end
         return reference
     end
@@ -67,7 +83,7 @@ else
         θ_sfc = ArrayType(data.theta_sfc)
         z0 = ArrayType(data.z0)
         speed = ArrayType(data.speed)
-        z0b = FT(0.001)
+        z0h = FT(0.001)
 
         thermo_params = SFP.thermodynamics_params(param_set)
         ρ_sfc = FT(1.15)
@@ -77,12 +93,33 @@ else
 
         ts_sfc = @. TD.PhaseEquil_ρθq(thermo_params, ρ_sfc, θ_sfc, qt_sfc)
         ts_int = @. TD.PhaseEquil_ρθq(thermo_params, ρ_int, θ, qt_int)
-        state_sfc = SF.StateValues.(Ref(FT(0)), Ref((FT(0), FT(0))), ts_sfc)
-        state_int = map(z, speed, ts_int) do z_i, speed_i, ts_int_i
-            SF.StateValues(z_i, (speed_i, zero(speed_i)), ts_int_i)
+        
+        T_int = @. TD.air_temperature(thermo_params, ts_int)
+        T_sfc_guess = @. TD.air_temperature(thermo_params, ts_sfc)
+        q_tot_int = @. TD.total_specific_humidity(thermo_params, ts_int)
+        q_vap_sfc_guess = @. TD.total_specific_humidity(thermo_params, ts_sfc)
+        
+        # We need to construct roughness models for broadcast
+        config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(0.001), z0h), SF.ConstantGustinessSpec(FT(1.0)))
+        
+        # Currently surface_fluxes on GPU with varying roughness via config structs inside array inputs?
+        # The main `surface_fluxes` doesn't broadcast well if inputs are arrays but function call is singular.
+        # But we are mapping.
+        
+        # We need to closure or map correctly.
+        gpu_outputs = map(z, speed, T_int, T_sfc_guess, q_tot_int, q_vap_sfc_guess, z0) do z_i, speed_i, T_int_i, T_sfc_guess_i, q_tot_int_i, q_vap_sfc_guess_i, z0_i
+              local_config = SF.SurfaceFluxConfig(SF.roughness_lengths(z0_i, z0h), SF.ConstantGustinessSpec(FT(1.0)))
+              SF.surface_fluxes(
+                param_set,
+                T_int_i, q_tot_int_i, ρ_int,
+                T_sfc_guess_i, q_vap_sfc_guess_i,
+                FT(0), z_i, zero(FT),
+                (speed_i, FT(0)), (FT(0), FT(0)),
+                nothing,
+                local_config
+            ).L_MO
         end
-        sc = SF.ValuesOnly.(state_int, state_sfc, z0, z0b)
-        gpu_outputs = map(sfc -> SF.surface_fluxes(param_set, sfc).L_MO, sc)
+
         return Array(gpu_outputs), reference
     end
 

@@ -26,20 +26,7 @@ The `src/` directory contains the following files organized by functionality:
 ### Profile Recovery
 - **`profile_recovery.jl`**: Functions to recover vertical profiles within the surface layer using Monin-Obukhov similarity theory
 
-## Core input types
 
-```@docs
-SurfaceFluxes.StateValues
-```
-
-## Dispatch types
-
-```@docs
-SurfaceFluxes.Fluxes
-SurfaceFluxes.FluxesAndFrictionVelocity
-SurfaceFluxes.Coefficients
-SurfaceFluxes.ValuesOnly
-```
 
 ## User-facing methods
 

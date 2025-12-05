@@ -1,8 +1,15 @@
+import SurfaceFluxes as SF
+import SurfaceFluxes.UniversalFunctions as UF
+import SurfaceFluxes.Parameters as SFP
+import ClimaParams
+using Test
+include("test_utils.jl")
+
 # Maximum relative mismatch tolerated between the point-value and layer-average
 # velocity-scale computations. With the recovery profiles below, the schemes
 # usually agree to within ≲ 15%, so this limit still flags meaningful
 # regressions while allowing the expected discretization differences.
-const RECOVERY_SCHEME_RTOL = FloatType(0.15)
+const RECOVERY_SCHEME_RTOL = Float32(0.15)
 
 # Helper to compute the physical scale coefficient with allocation checks.
 # This is used in the "SurfaceFluxes - Finite-Difference vs Finite-Volume" testset.
@@ -12,12 +19,13 @@ function compute_physical_scale_coeff_with_checks(
     L_MO,
     scheme,
     z0m,
-    z0b,
+    z0h,
 )
+    ζ = sc.Δz / L_MO
     @test_allocs_and_ts SF.compute_physical_scale_coeff(
         param_set,
-        sc,
-        L_MO,
+        sc.Δz,
+        ζ,
         z0m,
         UF.MomentumTransport(),
         scheme,
@@ -30,17 +38,16 @@ end
     # test cases and that the various surface-condition containers agree for the
     # same discretization scheme.
 
-    param_set = SFP.SurfaceFluxesParameters(FloatType, BusingerParams)
+    param_set = SFP.SurfaceFluxesParameters(Float32, UF.BusingerParams)
     thermo_params = param_set.thermo_params
 
-    ρ_sfc = FloatType(1.15)
-    ρ_int = FloatType(1.13)
-    qt_sfc = FloatType(0.01)
-    qt_int = FloatType(0.009)
+    ρ_int = Float32(1.13)
+    qt_sfc = Float32(0.01)
+    qt_int = Float32(0.009)
 
     # Discretization altitude z [m]
-    z = ArrayType(
-        FloatType[
+    z = Array(
+        Float32[
             29.432779269303,
             30.0497139076724,
             31.6880000418153,
@@ -49,8 +56,8 @@ end
     )
 
     # Surface temperature [K]
-    T_sfc = ArrayType(
-        FloatType[
+    T_sfc = Array(
+        Float32[
             277.38348,
             276.8474,
             280.4166,
@@ -59,8 +66,8 @@ end
     )
 
     # Temperature at interior level at height z [K]
-    T_int = ArrayType(
-        FloatType[
+    T_int = Array(
+        Float32[
             271.62735,
             272.46533,
             277.3738,
@@ -69,8 +76,8 @@ end
     )
 
     # Roughness lengths for momentum [m]
-    z0 = ArrayType(
-        FloatType[
+    z0 = Array(
+        Float32[
             5.86144925739178e-05,
             0.0001,
             0.000641655193293549,
@@ -79,8 +86,8 @@ end
     )
 
     # Wind speed at z [m s⁻¹]
-    speed = ArrayType(
-        FloatType[
+    speed = Array(
+        Float32[
             2.9693638452068,
             2.43308757772094,
             5.69418282305367,
@@ -89,8 +96,8 @@ end
     )
 
     # Friction velocity [m s⁻¹]
-    u_star = ArrayType(
-        FloatType[
+    u_star = Array(
+        Float32[
             0.109462510724615,
             0.0932942802513508,
             0.223232887323184,
@@ -101,8 +108,8 @@ end
     # Target Monin–Obukhov lengths [m]; the set spans unstable through very
     # stable surface layers and keeps the point-value vs layer-average schemes
     # within ≲ 15% of each other.
-    L_MO_targets = ArrayType(
-        FloatType[
+    L_MO_targets = Array(
+        Float32[
             -80,
             -40,
             160,
@@ -116,83 +123,81 @@ end
             # strongly stable conditions.
             L_MO = L_MO_targets[ii]
 
-            # TODO: Remove thermodynamic states from here and use the signature 
-            # Create thermodynamic states from temperature, density, and specific humidity
-            ts_sfc = TD.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc[ii], qt_sfc)
-            ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, T_int[ii], qt_int)
-
-            state_sfc =
-                SF.StateValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc)
-            state_int =
-                SF.StateValues(z[ii], (FloatType(speed[ii]), FloatType(0)), ts_int)
-
-            # State containers for different computation modes
+            # Roughness lengths
             z0m = z0[ii]
-            z0b = FloatType(0.001)
+            z0h = Float32(0.001)
 
-            state_containers = (
-                SF.Fluxes(
-                    state_int,
-                    state_sfc,
-                    FloatType(0),
-                    FloatType(0),
-                    z0m,
-                    z0b,
-                ),
-                SF.FluxesAndFrictionVelocity(
-                    state_int,
-                    state_sfc,
-                    FloatType(0),
-                    FloatType(0),
-                    u_star[ii],
-                    z0m,
-                    z0b,
-                ),
-                SF.ValuesOnly(state_int, state_sfc, z0m, z0b),
+            # Build inputs structure
+            inputs_container = (;
+                T_int = T_int[ii],
+                q_tot_int = qt_int,
+                ρ_int = ρ_int,
+                T_sfc_guess = T_sfc[ii],
+                q_vap_sfc_guess = qt_sfc,
+                Φ_sfc = Float32(0),
+                Δz = z[ii],
+                d = Float32(0),
+                u_int = (Float32(speed[ii]), Float32(0)),
+                u_sfc = (Float32(0), Float32(0)),
+                roughness = SF.roughness_lengths(z0m, z0h),
+                gustiness = SF.ConstantGustinessSpec(Float32(1.0)),
+                moisture_model = SF.MoistModel(),
             )
 
-            point_scales = FloatType[]
-            layer_scales = FloatType[]
+            # We create a dummy inputs structure. 
+            # Note: compute_physical_scale_coeff in src/physical_scales.jl takes (param_set, inputs, L_MO, z0, transport, scheme)
+            # It expects inputs to support `Δz(inputs)`.
+            
+            # We can build a real SurfaceFluxInputs or just a NamedTuple if Δz() handles it?
+            # src/utilities.jl defines Δz(inputs) = inputs.Δz
+            
+            # Let's create a minimal inputs struct using helper?
+            # Or just pass the NamedTuple directly if duck typing allows?
+            # SurfaceFluxInputs is explicitly typed in signatures sometimes, but let's check physical_scales.jl
+            
+            # src/physical_scales.jl: compute_physical_scale_coeff(..., inputs, ...) 
+            # uses Δz(inputs).
+            
+            # We will use the proper constructor.
+            
+            sf_inputs = SF.build_surface_flux_inputs(
+                param_set,
+                inputs_container.T_int, inputs_container.q_tot_int, Float32(0), Float32(0), inputs_container.ρ_int,
+                inputs_container.T_sfc_guess, inputs_container.q_vap_sfc_guess,
+                inputs_container.Φ_sfc, inputs_container.Δz, inputs_container.d,
+                inputs_container.u_int, inputs_container.u_sfc,
+                SF.SurfaceFluxConfig(inputs_container.roughness, inputs_container.gustiness, inputs_container.moisture_model),
+                nothing, # roughness_inputs
+                SF.FluxSpecs(Float32), # Default specs
+                nothing, nothing
+            )
 
-            for sc in state_containers
-                # Point-value scheme
-                u_scale_fd = compute_physical_scale_coeff_with_checks(
-                    param_set,
-                    sc,
-                    L_MO,
-                    SF.PointValueScheme(),
-                    z0m,
-                    z0b,
-                )
+            # Point-value scheme
+            u_scale_fd = compute_physical_scale_coeff_with_checks(
+                param_set,
+                sf_inputs,
+                L_MO,
+                SF.PointValueScheme(),
+                z0m,
+                z0h,
+            )
 
-                # Layer-averaged scheme
-                u_scale_fv = compute_physical_scale_coeff_with_checks(
-                    param_set,
-                    sc,
-                    L_MO,
-                    SF.LayerAverageScheme(),
-                    z0m,
-                    z0b,
-                )
+            # Layer-averaged scheme
+            u_scale_fv = compute_physical_scale_coeff_with_checks(
+                param_set,
+                sf_inputs,
+                L_MO,
+                SF.LayerAverageScheme(),
+                z0m,
+                z0h,
+            )
 
-                @test isfinite(u_scale_fd) && u_scale_fd > FloatType(0)
-                @test isfinite(u_scale_fv) && u_scale_fv > FloatType(0)
+            @test isfinite(u_scale_fd) && u_scale_fd > Float32(0)
+            @test isfinite(u_scale_fv) && u_scale_fv > Float32(0)
 
-                rel_diff = abs(u_scale_fd - u_scale_fv) / u_scale_fd
-                @test rel_diff <= RECOVERY_SCHEME_RTOL
+            rel_diff = abs(u_scale_fd - u_scale_fv) / u_scale_fd
+            @test rel_diff <= RECOVERY_SCHEME_RTOL
 
-                push!(point_scales, u_scale_fd)
-                push!(layer_scales, u_scale_fv)
-            end
-
-            # Different surface-condition containers should give identical
-            # velocity scales for a fixed discretization scheme.
-            for scales in (point_scales, layer_scales)
-                reference = first(scales)
-                for candidate in scales
-                    @test isapprox(candidate, reference; rtol = FloatType(5e-6))
-                end
-            end
         end
     end
 end

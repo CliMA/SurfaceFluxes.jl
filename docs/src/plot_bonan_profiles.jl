@@ -60,28 +60,14 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -93,7 +79,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -123,28 +109,14 @@ LMO = FT(-50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -156,7 +128,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -187,28 +159,14 @@ LMO = FT(-1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -220,7 +178,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -259,28 +217,14 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -292,7 +236,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -321,28 +265,14 @@ LMO = FT(50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -354,7 +284,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
@@ -385,28 +315,14 @@ LMO = FT(1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_intt_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_int,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_intt_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
@@ -418,7 +334,7 @@ for il in 1:10
         SurfaceFluxes.compute_profile_value(
             param_set,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,

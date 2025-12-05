@@ -37,16 +37,8 @@ end
 #
 # Returns:
 #   The result of `surface_fluxes`, after verifying allocations and type stability.
-function surface_fluxes_wrapper(
-    sf_params,
-    sc,
-    scheme = SurfaceFluxes.PointValueScheme();
-    kwargs...,
-)
-    @test_allocs_and_ts SurfaceFluxes.surface_fluxes(
-        sf_params,
-        sc,
-        scheme;
-        kwargs...,
-    )
+# Wrapper for `SurfaceFluxes.surface_fluxes` that checks allocations and trivial
+# type stabilities for the given call signature.
+function surface_fluxes_wrapper(args...; kwargs...)
+    @test_allocs_and_ts SurfaceFluxes.surface_fluxes(args...; kwargs...)
 end

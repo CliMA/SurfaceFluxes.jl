@@ -6,11 +6,31 @@ const TDPS = TD.Parameters.ThermodynamicsParameters
 import ..UniversalFunctions
 const UF = UniversalFunctions
 
+"""
+    AbstractSurfaceFluxesParameters{FT}
+
+Abstract type for surface fluxes parameters.
+"""
 abstract type AbstractSurfaceFluxesParameters{FT} end
 const ASFP = AbstractSurfaceFluxesParameters
+Base.eltype(::ASFP{FT}) where {FT} = FT
 
 Base.broadcastable(ps::ASFP) = tuple(ps)
 
+"""
+    SurfaceFluxesParameters{FT, AUFPS, TP}
+
+Parameters for SurfaceFluxes.jl.
+
+# Fields
+- `von_karman_const`: Von Karman constant
+- `ufp`: Universal function parameters
+- `thermo_params`: Thermodynamics parameters
+- `z0m_fixed`: [m] Fixed roughness length for momentum (for testing)
+- `z0s_fixed`: [m] Fixed roughness length for scalars (for testing)
+- `gustiness_coeff`: Scaling coefficient for Deardorff gustiness (often β)
+- `gustiness_zi`: [m] Boundary layer height for gustiness (if fixed)
+"""
 Base.@kwdef struct SurfaceFluxesParameters{
     FT,
     AUFPS <: UF.AbstractUniversalFunctionParameters{FT},
@@ -19,11 +39,26 @@ Base.@kwdef struct SurfaceFluxesParameters{
     von_karman_const::FT
     ufp::AUFPS
     thermo_params::TP
+    z0m_fixed::FT
+    z0s_fixed::FT
+    gustiness_coeff::FT
+    gustiness_zi::FT
 end
 
+"Thermodynamics parameters"
 thermodynamics_params(ps::SurfaceFluxesParameters) = ps.thermo_params
+"Universal function parameters"
 uf_params(ps::SurfaceFluxesParameters) = ps.ufp
+"Von Karman constant"
 von_karman_const(ps::SurfaceFluxesParameters) = ps.von_karman_const
+"Fixed roughness length for momentum"
+z0m_fixed(ps::SurfaceFluxesParameters) = ps.z0m_fixed
+"Fixed roughness length for scalars"
+z0s_fixed(ps::SurfaceFluxesParameters) = ps.z0s_fixed
+"Gustiness coefficient"
+gustiness_coeff(ps::SurfaceFluxesParameters) = ps.gustiness_coeff
+"Fixed boundary layer height for Deardorff gustiness calculation"
+gustiness_zi(ps::SurfaceFluxesParameters) = ps.gustiness_zi
 
 for var in fieldnames(TDPS)
     @eval $var(ps::ASFP) = TD.Parameters.$var(thermodynamics_params(ps))

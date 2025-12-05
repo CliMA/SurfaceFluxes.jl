@@ -6,24 +6,24 @@ import Thermodynamics as TD
 import ClimaParams
 
 # Define a custom roughness model that uses LAI
-# Define a custom roughness spec that uses LAI
-struct LAIRoughnessSpec{FT} <: SF.AbstractRoughnessSpec
+struct LAIRoughnessParams{FT} <: SF.AbstractRoughnessParams
     base_z0::FT
 end
 
 # Define roughness methods for the custom model
-# Note: we need to import these to extend them if they are not exported, 
-# or just define them if we are in the test module and SF exports them.
-# SF exports them? Let's check. No, they are not exported.
-# So we need to extend SF.momentum_roughness etc.
-
-function SF.momentum_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+function SF.momentum_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
     # Simple fake formula: z0 = base_z0 * LAI
     return spec.base_z0 * roughness_inputs.LAI
 end
 
-function SF.scalar_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+function SF.scalar_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
     return spec.base_z0 * roughness_inputs.LAI * FT(0.1)
+end
+
+function SF.momentum_and_scalar_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
+    z0m = SF.momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
+    z0s = SF.scalar_roughness(spec, u★, sfc_param_set, roughness_inputs)
+    return (z0m, z0s)
 end
 
 @testset "Roughness Inputs Verification" begin
@@ -31,41 +31,30 @@ end
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     thermo_params = SFP.thermodynamics_params(param_set)
 
-    Tin = FT(300)
-    qin = FT(0.01)
-    Ts_guess = FT(302) # Unstable
-    qs_guess = FT(0.012)
-    
+    T_int = FT(300)
+    q_tot_int = FT(0.01)
+    T_sfc_guess = FT(302) # Unstable
+    q_vap_sfc_guess = FT(0.012)
+
     # Calculate density
-    q_pt = TD.PhasePartition_equil_given_p(
-        thermo_params,
-        Tin,
-        FT(100000),
-        qin,
-        TD.PhaseEquil,
-    )
-    ρin = TD.air_density(thermo_params, Tin, FT(100000), q_pt)
+    R_m = TD.gas_constant_air(thermo_params, q_tot_int, FT(0), FT(0))
+    ρ_int = FT(100000) / (R_m * T_int)
 
     # Custom configuration with our LAI model
-    # We need to bypass the config struct if it enforces types, or make a custom spec.
-    # SurfaceFluxConfig requires AbstractRoughnessSpec.
-    
-
-
     config = SF.SurfaceFluxConfig(
-        LAIRoughnessSpec(0.01),
-        SF.gustiness_constant(1.0)
+        LAIRoughnessParams(0.01),
+        SF.gustiness_constant(1.0),
     )
 
     # Case 1: LAI = 1.0
     inputs1 = (LAI = 1.0,)
     result1 = SF.surface_fluxes(
         param_set,
-        Tin,
-        qin,
-        ρin,
-        Ts_guess,
-        qs_guess,
+        T_int,
+        q_tot_int,
+        ρ_int,
+        T_sfc_guess,
+        q_vap_sfc_guess,
         FT(0),
         FT(10),
         FT(0),
@@ -79,11 +68,11 @@ end
     inputs2 = (LAI = 2.0,)
     result2 = SF.surface_fluxes(
         param_set,
-        Tin,
-        qin,
-        ρin,
-        Ts_guess,
-        qs_guess,
+        T_int,
+        q_tot_int,
+        ρ_int,
+        T_sfc_guess,
+        q_vap_sfc_guess,
         FT(0),
         FT(10),
         FT(0),
