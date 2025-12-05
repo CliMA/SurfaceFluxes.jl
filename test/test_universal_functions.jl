@@ -271,7 +271,7 @@ end
                     # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
                     # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
                     # Slope is a_h / Pr_0.
-                    expected_h = - (FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
             end
