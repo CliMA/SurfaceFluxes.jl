@@ -751,9 +751,9 @@ end
     dimensionless_profile(uf_params, Δz, ζ, z0, transport)
 
 The dimensionless vertical profile of the variable (momentum or scalar).
-Defined as:
+Defined as
 
-    F(z) = ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z)
+    F(z) = ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z),
 
 This represents the integral of the dimensionless gradient function ϕ(ζ)/z
 from roughness length z0 to the given height z.
