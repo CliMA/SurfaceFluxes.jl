@@ -15,71 +15,21 @@ abstract type AbstractGustinessSpec end
 
 struct DefaultRoughnessSpec <: AbstractRoughnessSpec end
 
-struct FixedRoughnessSpec{TM <: Real, TS <: Real} <: AbstractRoughnessSpec
-    momentum::TM
-    scalar::TS
-end
-FixedRoughnessSpec(momentum::Real, scalar::Real) =
-    FixedRoughnessSpec{typeof(momentum), typeof(scalar)}(momentum, scalar)
-FixedRoughnessSpec(momentum::Real; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
-
-struct CharnockRoughnessSpec{TA <: Real, TS <: Real} <: AbstractRoughnessSpec
-    α::TA
-    scalar::TS
-end
-CharnockRoughnessSpec(α::Real, scalar::Real) =
-    CharnockRoughnessSpec{typeof(α), typeof(scalar)}(α, scalar)
-
 struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
     value::TG
 end
-ConstantGustinessSpec(value::Real) = ConstantGustinessSpec{typeof(value)}(value)
+
 
 struct SurfaceFluxConfig{R <: AbstractRoughnessSpec, G <: AbstractGustinessSpec}
     roughness::R
     gustiness::G
 end
 
-SurfaceFluxConfig(; roughness = DefaultRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
-    SurfaceFluxConfig(roughness, gustiness)
-
-"""
-    Runtime roughness and gustiness models
-"""
-
 abstract type AbstractRoughnessModel{FT} end
 abstract type AbstractGustinessModel{FT} end
 
-struct FixedRoughnessModel{FT} <: AbstractRoughnessModel{FT}
-    momentum::FT
-    scalar::FT
-end
-
-struct CharnockRoughnessModel{FT} <: AbstractRoughnessModel{FT}
-    α::FT
-    scalar::FT
-    grav::FT
-end
-
 struct ConstantGustinessModel{FT} <: AbstractGustinessModel{FT}
     value::FT
-end
-
-@inline function instantiate_roughness(param_set::APS{FT}, ::DefaultRoughnessSpec) where {FT}
-    defaults = default_roughness_lengths(param_set)
-    return FixedRoughnessModel{FT}(defaults.momentum, defaults.scalar)
-end
-
-@inline function instantiate_roughness(param_set::APS{FT}, spec::FixedRoughnessSpec) where {FT}
-    return FixedRoughnessModel{FT}(convert(FT, spec.momentum), convert(FT, spec.scalar))
-end
-
-@inline function instantiate_roughness(param_set::APS{FT}, spec::CharnockRoughnessSpec) where {FT}
-    return CharnockRoughnessModel{FT}(convert(FT, spec.α), convert(FT, spec.scalar), SFP.grav(param_set))
-end
-
-@inline function instantiate_gustiness(::APS{FT}, spec::ConstantGustinessSpec) where {FT}
-    return ConstantGustinessModel{FT}(convert(FT, spec.value))
 end
 
 const FluxOption{FT} = Union{Nothing, FT}
@@ -371,5 +321,38 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "evaporation            = ", sfc.evaporation)
+    println(io, "evaporation            = ", sfc.evaporation)
     println(io, "-----------------------")
+end
+
+struct StateValues{FT, TS}
+    z::FT
+    u::Tuple{FT, FT}
+    ts::TS
+end
+
+struct Fluxes{S, FT}
+    state_int::S
+    state_sfc::S
+    shf::FT
+    lhf::FT
+    z0m::FT
+    z0b::FT
+end
+
+struct FluxesAndFrictionVelocity{S, FT}
+    state_int::S
+    state_sfc::S
+    shf::FT
+    lhf::FT
+    ustar::FT
+    z0m::FT
+    z0b::FT
+end
+
+struct ValuesOnly{S, FT}
+    state_int::S
+    state_sfc::S
+    z0m::FT
+    z0b::FT
 end
