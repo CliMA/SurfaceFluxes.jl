@@ -11,13 +11,13 @@ const RS = RootSolvers
 
 const SYNTH_T_SURFACE = (261.0, 282.0, 310.0)
 const SYNTH_DELTA_T = (-8.0, -2.0, 3.5)
-const SYNTH_RH_IN = (0, 0.85, 0.99)
+const SYNTH_RH_INT = (0, 0.85, 0.99)
 const SYNTH_DELTA_QT = (-2e-3, 0.0, 3e-3)
 const SYNTH_HEIGHTS = (5.0, 20.0, 80.0)
 const SYNTH_SPEEDS = (1.0, 12.0)
 const SYNTH_WIND_DIRS = ((1.0, 0.0), (-0.7, 0.4))
 const SYNTH_Z0M = (1e-5, 8e-4, 3e-3)
-const SYNTH_Z0B_FACTORS = (0.1, 1.0, 10.0)
+const SYNTH_Z0h_FACTORS = (0.1, 1.0, 10.0)
 const SYNTH_PRESSURES = (9.5e4, 1.0e5)
 
 const TEMP_NEUTRAL_THRESHOLD = 0.3
@@ -40,31 +40,31 @@ function synthetic_cases(::Type{FT}) where {FT}
     cases = NamedTuple[]
     for T_sfc in SYNTH_T_SURFACE,
         ΔT in SYNTH_DELTA_T,
-        RH_in in SYNTH_RH_IN,
+        RH_int in SYNTH_RH_INT,
         Δqt in SYNTH_DELTA_QT,
         z in SYNTH_HEIGHTS,
         speed in SYNTH_SPEEDS,
         wind_dir in SYNTH_WIND_DIRS,
         z0m in SYNTH_Z0M,
-        z0b_factor in SYNTH_Z0B_FACTORS,
+        z0h_factor in SYNTH_Z0h_FACTORS,
         p in SYNTH_PRESSURES
 
-        T_in = FT(T_sfc + ΔT)
-        qt_in = qt_from_RH(FT, RH_in, T_in, p)
+        T_int = FT(T_sfc + ΔT)
+        qt_int = qt_from_RH(FT, RH_int, T_int, p)
         push!(
             cases,
             (
                 T_sfc = FT(T_sfc),
-                T_in = T_in,
-                qt_in = qt_in,
-                qt_sfc = FT(clamp(qt_in + Δqt, 0.0, 1.0)),
+                T_int = T_int,
+                qt_int = qt_int,
+                qt_sfc = FT(clamp(qt_int + Δqt, 0.0, 1.0)),
                 z = FT(z),
                 wind = (
                     FT(speed * wind_dir[1]),
                     FT(speed * wind_dir[2]),
                 ),
                 z0m = FT(z0m),
-                z0b = FT(max(z0m * z0b_factor, 1e-6)),
+                z0h = FT(max(z0m * z0h_factor, 1e-6)),
                 pressure = FT(p),
             ),
         )
@@ -83,21 +83,40 @@ function density_from_state(thermo_params, T, pressure, qt)
     return TD.air_density(thermo_params, T, pressure, q_pt)
 end
 
-function build_surface_condition(param_set, case, roughness_model)
+function build_surface_condition(param_set, case)
     FT = eltype(case.T_sfc)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
-    ρ_in = density_from_state(thermo_params, case.T_in, case.pressure, case.qt_in)
+    ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
     ts_sfc = TD.PhaseEquil_ρTq(thermo_params, ρ_sfc, case.T_sfc, case.qt_sfc)
-    ts_in = TD.PhaseEquil_ρTq(thermo_params, ρ_in, case.T_in, case.qt_in)
+    ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, case.T_int, case.qt_int)
     state_sfc = SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc)
-    state_in = SF.StateValues(case.z, case.wind, ts_in)
-    return SF.ValuesOnly(state_in, state_sfc, case.z0m, case.z0b; roughness_model)
+    state_int = SF.StateValues(case.z, case.wind, ts_int)
+    return SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0h)
+end
+
+function compute_ΔDSEᵥ(param_set, sc)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    ts_int = sc.state_int.ts
+    ts_sfc = sc.state_sfc.ts
+    T_int = TD.air_temperature(thermo_params, ts_int)
+    T_sfc = TD.air_temperature(thermo_params, ts_sfc)
+    ρ_int = TD.air_density(thermo_params, ts_int)
+    ρ_sfc = TD.air_density(thermo_params, ts_sfc)
+    q_int = TD.total_specific_humidity(thermo_params, ts_int)
+    q_sfc = TD.total_specific_humidity(thermo_params, ts_sfc)
+    phase_int = TD.PhasePartition(q_int)
+    phase_sfc = TD.PhasePartition(q_sfc)
+    grav = SFP.grav(param_set)
+    Φ_int = grav * sc.state_int.z
+    Φ_sfc = grav * sc.state_sfc.z
+    
+    return SF.ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
 end
 
 function assert_flux_expectations(result, case, FT, param_set, sc)
-    Δqt = case.qt_in - case.qt_sfc
-    ΔDSEᵥ = SF.ΔDSEᵥ(param_set, sc)
+    Δqt = case.qt_int - case.qt_sfc
+    ΔDSEᵥ = compute_ΔDSEᵥ(param_set, sc)
     heat_tolerance = FT(SFP.cp_d(param_set) * TEMP_NEUTRAL_THRESHOLD)
     if abs(ΔDSEᵥ) > heat_tolerance
         expected_heat_sign = -sign(ΔDSEᵥ)
@@ -111,7 +130,7 @@ function assert_flux_expectations(result, case, FT, param_set, sc)
         @test isapprox(result.shf, FT(0); atol = FT(5e-2))
     end
     if abs(Δqt) > FT(HUMIDITY_NEUTRAL_THRESHOLD)
-        expected_evap_sign = sign(case.qt_sfc - case.qt_in)
+        expected_evap_sign = sign(case.qt_sfc - case.qt_int)
         @test sign(result.evaporation) == expected_evap_sign
     end
     for (stress, wind_component) in zip((result.ρτxz, result.ρτyz), case.wind)
@@ -128,21 +147,27 @@ end
 
 @testset "SurfaceFluxes convergence matrix" begin
     schemes = (SF.PointValueScheme(), SF.LayerAverageScheme())
-    roughness_models = (SF.ScalarRoughness(), SF.CharnockRoughness())
     for FT in (Float32, Float64)
+        # Define roughness configs as functions of (z0m, z0h)
+        roughness_config_factories = (
+            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
+        )
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
             param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
             tol_neutral = FT(SF.Parameters.cp_d(param_set) / 1e5)  # TODO: remove tol_neutral as a relevant threshold
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
-            for case in cases, roughness_model in roughness_models, scheme in scheme_set
-                sc = build_surface_condition(param_set, case, roughness_model)
-                result = SF.surface_conditions(
+            for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
+                sc = build_surface_condition(param_set, case)
+                config = config_factory(case.z0m, case.z0h)
+                result = SF.surface_fluxes(
                     param_set,
                     sc,
                     scheme;
                     maxiter = 15,
                     tol_neutral = tol_neutral,
+                    config = config,
                 )
                 assert_flux_expectations(result, case, FT, param_set, sc)
             end

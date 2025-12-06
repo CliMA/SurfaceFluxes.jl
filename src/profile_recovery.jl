@@ -1,35 +1,38 @@
-
 """
-    recover_profile(param_set, sc, L_MO, Z, X_in, X_sfc, transport, scheme)
+    compute_profile_value(param_set, L_MO, z0, Δz, scale, val_sfc, transport)
 
-Recover profiles of variable X given values of Z coordinates. Follows Nishizawa equation (21,22)
-## Arguments
-  - param_set: Abstract Parameter Set containing physical, thermodynamic parameters.
-  - sc: Container for surface conditions based on known combination
-        of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
-  - L_MO: Monin-Obukhov length
-  - Z: Z coordinate(s) (within surface layer) for which variable values are required
-  - X_star: Scale parameter for variable X
-  - X_sfc: For variable X, values at surface nodes
-  - transport: Transport type, (e.g. Momentum or Heat, used to determine physical scale coefficients)
-  - scheme: Discretization scheme (currently supports FD and FV)
+Compute the value of a variable (momentum or scalar) at height `Δz` (height above surface).
+
+# Arguments
+- `param_set`: Parameter set
+- `L_MO`: Monin-Obukhov length [m]
+- `z0`: Roughness length [m]
+- `Δz`: Height above the surface [m]
+- `scale`: Similarity scale (u_star, theta_star, etc.)
+- `val_sfc`: Surface value of the variable
+- `transport`: Transport type (`MomentumTransport` or `HeatTransport`)
+
+# Formula:
+
+    X(Δz) = (scale / κ) * F_z + val_sfc
+
+where `F_z` is the dimensionless profile at height `Δz`.
 """
-function recover_profile(
+function compute_profile_value(
     param_set::APS,
-    sc::AbstractSurfaceConditions,
     L_MO,
-    𝓁,
-    Z,
-    X_star,
-    X_sfc,
+    z0,
+    Δz,
+    scale,
+    val_sfc,
     transport,
-    scheme::Union{LayerAverageScheme, PointValueScheme},
+    scheme = UF.PointValueScheme(),
 )
-    uf = SFP.uf_params(param_set)
-    𝜅 = SFP.von_karman_const(param_set)
-    num1 = log(Z / 𝓁)
-    num2 = -UF.psi(uf, Z / L_MO, transport)
-    num3 = UF.psi(uf, 𝓁 / L_MO, transport)
-    Σnum = num1 + num2 + num3
-    return Σnum * X_star / 𝜅 + X_sfc
+    uf_params = SFP.uf_params(param_set)
+    κ = SFP.von_karman_const(param_set)
+    ζ = Δz / L_MO
+
+    F = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport, scheme)
+
+    return F * scale / κ + val_sfc
 end

@@ -23,6 +23,8 @@ and
 ```
 where $\phi_m$ and $\phi_h$ are the universal stability functions for momentum and heat, respectively, and $\kappa \approx 0.4$ is the von Kármán constant.
 
+Note that while $\phi_m(0) = 1$, the heat function neutral limit $\phi_h(0)$ is typically equal to the turbulent Prandtl number $\text{Pr}_0$ (consistent across Businger and Gryanik parameterizations).
+
 We also define the **integrated stability correction functions** ($\psi$) that define corrections to logarithmic profiles, including their **volume-averaged forms** ($\Psi$) used with finite-volume schemes:
 
 * **The function $\psi(\zeta)$**: The standard integral form used to correct point profiles (for finite-difference schemes):
@@ -101,7 +103,10 @@ where $y = (1 - b_h \zeta)^{1/2}$.
 
 ### Stable Conditions ($\zeta \ge 0$)
 
-For stable conditions, the Businger-Dyer functions are linear (Nishizawa & Kitamura 2018, Eqs. A1-A2 for $L \ge 0$):
+For stable conditions, the Businger-Dyer functions are linear. 
+
+!!! note "Neutral Prandtl Number"
+    In our implementation, we scale the heat functions by $\text{Pr}_0$ so that $\phi_h(0) = \text{Pr}_0$. This ensures consistency with other parameterizations like Gryanik et al. (2020) and proper behavior of the dimensionless profiles.
 
 ```math
 \begin{equation}
@@ -111,7 +116,7 @@ For stable conditions, the Businger-Dyer functions are linear (Nishizawa & Kitam
 and
 ```math
 \begin{equation}
-\phi_h(\zeta) = 1 + \frac{a_h \zeta}{\text{Pr}_0}.
+\phi_h(\zeta) = \text{Pr}_0 + a_h \zeta.
 \end{equation}
 ```
 
@@ -121,16 +126,17 @@ The integrated forms are (Nishizawa & Kitamura 2018, Eqs. A3-A4 for $L \ge 0$):
 \psi_m(\zeta) = -a_m \zeta
 \end{equation}
 ```
-and
+and 
 ```math
 \begin{equation}
-\psi_h(\zeta) = -\frac{a_h \zeta}{\text{Pr}_0}.
+\psi_h(\zeta) = -a_h \zeta,
 \end{equation}
 ```
+where in the second equation we have applied the scaling by $\text{Pr}_0$ relative to the equations in Nishizawa & Kitamura (2018).
 
 ### Volume-Averaged Forms
 
-The volume-averaged functions $\Psi$ are implemented for both momentum and heat transport, following Nishizawa & Kitamura (2018, Eqs. A5-A6, A13-A14).
+The volume-averaged functions $\Psi$ are implemented for both momentum and heat transport, following Nishizawa & Kitamura (2018, Eqs. A5-A6, A13-A14), with heat functions scaled by $\text{Pr}_0$.
 
 **Stable Conditions ($\zeta \ge 0$):**
 
@@ -143,13 +149,13 @@ For stable conditions, the volume-averaged functions reduce to:
 and
 ```math
 \begin{equation}
-\Psi_h(\zeta) = -\frac{a_h \zeta}{2 \text{Pr}_0}.
+\Psi_h(\zeta) = -\frac{a_h \zeta}{2}.
 \end{equation}
 ```
 
 **Unstable Conditions ($\zeta < 0$):**
 
-For unstable conditions, the volume-averaged functions are more complex (Nishizawa & Kitamura 2018, Eqs. A5-A6 for $L < 0$):
+For unstable conditions, computations follow Nishizawa & Kitamura (2018, Eqs. A5-A6), with appropriate \text{Pr}_0$ scaling for heat.
 
 For momentum:
 ```math
@@ -162,10 +168,10 @@ where $x = (1 - b_m \zeta)^{1/4}$. For small $\zeta$, this reduces to $\Psi_m(\z
 For heat:
 ```math
 \begin{equation}
-\Psi_h(\zeta) = 2\ln\left(\frac{1 + y}{2}\right) + \frac{2(1 - y)}{b_h \zeta} - 1,
+\Psi_h(\zeta) = \text{Pr}_0 \left[ 2\ln\left(\frac{1 + y}{2}\right) + \frac{2(1 - y)}{b_h \zeta} - 1 \right],
 \end{equation}
 ```
-where $y = (1 - b_h \zeta)^{1/2}$. For small $\zeta$, this reduces to $\Psi_h(\zeta) \approx -b_h \zeta/4$ (Nishizawa & Kitamura 2018, Eq. A14).
+where $y = (1 - b_h \zeta)^{1/2}$. For small $\zeta$, this reduces to $\Psi_h(\zeta) \approx - \text{Pr}_0 b_h \zeta/4$ (Nishizawa & Kitamura 2018, Eq. A14, with the scaling by $\text{Pr}_0$ applied).
 
 ---
 

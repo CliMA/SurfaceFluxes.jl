@@ -6,11 +6,47 @@ Supports the following universal functions:
  - `Businger`: Businger et al. (1971), Dyer (1974)
  - `Gryanik`: Gryanik et al. (2020)
  - `Grachev`: Grachev et al. (2007)
+
+ It supports standard finite-difference (point-value) and finite-volume
+ (layer-averaged) schemes. The finite-volume scheme is based on the Nishizawa & Kitamura (2018) formulation.
+ 
+ References:
+ - [Businger et al.] (1971): [https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2)
+ - [Dyer] (1974): [https://doi.org/10.1007/BF00240838](https://doi.org/10.1007/BF00240838)
+ - [Gryanik et al.] (2020): [https://doi.org/10.1175/JAS-D-19-0255.1](https://doi.org/10.1175/JAS-D-19-0255.1)
+ - [Grachev et al.] (2007): [https://doi.org/10.1007/s10546-007-9177-6](https://doi.org/10.1007/s10546-007-9177-6)
+ - [Nishizawa & Kitamura] (2018): [https://doi.org/10.1029/2018MS001534](https://doi.org/10.1029/2018MS001534)
 """
 module UniversalFunctions
 
 abstract type AbstractUniversalFunctionParameters{FT <: Real} end
 const AUFP = AbstractUniversalFunctionParameters
+
+#####
+##### Solver Schemes
+#####
+
+"""
+    SolverScheme
+
+Abstract type for surface flux solver schemes.
+"""
+abstract type SolverScheme end
+
+"""
+    LayerAverageScheme <: SolverScheme
+
+Finite volume approximation scheme following Nishizawa & Kitamura (2018).
+"""
+struct LayerAverageScheme <: SolverScheme end
+
+"""
+    PointValueScheme <: SolverScheme
+
+Standard finite difference scheme using point values.
+"""
+struct PointValueScheme <: SolverScheme end
+
 
 #####
 ##### Interface
@@ -28,7 +64,7 @@ struct MomentumTransport <: AbstractTransportType end
 """
     HeatTransport
 
-Type selecting heat-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
+Type selecting heat/scalar-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
 """
 struct HeatTransport <: AbstractTransportType end
 
@@ -87,10 +123,6 @@ d_h(p::AUFP) = p.d_h
 d_m(p::AUFP) = p.d_m
 ζ_a(p::AUFP) = p.ζ_a
 γ(p::AUFP) = p.γ
-
-# Parameter-struct π-group (avoid constructing UF just to get scalar π)
-π_group(p::AUFP, ::HeatTransport) = Pr_0(p)
-π_group(::AUFP, ::MomentumTransport) = 1
 
 #####
 ##### Private Helpers (Unstable Businger Logic)
@@ -178,7 +210,7 @@ end
 """
     _Psi_h_unstable(ζ, γ)
 
-Finite-volume integral for unstable heat.
+Finite-volume integral for unstable heat/scalar.
 Matches Nishizawa & Kitamura (2018, Eq. A6).
 
 Note: `γ` here refers to the **coefficient inside the sqrt**
@@ -251,7 +283,7 @@ end
 """
     phi(p::BusingerParams, ζ, ::HeatTransport)
 
-Businger heat-gradient similarity `ϕ_h`.
+Businger heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. A2 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -259,12 +291,12 @@ Businger heat-gradient similarity `ϕ_h`.
 """
 @inline function phi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
+    _Pr_0 = FT(Pr_0(p))
     if ζ < 0
-        return _phi_h_unstable(ζ, b_h(p))
+        return _Pr_0 * _phi_h_unstable(ζ, b_h(p))
     else
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return _a_h * ζ / _π_group + FT(1)
+        return _Pr_0 + _a_h * ζ 
     end
 end
 
@@ -289,20 +321,20 @@ end
 """
     psi(p::BusingerParams, ζ, ::HeatTransport)
 
-Businger heat stability correction `ψ_h`.
+Businger heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. A4 (L >= 0) in Nishizawa & Kitamura (2018).
  - Unstable (ζ < 0): Eq. A4 (L < 0) in Nishizawa & Kitamura (2018).
 """
-@inline function psi(p::BusingerParams, ζ, tt::HeatTransport)
+@inline function psi(p::BusingerParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ < 0
-        return _psi_h_unstable(ζ, b_h(p))
+        _Pr_0 = FT(Pr_0(p))
+        return _Pr_0 * _psi_h_unstable(ζ, b_h(p))
     else
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / _π_group
+        return -_a_h * ζ
     end
 end
 
@@ -328,20 +360,20 @@ end
 """
     Psi(p::BusingerParams, ζ, ::HeatTransport)
 
-Volume-averaged Businger heat stability correction `Ψ_h`.
+Volume-averaged Businger heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Eqs. A6 and A14 (L >= 0) in Nishizawa & Kitamura (2018).
  - Unstable (ζ < 0): Eq. A6 (L < 0) in Nishizawa & Kitamura (2018).
 """
-@inline function Psi(p::BusingerParams, ζ, tt::HeatTransport)
+@inline function Psi(p::BusingerParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ >= 0
         _a_h = FT(a_h(p))
-        _π_group = FT(π_group(p, tt))
-        return -_a_h * ζ / (FT(2) * _π_group)
+        return -_a_h * ζ / FT(2)
     else
-        return _Psi_h_unstable(ζ, b_h(p))
+        _Pr_0 = FT(Pr_0(p))
+        return _Pr_0 * _Psi_h_unstable(ζ, b_h(p))
     end
 end
 
@@ -401,7 +433,7 @@ end
 """
     phi(p::GryanikParams, ζ, ::HeatTransport)
 
-Gryanik heat-gradient similarity `ϕ_h`.
+Gryanik heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. 33 in Gryanik et al. (2020). Matches the neutral limit `ϕ_h(0) = Pr_0`.
@@ -416,7 +448,7 @@ Gryanik heat-gradient similarity `ϕ_h`.
         _b_h = FT(b_h(p))
         return _Pr_0 * (FT(1) + (_a_h * ζ) / (FT(1) + _b_h * ζ))
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _phi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -447,7 +479,7 @@ end
 """
     psi(p::GryanikParams, ζ, ::HeatTransport)
 
-Gryanik heat stability correction `ψ_h`.
+Gryanik heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 35 in Gryanik et al. (2020).
@@ -462,7 +494,7 @@ Gryanik heat stability correction `ψ_h`.
         _b_h = FT(b_h(p))
         return -_Pr_0 * (_a_h / _b_h) * log1p(_b_h * ζ)
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -514,7 +546,7 @@ end
 """
     Psi(p::GryanikParams, ζ, ::HeatTransport)
 
-Volume-averaged Gryanik heat stability correction `Ψ_h`.
+Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Analytically derived from Eq. 35 in Gryanik et al. (2020).
@@ -542,7 +574,7 @@ Volume-averaged Gryanik heat stability correction `Ψ_h`.
         # Ψ_h(ζ) = -[Pr_0 * a_h / (b_h * ζ)] * ((1/b_h + ζ) * ln(1 + b_h * ζ) - ζ)
         return -_a_h / _b_h / ζ * _Pr_0 * ((FT(1) / _b_h + ζ) * log1p(_b_h * ζ) - ζ)
     else
-        # Fallback to Businger form but scale unstable branch by Pr_0 to ensure continuity at 0
+        # Fallback to Businger form (scaled by Pr_0, consistent with unified formulation)
         return _Pr_0 * _Psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
@@ -558,7 +590,7 @@ Parameter bundle for the Grachev et al. (2007) similarity relations,
 based on SHEBA data.
 
  - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 9a).
- - `a_h`, `b_h`, `c_h`: Coefficients for heat stability function (Eq. 9b).
+ - `a_h`, `b_h`, `c_h`: Coefficients for heat/scalar stability function (Eq. 9b).
    Note: `c_h` is the coefficient for the linear ζ term in the denominator.
 
 Reference: Grachev et al. (2007).
@@ -610,7 +642,7 @@ end
 """
     phi(p::GrachevParams, ζ, ::HeatTransport)
 
-Grachev heat-gradient similarity `ϕ_h`.
+Grachev heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 9b in Grachev et al. (2007).
@@ -682,7 +714,7 @@ end
 """
     psi(p::GrachevParams, ζ, ::HeatTransport)
 
-Grachev heat stability correction `ψ_h`.
+Grachev heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 13 in Grachev et al. (2007).
@@ -729,6 +761,125 @@ Grachev heat stability correction `ψ_h`.
         # Fallback to Businger form
         return _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
+end
+
+"""
+    bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h)
+
+Compute the bulk Richardson number at a given stability parameter ζ,
+defined as:
+
+    Ri_b(ζ) = ζ * F_h(ζ) / F_m(ζ)^2
+
+where F_m and F_h are the dimensionless profiles for momentum and heat/scalars.
+"""
+function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h, scheme)
+    F_m = dimensionless_profile(uf_params, Δz, ζ, z0m, MomentumTransport(), scheme)
+    F_h = dimensionless_profile(uf_params, Δz, ζ, z0h, HeatTransport(), scheme)
+    return ζ * F_h / F_m^2
+end
+
+# Default to PointValueScheme
+function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h)
+    return bulk_richardson_number(
+        uf_params,
+        Δz,
+        ζ,
+        z0m,
+        z0h,
+        PointValueScheme(),
+    )
+end
+
+
+"""
+    dimensionless_profile(uf_params, Δz, ζ, z0, transport, scheme)
+
+The dimensionless vertical profile of the variable (momentum or scalar).
+"""
+function dimensionless_profile end
+
+"""
+    dimensionless_profile(uf_params, Δz, ζ, z0, transport, ::PointValueScheme)
+
+The dimensionless vertical profile of the variable (momentum or scalar) using
+point values (standard Monin-Obukhov Similarity Theory).
+
+Defined as
+
+    F(z) = ϕ(0) * ln(z/z0) - ψ(ζ) + ψ(ζ * z0/z),
+
+This represents the integral of the dimensionless gradient function ϕ(ζ)/z
+from roughness length z0 to the given height z. Note that ϕ(0) corresponds
+to the neutral dimensionless gradient (slope), which is typically `Pr_0` for 
+heat/scalar transport (unified for Businger and Gryanik) or 1 for momentum.
+"""
+@inline function dimensionless_profile(
+    uf_params,
+    Δz,
+    ζ,
+    z0,
+    transport,
+    ::PointValueScheme,
+)
+    FT = eltype(ζ)
+    slope = phi(uf_params, FT(0), transport)
+    return slope * log(Δz / z0) - psi(uf_params, ζ, transport) +
+           psi(uf_params, z0 * ζ / Δz, transport)
+end
+
+# Default to PointValueScheme
+@inline function dimensionless_profile(uf_params, Δz, ζ, z0, transport)
+    return dimensionless_profile(
+        uf_params,
+        Δz,
+        ζ,
+        z0,
+        transport,
+        PointValueScheme(),
+    )
+end
+
+"""
+    dimensionless_profile(uf_params, Δz, ζ, z0, transport, ::LayerAverageScheme)
+
+The dimensionless vertical profile of the variable (momentum or scalar) using
+layer-averaged values (finite volume formulation).
+
+Derivation follows Nishizawa & Kitamura (2018), adapted for generalized neutral limits.
+
+    F_ave(z) = Slope * (ln(z/z0) - R_z0) - Ψ(ζ) + (z0/z) * Ψ(ζ * z0/z) + R_z0 * ψ(ζ * z0/z)
+
+where:
+ - Slope = ϕ(0) (e.g., 1 for momentum or Pr_0 for heat/scalars)
+ - R_z0 = 1 - z0/z (Approximation of geometric factor)
+"""
+@inline function dimensionless_profile(
+    uf_params,
+    Δz,
+    ζ,
+    z0,
+    transport,
+    ::LayerAverageScheme,
+)
+    FT = eltype(ζ)
+    slope = phi(uf_params, FT(0), transport)
+    ζ_z0 = ζ * z0 / Δz
+    R_z0 = FT(1) - z0 / Δz
+
+    # Note: Nishizawa & Kitamura (2018) Eq 24:
+    # F = ln(Δz/z0) - Ψ_M(ζ) + (z0/Δz)Ψ_M(ζ_z0) + ε_M(ζ_z0)
+    # where ε_M(ζ) = (1 - z0/Δz)(ψ_M(ζ) - 1)
+    #
+    # Generalized for slope != 1:
+    # The logarithmic term ln(z/z0) becomes Slope * ln(z/z0).
+    # The linear term -1 in (ψ - 1) comes from the integral of 1/z -> ln(z).
+    # If slope is phi(0), then the integral is slope * ln(z).
+    # So the term (ψ - 1) becomes (ψ - slope).
+
+    return slope * log(Δz / z0) - Psi(uf_params, ζ, transport) +
+           (z0 / Δz) * Psi(uf_params, ζ_z0, transport) +
+           R_z0 * (psi(uf_params, ζ_z0, transport) - slope)
 end
 
 end # module
