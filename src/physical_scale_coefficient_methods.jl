@@ -23,7 +23,7 @@ function compute_physical_scale_coeff(
 )
     𝜅 = SFP.von_karman_const(param_set)
     uf = SFP.uf_params(param_set)
-    π_group = UF.π_group(uf, transport)
+    π_group = transport isa UF.MomentumTransport ? one(SFP.von_karman_const(param_set)) : UF.Pr_0(uf)
     Δz_layer = Δz(inputs)
     R_z0 = 1 - 𝓁 / Δz_layer
     denom1 = log(Δz_layer / 𝓁)
@@ -62,7 +62,7 @@ function compute_physical_scale_coeff(
     𝜅 = SFP.von_karman_const(param_set)
     FT = eltype(𝜅)
     uf = SFP.uf_params(param_set)
-    π_group = UF.π_group(uf, transport)
+    π_group = transport isa UF.MomentumTransport ? one(SFP.von_karman_const(param_set)) : UF.Pr_0(uf)
     Δz_layer = FT(Δz(inputs))
     denom1 = log(Δz_layer / 𝓁)
     denom2 = -UF.psi(uf, Δz_layer / L_MO, transport)

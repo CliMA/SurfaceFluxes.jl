@@ -81,7 +81,7 @@ end
     @test hooked_result.shf != base_result.shf
 
     config = SF.SurfaceFluxConfig(
-        SF.charnock_momentum(; α = 0.02, scalar = 1e-4),
+        SF.COARE3RoughnessSpec(),
         SF.gustiness_constant(0.5),
     )
 

@@ -10,7 +10,7 @@ import SurfaceFluxes.UniversalFunctions:
 import ClimaParams as CP
 
 import SurfaceFluxes
-import SurfaceFluxes: ConstantRoughnessSpec, CharnockRoughnessSpec
+import SurfaceFluxes: ConstantRoughnessSpec, COARE3RoughnessSpec
 
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
@@ -93,6 +93,22 @@ function CharnockRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     return CharnockRoughnessSpec{FT}(; parameters...)
+end
+
+"""
+    COARE3RoughnessSpec(toml_dict)
+
+Construct `COARE3RoughnessSpec` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function COARE3RoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :kinematic_viscosity_of_air => :kinematic_visc,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return COARE3RoughnessSpec{FT}(; parameters...)
 end
 
 """
