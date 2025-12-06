@@ -64,7 +64,7 @@ struct MomentumTransport <: AbstractTransportType end
 """
     HeatTransport
 
-Type selecting heat-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
+Type selecting heat/scalar-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
 """
 struct HeatTransport <: AbstractTransportType end
 
@@ -123,10 +123,6 @@ d_h(p::AUFP) = p.d_h
 d_m(p::AUFP) = p.d_m
 ζ_a(p::AUFP) = p.ζ_a
 γ(p::AUFP) = p.γ
-
-# Parameter-struct π-group (avoid constructing UF just to get scalar π)
-π_group(p::AUFP, ::HeatTransport) = Pr_0(p)
-π_group(::AUFP, ::MomentumTransport) = 1
 
 #####
 ##### Private Helpers (Unstable Businger Logic)
@@ -214,7 +210,7 @@ end
 """
     _Psi_h_unstable(ζ, γ)
 
-Finite-volume integral for unstable heat.
+Finite-volume integral for unstable heat/scalar.
 Matches Nishizawa & Kitamura (2018, Eq. A6).
 
 Note: `γ` here refers to the **coefficient inside the sqrt**
@@ -287,7 +283,7 @@ end
 """
     phi(p::BusingerParams, ζ, ::HeatTransport)
 
-Businger heat-gradient similarity `ϕ_h`.
+Businger heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. A2 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -325,7 +321,7 @@ end
 """
     psi(p::BusingerParams, ζ, ::HeatTransport)
 
-Businger heat stability correction `ψ_h`.
+Businger heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. A4 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -364,7 +360,7 @@ end
 """
     Psi(p::BusingerParams, ζ, ::HeatTransport)
 
-Volume-averaged Businger heat stability correction `Ψ_h`.
+Volume-averaged Businger heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Eqs. A6 and A14 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -437,7 +433,7 @@ end
 """
     phi(p::GryanikParams, ζ, ::HeatTransport)
 
-Gryanik heat-gradient similarity `ϕ_h`.
+Gryanik heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ >= 0): Eq. 33 in Gryanik et al. (2020). Matches the neutral limit `ϕ_h(0) = Pr_0`.
@@ -483,7 +479,7 @@ end
 """
     psi(p::GryanikParams, ζ, ::HeatTransport)
 
-Gryanik heat stability correction `ψ_h`.
+Gryanik heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 35 in Gryanik et al. (2020).
@@ -550,7 +546,7 @@ end
 """
     Psi(p::GryanikParams, ζ, ::HeatTransport)
 
-Volume-averaged Gryanik heat stability correction `Ψ_h`.
+Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Analytically derived from Eq. 35 in Gryanik et al. (2020).
@@ -594,7 +590,7 @@ Parameter bundle for the Grachev et al. (2007) similarity relations,
 based on SHEBA data.
 
  - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 9a).
- - `a_h`, `b_h`, `c_h`: Coefficients for heat stability function (Eq. 9b).
+ - `a_h`, `b_h`, `c_h`: Coefficients for heat/scalar stability function (Eq. 9b).
    Note: `c_h` is the coefficient for the linear ζ term in the denominator.
 
 Reference: Grachev et al. (2007).
@@ -646,7 +642,7 @@ end
 """
     phi(p::GrachevParams, ζ, ::HeatTransport)
 
-Grachev heat-gradient similarity `ϕ_h`.
+Grachev heat/scalar-gradient similarity `ϕ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 9b in Grachev et al. (2007).
@@ -718,7 +714,7 @@ end
 """
     psi(p::GrachevParams, ζ, ::HeatTransport)
 
-Grachev heat stability correction `ψ_h`.
+Grachev heat/scalar stability correction `ψ_h`.
 
 # References
  - Stable (ζ > 0): Eq. 13 in Grachev et al. (2007).
@@ -775,7 +771,7 @@ defined as:
 
     Ri_b(ζ) = ζ * F_h(ζ) / F_m(ζ)^2
 
-where F_m and F_h are the dimensionless profiles for momentum and heat.
+where F_m and F_h are the dimensionless profiles for momentum and heat/scalars.
 """
 function bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h, scheme)
     F_m = dimensionless_profile(uf_params, Δz, ζ, z0m, MomentumTransport(), scheme)
@@ -816,7 +812,7 @@ Defined as
 This represents the integral of the dimensionless gradient function ϕ(ζ)/z
 from roughness length z0 to the given height z. Note that ϕ(0) corresponds
 to the neutral dimensionless gradient (slope), which is typically `Pr_0` for 
-heat transport (unified for Businger and Gryanik) or 1 for momentum.
+heat/scalar transport (unified for Businger and Gryanik) or 1 for momentum.
 """
 @inline function dimensionless_profile(
     uf_params,
@@ -855,7 +851,7 @@ Derivation follows Nishizawa & Kitamura (2018), adapted for generalized neutral 
     F_ave(z) = Slope * (ln(z/z0) - R_z0) - Ψ(ζ) + (z0/z) * Ψ(ζ * z0/z) + R_z0 * ψ(ζ * z0/z)
 
 where:
- - Slope = ϕ(0) (e.g., 1 for momentum or Pr_0 for heat)
+ - Slope = ϕ(0) (e.g., 1 for momentum or Pr_0 for heat/scalars)
  - R_z0 = 1 - z0/z (Approximation of geometric factor)
 """
 @inline function dimensionless_profile(

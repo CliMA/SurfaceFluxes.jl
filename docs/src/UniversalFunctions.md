@@ -155,7 +155,7 @@ and
 
 **Unstable Conditions ($\zeta < 0$):**
 
-For unstable conditions, computations follow Nishizawa & Kitamura (2018, Eqs. A5-A6), with appropriate \text{Pr}_0$scaling for heat.
+For unstable conditions, computations follow Nishizawa & Kitamura (2018, Eqs. A5-A6), with appropriate \text{Pr}_0$ scaling for heat.
 
 For momentum:
 ```math
