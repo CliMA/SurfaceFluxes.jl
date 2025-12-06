@@ -348,7 +348,7 @@ function solve_surface_layer(
             ell_u₀ = compute_z0(u_star₀, param_set, inputs, UF.MomentumTransport(), ctx)
             ell_theta₀ = compute_z0(u_star₀, param_set, inputs, UF.HeatTransport(), ctx)
             ell_q₀ = ell_theta₀
-            κ = SFP.von_karman_constant(param_set)
+            κ = SFP.von_karman_const(param_set)
             L_star = FT(10) # Initial guess for L_star
             ζ = inputs.Δz / L_star
             χu = κ / UF.dimensionless_profile(uf_params, inputs.Δz, ζ, ell_u₀, UF.MomentumTransport(), scheme)
@@ -359,9 +359,9 @@ function solve_surface_layer(
             dsev_star = χDSE * ΔDSE_val
             q_star = iszero(Δq_val) ? zero(FT) : χq * Δq_val
             theta_v_star = χθ * Δθᵥ_val
-            return SimilarityScales(u_star, dsev_star, q_star, L_star, theta_v_star, ell_u₀, ell_theta₀, ell_q₀)
+            prev_state = SimilarityScales(u_star, dsev_star, q_star, L_star, theta_v_star, ell_u₀, ell_theta₀, ell_q₀)
         end
-
+        
         current = iterate_interface_fluxes(
             param_set,
             inputs,

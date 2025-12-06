@@ -15,63 +15,72 @@ struct RoughnessLengths{FT}
 end
 
 """
-    roughness_lengths(momentum; scalar=momentum)
+    ConstantRoughnessSpec{FT} <: AbstractRoughnessSpec
 
-Convenience constructor that pairs the momentum and scalar roughness
-specifications.
+Roughness lengths fixed to constant values.
+
+# Fields
+- `z0m`: Momentum roughness length [m]
+- `z0s`: Scalar roughness length [m]
 """
-roughness_lengths(momentum; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
-
-@inline function default_roughness_lengths(::APS{FT}) where {FT}
-    return RoughnessLengths{FT}(FT(1e-3), FT(1e-4))
+Base.@kwdef struct ConstantRoughnessSpec{FT} <: AbstractRoughnessSpec
+    z0m::FT = 1e-3
+    z0s::FT = 1e-4
 end
 
-struct FixedRoughnessSpec{TM <: Real, TS <: Real} <: AbstractRoughnessSpec
-    momentum::TM
-    scalar::TS
+"""
+    CharnockRoughnessSpec{FT} <: AbstractRoughnessSpec
+
+Charnock relationship for momentum roughness; scalar roughness fixed.
+
+# Fields
+- `α`: Charnock coefficient
+- `z0s`: Scalar roughness length [m]
+"""
+Base.@kwdef struct CharnockRoughnessSpec{FT} <: AbstractRoughnessSpec
+    α::FT = 0.011
+    z0s::FT = 1e-4
 end
 
-FixedRoughnessSpec(momentum::Real; scalar = momentum) = FixedRoughnessSpec(momentum, scalar)
+"""
+    RaupachRoughnessSpec <: AbstractRoughnessSpec
 
-struct CharnockRoughnessSpec{TA <: Real, TS <: Real} <: AbstractRoughnessSpec
-    α::TA
-    scalar::TS
+Raupach (1994) canopy roughness model.
+"""
+Base.@kwdef struct RaupachRoughnessSpec{FT} <: AbstractRoughnessSpec
+    C_R::FT = 0.3
+    C_S::FT = 0.003
+    c_d1::FT = 7.5
 end
 
-
-SurfaceFluxConfig(; roughness = DefaultRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
+SurfaceFluxConfig(; roughness = ConstantRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
     SurfaceFluxConfig(roughness, gustiness)
 
+"""
+    roughness_lengths(z0m; scalar)
 
-
-
+Helper to construct `ConstantRoughnessSpec`.
+"""
+function roughness_lengths(z0m; scalar)
+    return ConstantRoughnessSpec(z0m = z0m, z0s = scalar)
+end
 
 """
-    charnock_momentum(; α = 0.011, scalar = 1e-4)
+    charnock_momentum(; α, scalar)
 
-Convenience helper returning a roughness specification that applies the
-Charnock relation for the momentum roughness length while keeping a scalar
-roughness length fixed.
+Helper to construct `CharnockRoughnessSpec`.
 """
-@inline function charnock_momentum(; α = 0.011, scalar = 1e-4)
-    return CharnockRoughnessSpec(α, scalar)
-end
-@inline function momentum_roughness(spec::FixedRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
-    return spec.momentum
+function charnock_momentum(; α, scalar)
+    return CharnockRoughnessSpec(α = α, z0s = scalar)
 end
 
-@inline function scalar_roughness(spec::FixedRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
-    return spec.scalar
+# Accessors
+@inline function momentum_roughness(spec::ConstantRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return spec.z0m
 end
 
-@inline function momentum_roughness(::DefaultRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
-    defaults = default_roughness_lengths(sfc_param_set)
-    return defaults.momentum
-end
-
-@inline function scalar_roughness(::DefaultRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
-    defaults = default_roughness_lengths(sfc_param_set)
-    return defaults.scalar
+@inline function scalar_roughness(spec::ConstantRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return spec.z0s
 end
 
 @inline function momentum_roughness(spec::CharnockRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
@@ -80,7 +89,52 @@ end
 end
 
 @inline function scalar_roughness(spec::CharnockRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
-    return spec.scalar
+    return spec.z0s
+end
+
+"""
+    momentum_roughness(spec::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+
+Calculate momentum roughness length using the Raupach (1994) canopy roughness model.
+Requires `roughness_inputs` to contain `LAI` (Leaf Area Index) and `h` (canopy height).
+"""
+@inline function momentum_roughness(spec::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    FT = float_type(sfc_param_set)
+    k = SFP.von_karman_const(sfc_param_set)
+    
+    LAI = roughness_inputs.LAI
+    h = roughness_inputs.h
+    
+    # Roughness density lambda (frontal area index) approximated as LAI / 2
+    λ = LAI / FT(2)
+    
+    C_R = spec.C_R
+    C_S = spec.C_S
+    c_d1 = spec.c_d1
+    
+    # Avoid division by zero if LAI is extremely small
+    if λ <= eps(FT)
+        return SFP.z0m_fixed(sfc_param_set)
+    end
+    
+    # d/h (Eq 15 in Raupach 1994)
+    sqrt_c_lambda = sqrt(c_d1 * λ)
+    d_over_h = FT(1) - (FT(1) - exp(-sqrt_c_lambda)) / sqrt_c_lambda
+    
+    # u_star / U(h) (Eq 8 in Raupach 1994)
+    ustar_over_Uh = sqrt(C_S + C_R * λ)
+    Uh_over_ustar = FT(1) / ustar_over_Uh
+    
+    # Psi_h (Roughness sublayer influence function), approximated as 0.193
+    Ψ_h = FT(0.193)
+    
+    z0m = h * (FT(1) - d_over_h) * exp(-k * Uh_over_ustar - Ψ_h)
+    
+    return z0m
+end
+
+@inline function scalar_roughness(::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    return SFP.z0s_fixed(sfc_param_set) # Fallback to fixed scalar roughness
 end
 
 @inline function compute_z0(

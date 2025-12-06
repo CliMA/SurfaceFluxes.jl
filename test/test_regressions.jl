@@ -341,6 +341,8 @@ end
             state_sfc,
             base_result.Cd,
             base_result.Ch,
+            z0m,
+            z0h,
         )
         coeff_result = surface_fluxes_wrapper(param_set, coeff_sc)
         @test isapprox(

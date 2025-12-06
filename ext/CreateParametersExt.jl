@@ -9,6 +9,9 @@ import SurfaceFluxes.UniversalFunctions:
     GrachevParams
 import ClimaParams as CP
 
+import SurfaceFluxes
+import SurfaceFluxes: ConstantRoughnessSpec, CharnockRoughnessSpec
+
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
 
@@ -46,8 +49,9 @@ Construct `SurfaceFluxesParameters` from a TOML parameter dictionary.
 A `SurfaceFluxesParameters` instance with parameters read from the TOML dictionary.
 """
 function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {FT}
-    name_map = (; :von_karman_constant => :von_karman_const)
-    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    name_map_core = (; :von_karman_constant => :von_karman_const)
+    parameters = CP.get_parameter_values(toml_dict, name_map_core, "SurfaceFluxes")
+
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
@@ -55,6 +59,40 @@ function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {F
         ufp,
         thermo_params,
     )
+end
+
+"""
+    ConstantRoughnessSpec(toml_dict)
+
+Construct `ConstantRoughnessSpec` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function ConstantRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :roughness_length_momentum => :z0m,
+        :roughness_length_heat => :z0s,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return ConstantRoughnessSpec{FT}(; parameters...)
+end
+
+"""
+    CharnockRoughnessSpec(toml_dict)
+
+Construct `CharnockRoughnessSpec` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function CharnockRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :charnock_coefficient => :α,
+        :roughness_length_heat => :z0s,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return CharnockRoughnessSpec{FT}(; parameters...)
 end
 
 """

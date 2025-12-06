@@ -8,7 +8,7 @@
 abstract type AbstractRoughnessSpec end
 abstract type AbstractGustinessSpec end
 
-struct DefaultRoughnessSpec <: AbstractRoughnessSpec end
+
 
 struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
     value::TG

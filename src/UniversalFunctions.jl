@@ -331,7 +331,7 @@ Businger heat stability correction `ψ_h`.
  - Stable (ζ >= 0): Eq. A4 (L >= 0) in Nishizawa & Kitamura (2018).
  - Unstable (ζ < 0): Eq. A4 (L < 0) in Nishizawa & Kitamura (2018).
 """
-@inline function psi(p::BusingerParams, ζ, tt::HeatTransport)
+@inline function psi(p::BusingerParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ < 0
         _Pr_0 = FT(Pr_0(p))
@@ -370,7 +370,7 @@ Volume-averaged Businger heat stability correction `Ψ_h`.
  - Stable (ζ >= 0): Eqs. A6 and A14 (L >= 0) in Nishizawa & Kitamura (2018).
  - Unstable (ζ < 0): Eq. A6 (L < 0) in Nishizawa & Kitamura (2018).
 """
-@inline function Psi(p::BusingerParams, ζ, tt::HeatTransport)
+@inline function Psi(p::BusingerParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     if ζ >= 0
         _a_h = FT(a_h(p))
