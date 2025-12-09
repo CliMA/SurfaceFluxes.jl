@@ -1,6 +1,4 @@
 
-
-
 """
     Surface flux configuration specs
 """
@@ -63,16 +61,14 @@ end
 
 struct SolverOptions{FT}
     tol::FT
-    tol_neutral::FT
     maxiter::Int
 end
 
 function SolverOptions(::Type{FT};
     tol = sqrt(eps(FT)),
-    tol_neutral = sqrt(eps(FT)),
-    maxiter::Int = 30,
+    maxiter::Int = 100,
 ) where {FT}
-    return SolverOptions{FT}(convert(FT, tol), convert(FT, tol_neutral), maxiter)
+    return SolverOptions{FT}(convert(FT, tol), maxiter)
 end
 
 """
@@ -124,68 +120,6 @@ struct SurfaceFluxInputs{
     Ch::Union{Nothing, FT}
 end
 
-function SurfaceFluxInputs(
-    Tin::FT,
-    qin::FT,
-    ρin::FT,
-    Ts_guess::FT,
-    qs_guess::FT,
-    Φs::FT,
-    Δz::FT,
-    d::FT,
-    u_int,
-    u_sfc,
-    roughness_model::RM,
-    gustiness_model::GM,
-    roughness_inputs::RI,
-    update_Ts!,
-    update_qs!,
-    flux_specs::FluxSpecs{FT},
-) where {FT, RM <: AbstractRoughnessParams, GM <: AbstractGustinessSpec, RI}
-    u_int_tuple = _normalize_velocity(u_int, FT)
-    u_sfc_tuple = _normalize_velocity(u_sfc, FT)
-    return SurfaceFluxInputs{
-        FT,
-        RM,
-        GM,
-        RI,
-        typeof(update_Ts!),
-        typeof(update_qs!),
-        typeof(u_int_tuple),
-    }(
-        Tin,
-        qin,
-        ρin,
-        Ts_guess,
-        qs_guess,
-        Φs,
-        Δz,
-        d,
-        u_int_tuple,
-        u_sfc_tuple,
-        roughness_model,
-        gustiness_model,
-        roughness_inputs,
-        update_Ts!,
-        update_qs!,
-        flux_specs.shf,
-        flux_specs.lhf,
-        flux_specs.ustar,
-        flux_specs.Cd,
-        flux_specs.Ch,
-    )
-end
-
-@inline function _normalize_velocity(u::NTuple{2, T}, ::Type{FT}) where {T, FT}
-    return (convert(FT, u[1]), convert(FT, u[2]))
-end
-function _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT}
-    length(u) == 2 ||
-        throw(ArgumentError("Velocity vectors must have two horizontal components."))
-    return (convert(FT, u[1]), convert(FT, u[2]))
-end
-_normalize_velocity(u::Nothing, ::Type{FT}) where {FT} = (zero(FT), zero(FT))
-
 Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     Ts::FT = FT(0)
     qs::FT = FT(0)
@@ -199,29 +133,6 @@ Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     evaporation::FT = FT(0)
     ρ_sfc::FT = FT(1)
     buoyancy_flux::FT = FT(0)
-end
-
-struct SimilarityScales{FT}
-    u_star::FT
-    dsev_star::FT
-    q_star::FT
-    L_star::FT
-    theta_v_star::FT
-    ell_u::FT
-    ell_theta::FT
-    ell_q::FT
-end
-
-struct SolverSnapshot{FT, S <: SimilarityScales{FT}}
-    scales::S
-    ρ_sfc::FT
-    gustiness::FT
-    Cd::FT
-    Ch::FT
-    shf::FT
-    lhf::FT
-    evaporation::FT
-    buoyancy_flux::FT
 end
 
 struct CallableContext{FT, U}
