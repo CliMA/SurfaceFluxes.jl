@@ -7,7 +7,7 @@ import ClimaParams
 
 # Define a custom roughness model that uses LAI
 # Define a custom roughness spec that uses LAI
-struct LAIRoughnessSpec{FT} <: SF.AbstractRoughnessSpec
+struct LAIRoughnessParams{FT} <: SF.AbstractRoughnessParams
     base_z0::FT
 end
 
@@ -17,12 +17,12 @@ end
 # SF exports them? Let's check. No, they are not exported.
 # So we need to extend SF.momentum_roughness etc.
 
-function SF.momentum_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+function SF.momentum_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
     # Simple fake formula: z0 = base_z0 * LAI
     return spec.base_z0 * roughness_inputs.LAI
 end
 
-function SF.scalar_roughness(spec::LAIRoughnessSpec{FT}, u★, sfc_param_set, ctx, roughness_inputs) where {FT}
+function SF.scalar_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
     return spec.base_z0 * roughness_inputs.LAI * FT(0.1)
 end
 
@@ -48,12 +48,12 @@ end
 
     # Custom configuration with our LAI model
     # We need to bypass the config struct if it enforces types, or make a custom spec.
-    # SurfaceFluxConfig requires AbstractRoughnessSpec.
+    # SurfaceFluxConfig requires AbstractRoughnessParams.
     
 
 
     config = SF.SurfaceFluxConfig(
-        LAIRoughnessSpec(0.01),
+        LAIRoughnessParams(0.01),
         SF.gustiness_constant(1.0)
     )
 

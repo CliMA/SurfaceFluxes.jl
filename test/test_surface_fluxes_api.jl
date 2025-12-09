@@ -68,7 +68,7 @@ end
         nothing,
         nothing,
         nothing,
-        SF.SurfaceFluxConfig(),
+        nothing,
         SF.PointValueScheme(),
         nothing,
         nothing,
@@ -81,8 +81,8 @@ end
     @test hooked_result.shf != base_result.shf
 
     config = SF.SurfaceFluxConfig(
-        SF.COARE3RoughnessSpec(),
-        SF.gustiness_constant(0.5),
+        SF.COARE3RoughnessParams{FT}(),
+        SF.gustiness_constant(FT(0.5)),
     )
 
     config_result = SF.surface_fluxes(

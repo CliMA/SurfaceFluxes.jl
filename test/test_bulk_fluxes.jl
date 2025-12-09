@@ -31,7 +31,7 @@ end
     u_sfc = (FT(0), FT(0))
     
     # Dummy models for input construction
-    roughness = SF.ConstantRoughnessSpec(FT(1e-4), FT(1e-4))
+    roughness = SF.ConstantRoughnessParams(FT(1e-4), FT(1e-4))
     gustiness_spec = SF.ConstantGustinessSpec(FT(0))
     flux_specs = SF.FluxSpecs(FT)
 

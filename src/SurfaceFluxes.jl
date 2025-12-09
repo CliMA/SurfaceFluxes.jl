@@ -38,11 +38,10 @@ include("profile_recovery.jl")
 @inline float_type(::APS{FT}) where {FT} = FT
 
 @inline function default_solver_options(param_set::APS{FT}) where {FT}
-    return SolverOptions(
-        FT;
-        tol = sqrt(eps(FT)),
-        tol_neutral = SFP.cp_d(param_set) / 100,
-        maxiter = 30,
+    return SolverOptions{FT}(
+        sqrt(eps(FT)),
+        SFP.cp_d(param_set) / 100,
+        30,
     )
 end
 
@@ -58,11 +57,10 @@ end
     elseif solver_opts isa SolverOptions{FT}
         return solver_opts
     elseif solver_opts isa SolverOptions
-        return SolverOptions(
-            FT;
-            tol = solver_opts.tol,
-            tol_neutral = solver_opts.tol_neutral,
-            maxiter = solver_opts.maxiter,
+        return SolverOptions{FT}(
+            solver_opts.tol,
+            solver_opts.tol_neutral,
+            solver_opts.maxiter,
         )
     else
         throw(ArgumentError("Unsupported solver_opts specification: $(typeof(solver_opts))"))
@@ -75,13 +73,12 @@ end
     elseif specs isa FluxSpecs{FT}
         return specs
     elseif specs isa FluxSpecs
-        return FluxSpecs(
-            FT;
-            shf = specs.shf,
-            lhf = specs.lhf,
-            ustar = specs.ustar,
-            Cd = specs.Cd,
-            Ch = specs.Ch,
+        return FluxSpecs{FT}(
+            maybe_convert_option(specs.shf, FT),
+            maybe_convert_option(specs.lhf, FT),
+            maybe_convert_option(specs.ustar, FT),
+            maybe_convert_option(specs.Cd, FT),
+            maybe_convert_option(specs.Ch, FT),
         )
     elseif specs isa NamedTuple
         return FluxSpecs(param_set; specs...)
@@ -135,7 +132,7 @@ function surface_fluxes(
     u_int = nothing,
     u_sfc = nothing,
     roughness_inputs = nothing,
-    config::SurfaceFluxConfig = SurfaceFluxConfig(),
+    config = nothing,
     scheme::SolverScheme = PointValueScheme(),
     solver_opts = nothing,
     flux_specs = nothing,
@@ -144,7 +141,7 @@ function surface_fluxes(
 ) where {FT}
     u_int_val = u_int === nothing ? (zero(FT), zero(FT)) : u_int
     u_sfc_val = u_sfc === nothing ? (zero(FT), zero(FT)) : u_sfc
-    config_val = config === nothing ? SurfaceFluxConfig() : config
+    config_val = config === nothing ? default_surface_flux_config(FT) : config
     solver_opts_val = normalize_solver_options(param_set, solver_opts)
     flux_specs_val = normalize_flux_specs(param_set, flux_specs)
 
@@ -206,6 +203,7 @@ function surface_fluxes(
     kwargs...,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
+    FT = float_type(param_set)
     ts_int = sc.state_int.ts
     ts_sfc = sc.state_sfc.ts
     
@@ -227,19 +225,19 @@ function surface_fluxes(
     config_val = if config !== nothing
         config
     else
-        roughness = roughness_lengths(sc.z0m, scalar = sc.z0h)
+        roughness = roughness_lengths(sc.z0m, sc.z0h)
         SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0)))
     end
     
     # Handle prescribed fluxes/ustar if present
     flux_specs = if sc isa Fluxes
-        FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf)
+        FluxSpecs{FT}(sc.shf, sc.lhf, nothing, nothing, nothing)
     elseif sc isa FluxesAndFrictionVelocity
-        FluxSpecs(param_set; shf = sc.shf, lhf = sc.lhf, ustar = sc.ustar)
+        FluxSpecs{FT}(sc.shf, sc.lhf, sc.ustar, nothing, nothing)
     elseif sc isa Coefficients
-        FluxSpecs(param_set; Cd = sc.Cd, Ch = sc.Ch)
+        FluxSpecs{FT}(nothing, nothing, nothing, sc.Cd, sc.Ch)
     else
-        FluxSpecs(param_set)
+        FluxSpecs{FT}()
     end
     
     return surface_fluxes(
@@ -345,8 +343,8 @@ function solve_surface_layer(
 
         if prev_state === nothing
             u_star₀ = iter_state.ustar
-            ell_u₀ = compute_z0(u_star₀, param_set, inputs, UF.MomentumTransport(), ctx)
-            ell_theta₀ = compute_z0(u_star₀, param_set, inputs, UF.HeatTransport(), ctx)
+            ell_u₀ = compute_z0(u_star₀, param_set, inputs, UF.MomentumTransport())
+            ell_theta₀ = compute_z0(u_star₀, param_set, inputs, UF.HeatTransport())
             ell_q₀ = ell_theta₀
             κ = SFP.von_karman_const(param_set)
             L_star = FT(10) # Initial guess for L_star
@@ -530,9 +528,9 @@ function iterate_interface_fluxes(
 )
     FT = typeof(approximate_state.u_star)
     u_star = approximate_state.u_star
-    ell_u = compute_z0(u_star, param_set, inputs, UF.MomentumTransport(), ctx)
-    ell_theta = compute_z0(u_star, param_set, inputs, UF.HeatTransport(), ctx)
-    ell_q = compute_z0(u_star, param_set, inputs, UF.HeatTransport(), ctx)
+    ell_u = compute_z0(u_star, param_set, inputs, UF.MomentumTransport())
+    ell_theta = compute_z0(u_star, param_set, inputs, UF.HeatTransport())
+    ell_q = compute_z0(u_star, param_set, inputs, UF.HeatTransport())
     κ = SFP.von_karman_const(param_set)
     dsev_star = approximate_state.dsev_star
     b_star = dsev_star * grav / DSEᵥ_int_val

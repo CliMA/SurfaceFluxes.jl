@@ -15,68 +15,72 @@ struct RoughnessLengths{FT}
 end
 
 """
-    ConstantRoughnessSpec{FT} <: AbstractRoughnessSpec
+    ConstantRoughnessParams{FT} <: AbstractRoughnessParams
 
 Roughness lengths fixed to constant values.
 
 # Fields
 - `z0m`: Momentum roughness length [m]
 - `z0s`: Scalar roughness length [m]
+
+The default values specified here are used when constructing the struct manually. When loading
+via `ClimaParams`, these values are overwritten by the parameters in the TOML file.
 """
-Base.@kwdef struct ConstantRoughnessSpec{FT} <: AbstractRoughnessSpec
-    z0m::FT = 1e-3
-    z0s::FT = 1e-4
+Base.@kwdef struct ConstantRoughnessParams{FT} <: AbstractRoughnessParams
+    z0m::FT = 2e-4
+    z0s::FT = 2e-5
 end
 
 """
-    COARE3RoughnessSpec{FT} <: AbstractRoughnessSpec
+    COARE3RoughnessParams{FT} <: AbstractRoughnessParams
 
 COARE 3.0 roughness parameterization (Fairall et al. 2003).
 
-# Fields
-- `kinematic_visc`: Kinematic viscosity of air [m^2/s]
+The default values specified here are used when constructing the struct manually. When loading
+via `ClimaParams`, these values are overwritten by the parameters in the TOML file.
+
 """
-Base.@kwdef struct COARE3RoughnessSpec{FT} <: AbstractRoughnessSpec
+Base.@kwdef struct COARE3RoughnessParams{FT} <: AbstractRoughnessParams
     kinematic_visc::FT = 1.5e-5
     z0m_default::FT = 1e-4
     α_low::FT = 0.011
     α_high::FT = 0.018
+    u_low::FT = 10.0
+    u_high::FT = 18.0
 end
 
 """
-    RaupachRoughnessSpec <: AbstractRoughnessSpec
+    RaupachRoughnessParams <: AbstractRoughnessParams
 
 Raupach (1994) canopy roughness model.
 """
-Base.@kwdef struct RaupachRoughnessSpec{FT} <: AbstractRoughnessSpec
+Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     C_R::FT = 0.3
     C_S::FT = 0.003
     c_d1::FT = 7.5
 end
 
-SurfaceFluxConfig(; roughness = ConstantRoughnessSpec(), gustiness = ConstantGustinessSpec(1.0)) =
-    SurfaceFluxConfig(roughness, gustiness)
+@inline function default_surface_flux_config(::Type{FT}) where {FT}
+    return SurfaceFluxConfig(ConstantRoughnessParams{FT}(), ConstantGustinessSpec(FT(1.0)))
+end
 
 """
-    roughness_lengths(z0m; scalar)
+    roughness_lengths(z0m, z0s)
 
-Helper to construct `ConstantRoughnessSpec`.
+Helper to construct `ConstantRoughnessParams`.
 """
-function roughness_lengths(z0m; z0s)
-    return ConstantRoughnessSpec(z0m = z0m, z0s = scalar)
+@inline function roughness_lengths(z0m, z0s)
+    return ConstantRoughnessParams(z0m = z0m, z0s = z0s)
 end
 
 """
     charnock_parameter(mag_u_10)
 
-Compute the Charnock parameter `α` as a function of 10m wind speed `mag_u_10` [m/s].
-Piecewise linear interpolation based on COARE 3.0 (Fairall et al. 2003).
+Compute the Charnock parameter `α` as a function of 10-m wind speed `mag_u_10` [m/s] 
+computed from neutral profile. Piecewise linear interpolation based on COARE 3.0 
+(Fairall et al. 2003).
 """
-@inline function charnock_parameter(mag_u_10, α_low, α_high)
-    FT = eltype(mag_u_10)
-    u_low = FT(10)
-    u_high = FT(18)
-
+@inline function charnock_parameter(mag_u_10, α_low, α_high, u_low, u_high)
     return ifelse(
         mag_u_10 <= u_low,
         α_low,
@@ -89,38 +93,28 @@ Piecewise linear interpolation based on COARE 3.0 (Fairall et al. 2003).
 end
 
 # Accessors
-@inline function momentum_roughness(spec::ConstantRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function momentum_roughness(spec::ConstantRoughnessParams, u★, sfc_param_set, roughness_inputs)
     return spec.z0m
 end
 
-@inline function scalar_roughness(spec::ConstantRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function scalar_roughness(spec::ConstantRoughnessParams, u★, sfc_param_set, roughness_inputs)
     return spec.z0s
 end
 
-@inline function momentum_roughness(spec::COARE3RoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function momentum_roughness(spec::COARE3RoughnessParams, u★, sfc_param_set, roughness_inputs)
     FT = float_type(sfc_param_set)
     grav = SFP.grav(sfc_param_set)
     kinematic_visc = spec.kinematic_visc
 
-    # Recover 10m wind speed using profile recovery.
-    # Use a constant proxy z0 for the restoration since z0m is not yet known.
-    L_MO = ctx.L_MO
+    # Recover 10m wind speed using neutral profile.
     z0_proxy = spec.z0m_default
+    κ = SFP.von_karman_const(sfc_param_set)
+    mag_u_10 = (u★ / κ) * log(FT(10) / z0_proxy)
     
-    mag_u_10 = compute_profile_value(
-        sfc_param_set,
-        L_MO,
-        z0_proxy,
-        FT(10), # 10m height
-        u★,
-        FT(0), # Surface velocity
-        UF.MomentumTransport(),
-    )
-    
-    α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high)
+    α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high, spec.u_low, spec.u_high)
 
     # Smooth flow limit (Smith 1988)
-    u★_safe = max(u★, FT(1e-9))
+    u★_safe = max(u★, eps(FT))
     z0_smooth = FT(0.11) * kinematic_visc / u★_safe
 
     # Rough flow limit (Charnock 1955)
@@ -129,17 +123,17 @@ end
     return z0_smooth + z0_rough
 end
 
-@inline function scalar_roughness(spec::COARE3RoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function scalar_roughness(spec::COARE3RoughnessParams, u★, sfc_param_set, roughness_inputs)
     FT = float_type(sfc_param_set)
     kinematic_visc = spec.kinematic_visc
     
     # Compute z0m for Reynolds number calculation.
     # Note: momentum_roughness is stateless, so recomputing it here is safe.
-    z0m = momentum_roughness(spec, u★, sfc_param_set, ctx, roughness_inputs)
+    z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
 
     # Roughness Reynolds number (Re_star)
     # Ensure positive u★ to prevent complex numbers in power law.
-    u★_safe = max(u★, FT(1e-9))
+    u★_safe = max(u★, eps(FT))
     Re_star = z0m * u★_safe / kinematic_visc
 
     # Empirical fit to COARE and HEXOS data (Fairall et al. 2003)
@@ -148,12 +142,12 @@ end
 end
 
 """
-    momentum_roughness(spec::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+    momentum_roughness(spec::RaupachRoughnessParams, u★, sfc_param_set, ctx, roughness_inputs)
 
 Calculate momentum roughness length using the Raupach (1994) canopy roughness model.
 Requires `roughness_inputs` to contain `LAI` (Leaf Area Index) and `h` (canopy height).
 """
-@inline function momentum_roughness(spec::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function momentum_roughness(spec::RaupachRoughnessParams, u★, sfc_param_set, roughness_inputs)
     FT = float_type(sfc_param_set)
     k = SFP.von_karman_const(sfc_param_set)
     
@@ -188,7 +182,7 @@ Requires `roughness_inputs` to contain `LAI` (Leaf Area Index) and `h` (canopy h
     return z0m
 end
 
-@inline function scalar_roughness(::RaupachRoughnessSpec, u★, sfc_param_set, ctx, roughness_inputs)
+@inline function scalar_roughness(::RaupachRoughnessParams, u★, sfc_param_set, roughness_inputs)
     return SFP.z0s_fixed(sfc_param_set) # Fallback to fixed scalar roughness
 end
 
@@ -197,9 +191,8 @@ end
     sfc_param_set,
     inputs::SurfaceFluxInputs,
     ::UF.MomentumTransport,
-    ctx,
 )
-    return momentum_roughness(inputs.roughness_model, u★, sfc_param_set, ctx, inputs.roughness_inputs)
+    return momentum_roughness(inputs.roughness_model, u★, sfc_param_set, inputs.roughness_inputs)
 end
 
 @inline function compute_z0(
@@ -207,7 +200,6 @@ end
     sfc_param_set,
     inputs::SurfaceFluxInputs,
     ::UF.HeatTransport,
-    ctx,
 )
-    return scalar_roughness(inputs.roughness_model, u★, sfc_param_set, ctx, inputs.roughness_inputs)
+    return scalar_roughness(inputs.roughness_model, u★, sfc_param_set, inputs.roughness_inputs)
 end

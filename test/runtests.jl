@@ -31,6 +31,7 @@ include("test_coare3.jl")                             # COARE 3.0 roughness test
 @testset "Regression tests" begin
     # Regression tests with predefined (mostly stable) test cases.
     include("test_regressions.jl")
+    include("test_broadcasting.jl")
 end
 
 @testset "Test universal functions" begin

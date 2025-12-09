@@ -5,7 +5,7 @@
     Surface flux configuration specs
 """
 
-abstract type AbstractRoughnessSpec end
+abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
 
 
@@ -14,8 +14,11 @@ struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
     value::TG
 end
 
+Base.broadcastable(p::AbstractRoughnessParams) = tuple(p)
+Base.broadcastable(p::AbstractGustinessSpec) = tuple(p)
 
-struct SurfaceFluxConfig{R <: AbstractRoughnessSpec, G <: AbstractGustinessSpec}
+
+struct SurfaceFluxConfig{R <: AbstractRoughnessParams, G <: AbstractGustinessSpec}
     roughness::R
     gustiness::G
 end
@@ -92,7 +95,7 @@ passed to the functional surface flux solver.
 """
 struct SurfaceFluxInputs{
     FT,
-    RM <: AbstractRoughnessSpec,
+    RM <: AbstractRoughnessParams,
     GM <: AbstractGustinessSpec,
     RI,
     UpdateTs,
@@ -138,7 +141,7 @@ function SurfaceFluxInputs(
     update_Ts!,
     update_qs!,
     flux_specs::FluxSpecs{FT},
-) where {FT, RM <: AbstractRoughnessSpec, GM <: AbstractGustinessSpec, RI}
+) where {FT, RM <: AbstractRoughnessParams, GM <: AbstractGustinessSpec, RI}
     u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
     return SurfaceFluxInputs{

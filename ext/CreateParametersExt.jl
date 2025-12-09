@@ -10,7 +10,7 @@ import SurfaceFluxes.UniversalFunctions:
 import ClimaParams as CP
 
 import SurfaceFluxes
-import SurfaceFluxes: ConstantRoughnessSpec, COARE3RoughnessSpec
+import SurfaceFluxes: ConstantRoughnessParams, COARE3RoughnessParams
 
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
@@ -49,11 +49,16 @@ Construct `SurfaceFluxesParameters` from a TOML parameter dictionary.
 A `SurfaceFluxesParameters` instance with parameters read from the TOML dictionary.
 """
 function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {FT}
-    name_map_core = (; :von_karman_constant => :von_karman_const)
+    name_map_core = (;
+        :von_karman_constant => :von_karman_const,
+        :default_momentum_roughness_length => :z0m_fixed,
+        :default_scalar_roughness_length => :z0s_fixed,
+    )
     parameters = CP.get_parameter_values(toml_dict, name_map_core, "SurfaceFluxes")
 
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
+    
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
         parameters...,
         ufp,
@@ -62,39 +67,41 @@ function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {F
 end
 
 """
-    ConstantRoughnessSpec(toml_dict)
+    ConstantRoughnessParams(toml_dict)
 
-Construct `ConstantRoughnessSpec` from a TOML parameter dictionary.
+Construct `ConstantRoughnessParams` from a TOML parameter dictionary.
 
 # Arguments
 - `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
 """
-function ConstantRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
+function ConstantRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :default_momentum_roughness_length => :z0m,
         :default_scalar_roughness_length => :z0s,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    return ConstantRoughnessSpec{FT}(; parameters...)
+    return ConstantRoughnessParams{FT}(; parameters...)
 end
 
 """
-    COARE3RoughnessSpec(toml_dict)
+    COARE3RoughnessParams(toml_dict)
 
-Construct `COARE3RoughnessSpec` from a TOML parameter dictionary.
+Construct `COARE3RoughnessParams` from a TOML parameter dictionary.
 
 # Arguments
 - `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
 """
-function COARE3RoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
+function COARE3RoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :kinematic_viscosity_of_air => :kinematic_visc,
         :default_momentum_roughness_length => :z0m_default,
         :charnock_parameter_low => :α_low,
         :charnock_parameter_high => :α_high,
+        :charnock_wind_low => :u_low,
+        :charnock_wind_high => :u_high,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    return COARE3RoughnessSpec{FT}(; parameters...)
+    return COARE3RoughnessParams{FT}(; parameters...)
 end
 
 """

@@ -150,7 +150,7 @@ end
     for FT in (Float32, Float64)
         # Define roughness configs as functions of (z0m, z0h)
         roughness_config_factories = (
-            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, z0h), SF.ConstantGustinessSpec(FT(1.0))),
             (z0m, z0h) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
         )
         cases = synthetic_cases(FT)
