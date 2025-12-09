@@ -66,9 +66,6 @@ Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     stanton_number::FT = 0.1
 end
 
-@inline function default_surface_flux_config(::Type{FT}) where {FT}
-    return SurfaceFluxConfig(ConstantRoughnessParams{FT}(), ConstantGustinessSpec(FT(1.0)))
-end
 
 """
     roughness_lengths(z0m, z0s)
