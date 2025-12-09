@@ -29,9 +29,8 @@ include("thermo_primitives.jl")
 include("roughness_lengths.jl")
 include("input_builders.jl")
 include("utilities.jl")
-include("physical_scale_coefficient_methods.jl")
+include("physical_scales.jl")
 include("bulk_fluxes.jl")
-include("friction_velocity_methods.jl")
 include("exchange_coefficients.jl")
 include("profile_recovery.jl")
 
@@ -326,7 +325,7 @@ function solve_surface_layer(
             ctx = callable_context(inputs, iter_state, T_int, q_in, ρ_int)
         end
 
-        ρ_sfc = dry_adiabatic_surface_density(cv_m_int, R_m_int, T_int, ρ_int, iter_state.Ts)
+        ρ_sfc = surface_density(cv_m_int, R_m_int, T_int, ρ_int, iter_state.Ts)
         iter_state.ρ_sfc = ρ_sfc
         phase_sfc = TD.PhasePartition(iter_state.qs)
 
