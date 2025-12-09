@@ -44,6 +44,11 @@ end
     include("test_convergence.jl")
 end
 
+@testset "Physical correctness" begin
+    # Tests for physical consistency (signs of fluxes, positivity of coefficients)
+    include("test_bulk_fluxes.jl")
+end
+
 @testset "Quality assurance" begin
     # Meta-tests (Aqua, etc.) that check for common Julia package issues.
     include("aqua.jl")

@@ -10,7 +10,8 @@ Compute the value of a variable (momentum or scalar) at height `Δz` (height abo
 - `Δz`: Height above the surface [m]
 - `scale`: Similarity scale (u_star, theta_star, etc.)
 - `val_sfc`: Surface value of the variable
-- `transport`: Transport type (`MomentumTransport` or `HeatTransport`)
+- `transport`: Transport type (`MomentumTransport` or `HeatTransport`, the latter being 
+    used for scalar transport)
 
 # Formula:
 

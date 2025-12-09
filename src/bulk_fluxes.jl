@@ -8,10 +8,10 @@ The sensible heat flux is given by
     SHF = -ρ_sfc * g_h * ΔDSE + VSE_sfc * E
 
 where `ΔDSE = DSE_int - DSE_sfc` is the difference in dry static energy between
-the interior and surface, `g_h` is the heat/moisture conductance, `VSE_sfc` is the `dry` 
+the interior and surface, `g_h` is the heat/moisture conductance, `VSE_sfc` is the dry 
 static energy of water vapor at the surface temperature, and `E` is the evaporation rate. The 
-second term, `VSE_sfc * E`, accounts for the `dry` static energy `cp_v (T_sfc - T_0) + Φ_sfc`
-(i.e., `dry` enthalpy `cp_v (T_sfc - T_0)`, or sensible heat, plus potential energy Φ_sfc) 
+second term, `VSE_sfc * E`, accounts for the dry static energy `cp_v (T_sfc - T_0) + Φ_sfc`
+(i.e., dry enthalpy `cp_v (T_sfc - T_0)`, or sensible heat, plus potential energy Φ_sfc) 
 carried by evaporating water.
 
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
