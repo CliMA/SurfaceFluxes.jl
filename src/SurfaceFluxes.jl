@@ -206,29 +206,29 @@ function surface_fluxes(
     FT = float_type(param_set)
     ts_int = sc.state_int.ts
     ts_sfc = sc.state_sfc.ts
-    
+
     Tin = TD.air_temperature(thermo_params, ts_int)
     qin = TD.total_specific_humidity(thermo_params, ts_int)
     ρin = TD.air_density(thermo_params, ts_int)
-    
+
     Ts_guess = TD.air_temperature(thermo_params, ts_sfc)
     qs_guess = TD.total_specific_humidity(thermo_params, ts_sfc)
-    
+
     grav = SFP.grav(param_set)
     Φs = grav * sc.state_sfc.z
     Δz = sc.state_int.z - sc.state_sfc.z
     d = zero(Δz)
-    
+
     u_int = sc.state_int.u
     u_sfc = sc.state_sfc.u
-    
+
     config_val = if config !== nothing
         config
     else
         roughness = roughness_lengths(sc.z0m, sc.z0h)
         SurfaceFluxConfig(roughness, ConstantGustinessSpec(float_type(param_set)(1.0)))
     end
-    
+
     # Handle prescribed fluxes/ustar if present
     flux_specs = if sc isa Fluxes
         FluxSpecs{FT}(sc.shf, sc.lhf, nothing, nothing, nothing)
@@ -239,7 +239,7 @@ function surface_fluxes(
     else
         FluxSpecs{FT}()
     end
-    
+
     return surface_fluxes(
         param_set,
         Tin,
@@ -251,9 +251,7 @@ function surface_fluxes(
         Δz,
         d,
         u_int,
-        u_sfc,
-
-        nothing, # roughness_inputs
+        u_sfc, nothing, # roughness_inputs
         config_val,
         scheme,
         SolverOptions(float_type(param_set); kwargs...),
@@ -343,8 +341,7 @@ function solve_surface_layer(
 
         if prev_state === nothing
             u_star₀ = iter_state.ustar
-            ell_u₀ = compute_z0(u_star₀, param_set, inputs, UF.MomentumTransport())
-            ell_theta₀ = compute_z0(u_star₀, param_set, inputs, UF.HeatTransport())
+            ell_u₀, ell_theta₀ = momentum_and_scalar_roughness(inputs.roughness_model, u_star₀, param_set, inputs.roughness_inputs)
             ell_q₀ = ell_theta₀
             κ = SFP.von_karman_const(param_set)
             L_star = FT(10) # Initial guess for L_star
@@ -359,7 +356,7 @@ function solve_surface_layer(
             theta_v_star = χθ * Δθᵥ_val
             prev_state = SimilarityScales(u_star, dsev_star, q_star, L_star, theta_v_star, ell_u₀, ell_theta₀, ell_q₀)
         end
-        
+
         current = iterate_interface_fluxes(
             param_set,
             inputs,
@@ -528,9 +525,8 @@ function iterate_interface_fluxes(
 )
     FT = typeof(approximate_state.u_star)
     u_star = approximate_state.u_star
-    ell_u = compute_z0(u_star, param_set, inputs, UF.MomentumTransport())
-    ell_theta = compute_z0(u_star, param_set, inputs, UF.HeatTransport())
-    ell_q = compute_z0(u_star, param_set, inputs, UF.HeatTransport())
+    ell_u, ell_theta = momentum_and_scalar_roughness(inputs.roughness_model, u_star, param_set, inputs.roughness_inputs)
+    ell_q = ell_theta
     κ = SFP.von_karman_const(param_set)
     dsev_star = approximate_state.dsev_star
     b_star = dsev_star * grav / DSEᵥ_int_val

@@ -79,4 +79,3 @@ Compute the heat conductance (speed * Ch).
 """
 @inline heat_conductance(inputs::SurfaceFluxInputs, Ch, gustiness) =
     Ch * windspeed(inputs, gustiness)
-

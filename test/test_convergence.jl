@@ -110,7 +110,7 @@ function compute_ΔDSEᵥ(param_set, sc)
     grav = SFP.grav(param_set)
     Φ_int = grav * sc.state_int.z
     Φ_sfc = grav * sc.state_sfc.z
-    
+
     return SF.ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
 end
 
@@ -151,7 +151,10 @@ end
         # Define roughness configs as functions of (z0m, z0h)
         roughness_config_factories = (
             (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, z0h), SF.ConstantGustinessSpec(FT(1.0))),
-            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.charnock_momentum(alpha=FT(0.0185), scalar=z0h), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(
+                SF.charnock_momentum(alpha = FT(0.0185), scalar = z0h),
+                SF.ConstantGustinessSpec(FT(1.0)),
+            ),
         )
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)

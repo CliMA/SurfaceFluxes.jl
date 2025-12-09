@@ -35,7 +35,7 @@ end
     qin = FT(0.01)
     Ts_guess = FT(302) # Unstable
     qs_guess = FT(0.012)
-    
+
     # Calculate density
     q_pt = TD.PhasePartition_equil_given_p(
         thermo_params,
@@ -49,12 +49,12 @@ end
     # Custom configuration with our LAI model
     # We need to bypass the config struct if it enforces types, or make a custom spec.
     # SurfaceFluxConfig requires AbstractRoughnessParams.
-    
+
 
 
     config = SF.SurfaceFluxConfig(
         LAIRoughnessParams(0.01),
-        SF.gustiness_constant(1.0)
+        SF.gustiness_constant(1.0),
     )
 
     # Case 1: LAI = 1.0

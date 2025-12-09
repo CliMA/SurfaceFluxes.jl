@@ -276,7 +276,7 @@ end
             end
         end
     end
-    
+
     @testset "Bulk Richardson Number" begin
         for FT in (Float32, Float64)
             # Choose a grid that avoids exactly 0 for monotonicity check steps if needed, 
@@ -286,7 +286,7 @@ end
             Δz = FT(10)
             z0m = FT(0.1)
             z0h = FT(0.01)
-            
+
             schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
 
             for ufp in universal_parameter_sets(FT), scheme in schemes
@@ -304,18 +304,18 @@ end
                 Rib_pos = UF.bulk_richardson_number(ufp, Δz, ε, z0m, z0h, scheme)
                 Rib_neg = UF.bulk_richardson_number(ufp, Δz, -ε, z0m, z0h, scheme)
                 # Should be small and order of ε
-                @test isapprox(Rib_pos, FT(0); atol=10ε)
-                @test isapprox(Rib_neg, FT(0); atol=10ε)
-                
+                @test isapprox(Rib_pos, FT(0); atol = 10ε)
+                @test isapprox(Rib_neg, FT(0); atol = 10ε)
+
                 # 3. Monotonicity in ζ
                 # Ri_b should generally increase with ζ.
                 # Ri_b ~ ζ * F_h / F_m^2. 
                 # F_h and F_m are positive and monotonic.
                 # We check if Ri_b(ζ_{i+1}) > Ri_b(ζ_i).
-                
+
                 # Compute Ri_b across the grid
                 Ris = [UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0h, scheme) for ζ in ζ_grid]
-                
+
                 # Check sorted
                 @test issorted(Ris)
             end
@@ -327,7 +327,7 @@ end
             z0 = FT(0.1)
             Δz = FT(10)
             ζ_grid = range(FT(-2), FT(2), length = 20)
-            
+
             schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
 
             for ufp in universal_parameter_sets(FT), transport in TRANSPORTS, scheme in schemes
@@ -339,7 +339,7 @@ end
                 # 1. Neutral limit (ζ -> 0)
                 F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport, scheme)
                 slope = UF.phi(ufp, FT(0), transport)
-                
+
                 expected_neutral = if scheme isa UF.PointValueScheme
                     slope * log(Δz / z0)
                 else # LayerAverageScheme
@@ -352,8 +352,8 @@ end
                 ε = sqrt(eps(FT))
                 F_pos = UF.dimensionless_profile(ufp, Δz, ε, z0, transport, scheme)
                 F_neg = UF.dimensionless_profile(ufp, Δz, -ε, z0, transport, scheme)
-                @test isapprox(F_pos, F_neutral; atol=10ε)
-                @test isapprox(F_neg, F_neutral; atol=10ε)
+                @test isapprox(F_pos, F_neutral; atol = 10ε)
+                @test isapprox(F_neg, F_neutral; atol = 10ε)
 
                 # 3. Monotonicity in ζ
                 # Dimensionless profile F(ζ) should generally increase with ζ (more stable = larger gradient)

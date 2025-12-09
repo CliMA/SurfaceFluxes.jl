@@ -296,7 +296,7 @@ Businger heat/scalar-gradient similarity `ϕ_h`.
         return _Pr_0 * _phi_h_unstable(ζ, b_h(p))
     else
         _a_h = FT(a_h(p))
-        return _Pr_0 + _a_h * ζ 
+        return _Pr_0 + _a_h * ζ
     end
 end
 

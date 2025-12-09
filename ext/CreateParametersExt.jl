@@ -10,7 +10,7 @@ import SurfaceFluxes.UniversalFunctions:
 import ClimaParams as CP
 
 import SurfaceFluxes
-import SurfaceFluxes: ConstantRoughnessParams, COARE3RoughnessParams
+import SurfaceFluxes: ConstantRoughnessParams, COARE3RoughnessParams, RaupachRoughnessParams
 
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
@@ -58,7 +58,7 @@ function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {F
 
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
-    
+
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
         parameters...,
         ufp,
@@ -102,6 +102,23 @@ function COARE3RoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     return COARE3RoughnessParams{FT}(; parameters...)
+end
+
+"""
+    RaupachRoughnessParams(toml_dict)
+
+Construct `RaupachRoughnessParams` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function RaupachRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :stanton_number => :stanton_number,
+    )
+
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return RaupachRoughnessParams{FT}(; parameters...)
 end
 
 """
