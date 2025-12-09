@@ -125,14 +125,9 @@ Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     qs::FT = FT(0)
     gustiness::FT = FT(1)
     ustar::FT = FT(0.1)
-    L_MO::FT = FT(10)
-    shf::FT = FT(0)
-    lhf::FT = FT(0)
     Cd::FT = FT(0)
     Ch::FT = FT(0)
-    evaporation::FT = FT(0)
     ρ_sfc::FT = FT(1)
-    buoyancy_flux::FT = FT(0)
 end
 
 struct CallableContext{FT, U}
@@ -148,13 +143,8 @@ struct CallableContext{FT, U}
     u_sfc::U
     gustiness::FT
     ustar::FT
-    shf::FT
-    lhf::FT
     Cd::FT
     Ch::FT
-    L_MO::FT
-    evaporation::FT
-    buoyancy_flux::FT
     ρ_sfc::FT
 end
 
@@ -171,13 +161,8 @@ Base.propertynames(::CallableContext) = (
     :u_sfc,
     :gustiness,
     :ustar,
-    :shf,
-    :lhf,
     :Cd,
     :Ch,
-    :L_MO,
-    :evaporation,
-    :buoyancy_flux,
     :ρ_sfc,
 )
 
@@ -224,7 +209,6 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Friction velocity u⋆   = ", sfc.ustar)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
-    println(io, "evaporation            = ", sfc.evaporation)
     println(io, "evaporation            = ", sfc.evaporation)
     println(io, "-----------------------")
 end

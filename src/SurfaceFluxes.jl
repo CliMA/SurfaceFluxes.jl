@@ -196,6 +196,87 @@ end
 # Solver Logic
 # ------------------------------------------------------------------------------
 
+function solve_ustar_and_roughness(
+    param_set::APS{FT},
+    inputs::SurfaceFluxInputs,
+    scheme,
+    L_MO::FT,
+    ustar_guess::FT,
+    ΔU::FT,
+) where {FT}
+    u_star_curr = ustar_guess
+    local z0m::FT, z0s::FT, z0h::FT, Cd::FT, Ch::FT
+    
+    for _ in 1:10
+        z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, u_star_curr, param_set, inputs.roughness_inputs)
+        z0h = z0s
+        Cd = drag_coefficient(param_set, L_MO, z0m, inputs.Δz, scheme)
+        u_star_curr = sqrt(Cd) * ΔU
+    end
+    
+    # Final synchronization
+    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, u_star_curr, param_set, inputs.roughness_inputs)
+    z0h = z0s
+    Cd = drag_coefficient(param_set, L_MO, z0m, inputs.Δz, scheme)
+    Ch = heat_exchange_coefficient(param_set, L_MO, z0m, z0h, inputs.Δz, scheme)
+    
+    return u_star_curr, z0m, z0h, Cd, Ch
+end
+
+function compute_flux_components(
+    param_set::APS{FT},
+    inputs::SurfaceFluxInputs,
+    Ch::FT,
+    Cd::FT,
+    gustiness::FT,
+    Ts::FT,
+    qs::FT,
+    ρ_sfc::FT,
+    ΔU::FT,
+) where {FT}
+    thermo_params = SFP.thermodynamics_params(param_set)
+    
+    g_h = heat_conductance(inputs, Ch, gustiness)
+    g_q = g_h
+    
+    E = evaporation(thermo_params, inputs, g_q, inputs.qin, qs, ρ_sfc)
+    lhf = latent_heat_flux(thermo_params, inputs, E)
+    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h, inputs.Tin, Ts, ρ_sfc, E)
+    
+    phase_sfc = TD.PhasePartition(qs)
+    buoy_flux = buoyancy_flux(param_set, thermo_params, shf, lhf, Ts, phase_sfc.tot, phase_sfc.liq, phase_sfc.ice, ρ_sfc)
+    
+    # Momentum fluxes
+    u_int_x, u_int_y = inputs.u_int
+    u_sfc_x, u_sfc_y = inputs.u_sfc
+    Δu_x = u_int_x - u_sfc_x
+    Δu_y = u_int_y - u_sfc_y
+    ρτxz = -ρ_sfc * Cd * ΔU * Δu_x
+    ρτyz = -ρ_sfc * Cd * ΔU * Δu_y
+    
+    return (shf, lhf, buoy_flux, E, ρτxz, ρτyz)
+end
+
+function update_state_with_callbacks!(
+    inputs::SurfaceFluxInputs{FT},
+    iter_state::SurfaceFluxIterationState{FT},
+) where {FT}
+    ctx = callable_context(inputs, iter_state)
+    
+    if inputs.update_Ts! !== nothing
+        val = inputs.update_Ts!(iter_state, ctx)
+        if val isa FT
+            iter_state.Ts = val
+        end
+    end
+    if inputs.update_qs! !== nothing
+        val = inputs.update_qs!(iter_state, ctx)
+        if val isa FT
+            iter_state.qs = val
+        end
+    end
+end
+
 """
     compute_bulk_fluxes_with_coefficients(param_set, inputs, scheme)
 
@@ -241,30 +322,14 @@ function compute_bulk_fluxes_with_coefficients(param_set::APS{FT}, inputs::Surfa
     ΔU = windspeed(inputs, gustiness)
     
     # Fluxes
-    g_h = heat_conductance(inputs, Ch, gustiness)
-    g_q = g_h # Assumed same
-    
-    E = evaporation(thermo_params, inputs, g_q, inputs.qin, qs, ρ_sfc)
-    lhf = latent_heat_flux(thermo_params, inputs, E)
-    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h, inputs.Tin, Ts, ρ_sfc, E)
+    (shf, lhf, buoy_flux, E, ρτxz, ρτyz) = compute_flux_components(
+        param_set, inputs, Ch, Cd, gustiness, Ts, qs, ρ_sfc, ΔU
+    )
     
     # Helper to compute ustar from Cd
     # u*^2 = Cd * U^2
     ustar = sqrt(Cd) * ΔU
     
-    # Calculate buoyancy flux
-    phase_sfc = TD.PhasePartition(qs)
-    buoy_flux = buoyancy_flux(param_set, thermo_params, shf, lhf, Ts, phase_sfc.tot, phase_sfc.liq, phase_sfc.ice, ρ_sfc)
-    
-    # Momentum fluxes
-    # τ = -ρ Cd |ΔU| Δu
-    u_int_x, u_int_y = inputs.u_int
-    u_sfc_x, u_sfc_y = inputs.u_sfc
-    Δu_x = u_int_x - u_sfc_x
-    Δu_y = u_int_y - u_sfc_y
-    ρτxz = -ρ_sfc * Cd * ΔU * Δu_x
-    ρτyz = -ρ_sfc * Cd * ΔU * Δu_y
-
     # Derived L_MO (if ustar > 0)
     # L = -u*^3 / (k B_flux)
     L_MO = zero(FT)
@@ -275,7 +340,7 @@ function compute_bulk_fluxes_with_coefficients(param_set::APS{FT}, inputs::Surfa
     
     return SurfaceFluxConditions(
         L_MO, shf, lhf, buoy_flux,
-        zero(FT), zero(FT), # Stress components not computed here for shortness
+        ρτxz, ρτyz,
         ustar, Cd, Ch, E
     )
 end
@@ -320,62 +385,31 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
     # Neutral guess for u*
     u_star_curr = maximize(current_ΔU * κ / log(inputs.Δz / FT(1e-3)), FT(1e-6))
     
-    local z0m::FT, z0s::FT, z0h::FT
+    local z0m::FT, z0s::FT, z0h::FT, Cd::FT, Ch::FT
     
-    for _ in 1:10
-        # Update roughness
-        z0m, z0s = momentum_and_scalar_roughness(
-            inputs.roughness_model, 
-            u_star_curr, 
-            param_set, 
-            inputs.roughness_inputs
-        )
-        z0h = z0s 
-        
-        # Update u*
-        fm = UF.dimensionless_profile(uf_params, inputs.Δz, ζ, z0m, UF.MomentumTransport(), scheme)
-        u_star_curr = κ * current_ΔU / fm
-    end
+    # Solve for ustar and roughness
+    L_MO_loop = inputs.Δz / ζ
+    u_star_curr, z0m, z0h, Cd, Ch = solve_ustar_and_roughness(
+        param_set, inputs, scheme, L_MO_loop, u_star_curr, current_ΔU
+    )
     
     # Update state with converged values if stateful
-    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, u_star_curr, param_set, inputs.roughness_inputs)
-    z0h = z0s
-    
-    # Drag Coefficients
-    fm = UF.dimensionless_profile(uf_params, inputs.Δz, ζ, z0m, UF.MomentumTransport(), scheme)
-    fh = UF.dimensionless_profile(uf_params, inputs.Δz, ζ, z0h, UF.HeatTransport(), scheme)
-    
-    Cd = (κ / fm)^2
-    Ch = (κ / fm) * (κ / fh)
-    
-    # Callbacks
     if rf.iter_state !== nothing
         rf.iter_state.ustar = u_star_curr
         rf.iter_state.Cd = Cd
         rf.iter_state.Ch = Ch
         
-        ctx = callable_context(inputs, rf.iter_state)
-        
-        if inputs.update_Ts! !== nothing
-            val = inputs.update_Ts!(rf.iter_state, ctx)
-            if val isa FT
-                rf.iter_state.Ts = val
-            end
-        end
-        if inputs.update_qs! !== nothing
-            val = inputs.update_qs!(rf.iter_state, ctx)
-            if val isa FT
-                rf.iter_state.qs = val
-            end
-        end
+        update_state_with_callbacks!(inputs, rf.iter_state)
         
         Ts_curr = rf.iter_state.Ts
         qs_curr = rf.iter_state.qs
     else
+        # Pure mode: no callbacks invoked
         Ts_curr = rf.Ts
         qs_curr = rf.qs
-        # Pure mode: no callbacks invoked
     end
+    
+    Rib_theory = UF.bulk_richardson_number(uf_params, inputs.Δz, ζ, z0m, z0h, scheme)
     
     # 4. Compute Actual Bulk Richardson Number
     ρ_sfc_curr = surface_density(
@@ -399,9 +433,6 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
     θv_ref = θv_int
     
     Rib_state = (grav * inputs.Δz * Δθv) / (θv_ref * current_ΔU^2)
-    
-    # 5. Compute Theoretical Bulk Richardson Number
-    Rib_theory = ζ * fh / fm^2
     
     return Rib_theory - Rib_state
 end
@@ -522,41 +553,17 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     current_ΔU = windspeed(inputs, current_gustiness)
     u_star_curr = maximize(current_ΔU * κ / log(inputs.Δz / FT(1e-3)), FT(1e-6))
     
-    local z0m::FT, z0s::FT, z0h::FT, Cd::FT, Ch::FT
-    for _ in 1:10
-        z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, u_star_curr, param_set, inputs.roughness_inputs)
-        z0h = z0s 
-        fm = UF.dimensionless_profile(uf_params, inputs.Δz, ζ_final, z0m, UF.MomentumTransport(), scheme)
-        u_star_curr = κ * current_ΔU / fm
-    end
-    
-    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, u_star_curr, param_set, inputs.roughness_inputs)
-    z0h = z0s
-    
-    fm = UF.dimensionless_profile(uf_params, inputs.Δz, ζ_final, z0m, UF.MomentumTransport(), scheme)
-    fh = UF.dimensionless_profile(uf_params, inputs.Δz, ζ_final, z0h, UF.HeatTransport(), scheme)
-    
-    Cd = (κ / fm)^2
-    Ch = (κ / fm) * (κ / fh)
+    L_MO = inputs.Δz / ζ_final
+    u_star_curr, z0m, z0h, Cd, Ch = solve_ustar_and_roughness(
+        param_set, inputs, scheme, L_MO, u_star_curr, current_ΔU
+    )
     
     if use_stateful
         iter_state.ustar = u_star_curr
         iter_state.Cd = Cd
         iter_state.Ch = Ch
         
-        ctx = callable_context(inputs, iter_state)
-        if inputs.update_Ts! !== nothing
-            val = inputs.update_Ts!(iter_state, ctx)
-            if val isa FT
-                iter_state.Ts = val
-            end
-        end
-        if inputs.update_qs! !== nothing
-            val = inputs.update_qs!(iter_state, ctx)
-            if val isa FT
-                iter_state.qs = val
-            end
-        end
+        update_state_with_callbacks!(inputs, iter_state)
         
         # Read back
         Ts_val = iter_state.Ts
@@ -566,10 +573,11 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     
     # Final calculations using locals
     u_star = u_star_curr
-    L_MO = inputs.Δz / ζ_final
     
-    g_h = heat_conductance(inputs, Ch, current_gustiness)
-    g_q = g_h
+    # surface_density needed for compute_flux_components
+    # Wait, compute_flux_components calculates shf, lhf...
+    # But it takes ρ_sfc as input.
+    # Re-calculate ρ_sfc here (as logic might have updated Ts)
     
     ρ_sfc = surface_density(
         TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)), 
@@ -579,20 +587,9 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
         Ts_val
     )
     
-    E = evaporation(thermo_params, inputs, g_q, inputs.qin, qs_val, ρ_sfc)
-    lhf = latent_heat_flux(thermo_params, inputs, E)
-    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h, inputs.Tin, Ts_val, ρ_sfc, E)
-    
-    phase_sfc = TD.PhasePartition(qs_val)
-    buoy_flux = buoyancy_flux(param_set, thermo_params, shf, lhf, Ts_val, phase_sfc.tot, phase_sfc.liq, phase_sfc.ice, ρ_sfc)
-    
-    # Momentum fluxes
-    u_int_x, u_int_y = inputs.u_int
-    u_sfc_x, u_sfc_y = inputs.u_sfc
-    Δu_x = u_int_x - u_sfc_x
-    Δu_y = u_int_y - u_sfc_y
-    ρτxz = -ρ_sfc * Cd * current_ΔU * Δu_x
-    ρτyz = -ρ_sfc * Cd * current_ΔU * Δu_y
+    (shf, lhf, buoy_flux, E, ρτxz, ρτyz) = compute_flux_components(
+        param_set, inputs, Ch, Cd, current_gustiness, Ts_val, qs_val, ρ_sfc, current_ΔU
+    )
     
     return SurfaceFluxConditions(
         L_MO, shf, lhf, buoy_flux,
@@ -618,13 +615,8 @@ end
         inputs.u_sfc,
         iter_state.gustiness,
         iter_state.ustar,
-        iter_state.shf,
-        iter_state.lhf,
         iter_state.Cd,
         iter_state.Ch,
-        iter_state.L_MO,
-        iter_state.evaporation,
-        iter_state.buoyancy_flux,
         iter_state.ρ_sfc,
     )
 end
