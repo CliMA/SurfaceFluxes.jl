@@ -71,28 +71,11 @@ Construct `ConstantRoughnessSpec` from a TOML parameter dictionary.
 """
 function ConstantRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
-        :roughness_length_momentum => :z0m,
-        :roughness_length_heat => :z0s,
+        :default_momentum_roughness_length => :z0m,
+        :default_scalar_roughness_length => :z0s,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     return ConstantRoughnessSpec{FT}(; parameters...)
-end
-
-"""
-    CharnockRoughnessSpec(toml_dict)
-
-Construct `CharnockRoughnessSpec` from a TOML parameter dictionary.
-
-# Arguments
-- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
-"""
-function CharnockRoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
-    name_map = (;
-        :charnock_coefficient => :α,
-        :roughness_length_heat => :z0s,
-    )
-    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
-    return CharnockRoughnessSpec{FT}(; parameters...)
 end
 
 """
@@ -106,6 +89,9 @@ Construct `COARE3RoughnessSpec` from a TOML parameter dictionary.
 function COARE3RoughnessSpec(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :kinematic_viscosity_of_air => :kinematic_visc,
+        :default_momentum_roughness_length => :z0m_default,
+        :charnock_parameter_low => :α_low,
+        :charnock_parameter_high => :α_high,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     return COARE3RoughnessSpec{FT}(; parameters...)

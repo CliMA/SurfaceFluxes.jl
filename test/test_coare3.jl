@@ -11,9 +11,11 @@ import SurfaceFluxes: COARE3RoughnessSpec, momentum_roughness, scalar_roughness,
     FT = Float64
     
     # Helper to check if charnock_parameter behaves as expected
-    @test charnock_parameter(FT(5)) == FT(0.011)   # Low wind
-    @test charnock_parameter(FT(20)) == FT(0.018)  # High wind
-    @test charnock_parameter(FT(14)) ≈ FT(0.0145)  # Mid wind (linear)
+    α_low = FT(0.011)
+    α_high = FT(0.018)
+    @test charnock_parameter(FT(5), α_low, α_high) == FT(0.011)   # Low wind
+    @test charnock_parameter(FT(20), α_low, α_high) == FT(0.018)  # High wind
+    @test charnock_parameter(FT(14), α_low, α_high) ≈ FT(0.0145)  # Mid wind (linear)
 
     # Mock parameters
     # Note: kinematics_viscosity_of_air might not be in the default set if we are running without full ClimaParams suite loaded properly in tests sometimes,

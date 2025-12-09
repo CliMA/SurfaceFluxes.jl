@@ -38,6 +38,9 @@ COARE 3.0 roughness parameterization (Fairall et al. 2003).
 """
 Base.@kwdef struct COARE3RoughnessSpec{FT} <: AbstractRoughnessSpec
     kinematic_visc::FT = 1.5e-5
+    z0m_default::FT = 1e-4
+    α_low::FT = 0.011
+    α_high::FT = 0.018
 end
 
 """
@@ -59,7 +62,7 @@ SurfaceFluxConfig(; roughness = ConstantRoughnessSpec(), gustiness = ConstantGus
 
 Helper to construct `ConstantRoughnessSpec`.
 """
-function roughness_lengths(z0m; scalar)
+function roughness_lengths(z0m; z0s)
     return ConstantRoughnessSpec(z0m = z0m, z0s = scalar)
 end
 
@@ -69,12 +72,10 @@ end
 Compute the Charnock parameter `α` as a function of 10m wind speed `mag_u_10` [m/s].
 Piecewise linear interpolation based on COARE 3.0 (Fairall et al. 2003).
 """
-@inline function charnock_parameter(mag_u_10)
+@inline function charnock_parameter(mag_u_10, α_low, α_high)
     FT = eltype(mag_u_10)
     u_low = FT(10)
     u_high = FT(18)
-    α_low = FT(0.011)
-    α_high = FT(0.018)
 
     return ifelse(
         mag_u_10 <= u_low,
@@ -104,7 +105,7 @@ end
     # Recover 10m wind speed using profile recovery.
     # Use a constant proxy z0 for the restoration since z0m is not yet known.
     L_MO = ctx.L_MO
-    z0_proxy = FT(1e-4) # Oceanic default
+    z0_proxy = spec.z0m_default
     
     mag_u_10 = compute_profile_value(
         sfc_param_set,
@@ -116,7 +117,7 @@ end
         UF.MomentumTransport(),
     )
     
-    α = charnock_parameter(mag_u_10)
+    α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high)
 
     # Smooth flow limit (Smith 1988)
     u★_safe = max(u★, FT(1e-9))
