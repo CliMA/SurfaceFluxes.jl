@@ -122,7 +122,17 @@ function compute_ΔDSEᵥ(param_set, sc)
     Φ_int = grav * sc.state_int.z
     Φ_sfc = grav * sc.state_sfc.z
 
-    return SF.ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
+    # Local helper for virtual Dry Static Energy difference
+    function local_ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
+        cp_d = SFP.cp_d(param_set)
+        Tv_int = TD.virtual_temperature(SFP.thermodynamics_params(param_set), T_int, phase_int)
+        Tv_sfc = TD.virtual_temperature(SFP.thermodynamics_params(param_set), T_sfc, phase_sfc)
+        DSEv_int = cp_d * Tv_int + Φ_int
+        DSEv_sfc = cp_d * Tv_sfc + Φ_sfc
+        return DSEv_int - DSEv_sfc
+    end
+    
+    return local_ΔDSEᵥ(param_set, T_int, phase_int, Φ_int, T_sfc, phase_sfc, Φ_sfc)
 end
 
 function assert_flux_expectations(result, case, FT, param_set, sc)

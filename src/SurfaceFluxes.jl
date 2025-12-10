@@ -28,10 +28,10 @@ const PointValueScheme = UF.PointValueScheme
 
 
 include("types.jl")
-include("thermo_primitives.jl")
 include("roughness_lengths.jl")
 include("input_builders.jl")
 include("utilities.jl")
+include("wind_and_gustiness.jl")
 include("physical_scales.jl")
 include("bulk_fluxes.jl")
 include("exchange_coefficients.jl")
@@ -228,15 +228,14 @@ function compute_flux_components(
     inputs::SurfaceFluxInputs,
     Ch::FT,
     Cd::FT,
-    gustiness::FT,
     Ts::FT,
     qs::FT,
     ρ_sfc::FT,
-    ΔU::FT,
+    b_flux::FT,
 ) where {FT}
     thermo_params = SFP.thermodynamics_params(param_set)
     
-    g_h = heat_conductance(inputs, Ch, gustiness)
+    g_h = heat_conductance(inputs, Ch, param_set, b_flux)
     g_q = g_h
     
     E = evaporation(thermo_params, inputs, g_q, inputs.qin, qs, ρ_sfc)
@@ -251,6 +250,7 @@ function compute_flux_components(
     u_sfc_x, u_sfc_y = inputs.u_sfc
     Δu_x = u_int_x - u_sfc_x
     Δu_y = u_int_y - u_sfc_y
+    ΔU = windspeed(inputs, param_set, b_flux)
     ρτxz = -ρ_sfc * Cd * ΔU * Δu_x
     ρτyz = -ρ_sfc * Cd * ΔU * Δu_y
     
@@ -317,17 +317,27 @@ function compute_bulk_fluxes_with_coefficients(param_set::APS{FT}, inputs::Surfa
     iter_state.Cd = Cd
     iter_state.Ch = Ch
     
-    ctx = callable_context(inputs, iter_state)
-    gustiness = gustiness_value(inputs.gustiness_model, inputs, ctx)
-    ΔU = windspeed(inputs, gustiness)
+    
+    # We need gustiness to get ΔU.
+    # For compute_bulk_fluxes_with_coefficients, we don't have L_MO loop unless we iterate.
+    # If we are using Deardorff, we need buoyancy flux.
+    # We can try to use a "lagged" approach or just 0 if not stateful?
+    # Or maybe we can't easily support Deardorff here without explicit iteration?
+    # For now, we use 0.0 or the value coupled with Cd?
+    # But Cd is prescribed.
+    # We'll use 0.0 for buoyancy flux in this context as an approximation or initial state
+    # unless we want to iterate just for gustiness.
+    # Given "compute_bulk_fluxes_with_coefficients" implies "simple", 0.0 is safest default.
+    buoyancy_flux_val = FT(0) # Or from inputs if we had history?
     
     # Fluxes
     (shf, lhf, buoy_flux, E, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, gustiness, Ts, qs, ρ_sfc, ΔU
+        param_set, inputs, Ch, Cd, Ts, qs, ρ_sfc, buoyancy_flux_val
     )
     
     # Helper to compute ustar from Cd
     # u*^2 = Cd * U^2
+    ΔU = windspeed(inputs, param_set, buoyancy_flux_val)
     ustar = sqrt(Cd) * ΔU
     
     # Derived L_MO (if ustar > 0)
@@ -358,7 +368,7 @@ struct ResidualFunction{FT, PS, I, UF, TP, SCH, S} <: Function
     Ts::FT
     qs::FT
     ρ_sfc::FT
-    gustiness::FT
+    buoyancy_flux::FT
 end
 
 function (rf::ResidualFunction{FT})(ζ) where {FT}
@@ -374,13 +384,13 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
     # Determine current state
     if rf.iter_state !== nothing
         # Stateful mode: State may have evolved via callbacks
-        current_gustiness = rf.iter_state.gustiness
-        # Note: We don't update gustiness here, assuming it's done via callbacks or fixed
+        current_buoyancy_flux = rf.iter_state.buoyancy_flux
     else
-        current_gustiness = rf.gustiness
+        # Pure mode: we need to compute gustiness from available info?
+        current_buoyancy_flux = FT(0)  # Initial guess or zero for pure mode start
     end
     
-    current_ΔU = windspeed(inputs, current_gustiness)
+    current_ΔU = windspeed(inputs, param_set, current_buoyancy_flux)
     
     # Neutral guess for u*
     u_star_curr = maximize(current_ΔU * κ / log(inputs.Δz / FT(1e-3)), FT(1e-6))
@@ -399,8 +409,16 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
         rf.iter_state.Cd = Cd
         rf.iter_state.Ch = Ch
         
+        # Approximate buoyancy flux from u* and L for next iteration's gustiness
+        # L = -u*^3 / (κ B)  => B = -u*^3 / (κ L)
+        # Check singularity
+        if abs(L_MO_loop) > eps(FT)
+             B_approx = -u_star_curr^3 / (κ * L_MO_loop)
+             rf.iter_state.buoyancy_flux = B_approx
+        end
+
         update_state_with_callbacks!(inputs, rf.iter_state)
-        
+
         Ts_curr = rf.iter_state.Ts
         qs_curr = rf.iter_state.qs
     else
@@ -408,55 +426,55 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
         Ts_curr = rf.Ts
         qs_curr = rf.qs
     end
-    
+
     Rib_theory = UF.bulk_richardson_number(uf_params, inputs.Δz, ζ, z0m, z0h, scheme)
-    
+
     # 4. Compute Actual Bulk Richardson Number
     ρ_sfc_curr = surface_density(
-        TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)), 
+        TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)),
         TD.gas_constant_air(thermo_params, TD.PhasePartition(inputs.qin)),
         inputs.Tin,
         inputs.ρin,
         Ts_curr
     )
-    
+
     if rf.iter_state !== nothing
         rf.iter_state.ρ_sfc = ρ_sfc_curr
     end
-    
+
     ts_int = TD.PhaseEquil_ρTq(thermo_params, inputs.ρin, inputs.Tin, inputs.qin)
     phase_sfc = TD.PhasePartition(qs_curr)
     θv_sfc = TD.virtual_pottemp(thermo_params, Ts_curr, ρ_sfc_curr, phase_sfc)
     θv_int = TD.virtual_pottemp(thermo_params, ts_int)
-    
+
     Δθv = θv_int - θv_sfc
     θv_ref = θv_int
-    
+
     Rib_state = (grav * inputs.Δz * Δθv) / (θv_ref * current_ΔU^2)
-    
+
     return Rib_theory - Rib_state
 end
 
 maximize(a, b) = a > b ? a : b
 
 function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, scheme, options::SolverOptions) where {FT}
-    
+
     # Prepare iteration state
     # We use local variables for the main state to avoid allocation of mutable struct in pure mode.
     Ts_val = inputs.Ts_guess
     qs_val = inputs.qs_guess
     ρ_sfc_val = inputs.ρin
-    
+
     ustar_in = inputs.ustar
     ustar_val = if ustar_in isa FT
         ustar_in
     else
         FT(0.1)
     end
-    
+
     # Decide if we need stateful iteration
     use_stateful = (inputs.update_Ts! !== nothing) || (inputs.update_qs! !== nothing)
-    
+
     # If stateful, we must use the mutable struct
     iter_state = if use_stateful
         SurfaceFluxIterationState{FT}(;
@@ -469,9 +487,21 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     else
         nothing
     end
-    
+
     # Default gustiness (initial)
-    gustiness_val = FT(1)
+    # Default gustiness (initial)
+    # We create a temporary context for initialization
+    iter_state_init = SurfaceFluxIterationState{FT}(;
+        Ts = Ts_val,
+        qs = qs_val,
+        ρ_sfc = ρ_sfc_val,
+        ustar = ustar_val,
+        Cd = FT(0),  # Initial guess
+        Ch = FT(0),  # Initial guess
+    )
+    ctx_init = callable_context(inputs, iter_state_init)
+
+    # Initial gustiness with B = 0 implicitly handled by B=0 in iter_state
 
     # Auxiliary variables constant during solve
     uf_params = SFP.uf_params(param_set)
@@ -491,7 +521,7 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
         Ts_val,
         qs_val,
         ρ_sfc_val,
-        gustiness_val
+        FT(0) # Initial buoyancy flux
     )
     
     # Solve
@@ -549,14 +579,20 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     # Finalize state 
     # Use locals
     
-    current_gustiness = use_stateful ? iter_state.gustiness : gustiness_val
-    current_ΔU = windspeed(inputs, current_gustiness)
+    # If stateful, we use the last updated B from the solver loop
+    # If pure, we use 0.0 (initial).
+    
+    current_buoyancy_flux = use_stateful ? iter_state.buoyancy_flux : FT(0)
+    current_ΔU = windspeed(inputs, param_set, current_buoyancy_flux)
     u_star_curr = maximize(current_ΔU * κ / log(inputs.Δz / FT(1e-3)), FT(1e-6))
     
     L_MO = inputs.Δz / ζ_final
     u_star_curr, z0m, z0h, Cd, Ch = solve_ustar_and_roughness(
         param_set, inputs, scheme, L_MO, u_star_curr, current_ΔU
     )
+    
+    # Update B one last time derived from L_MO? Or compute real B?
+    # We compute real B below.
     
     if use_stateful
         iter_state.ustar = u_star_curr
@@ -565,10 +601,12 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
         
         update_state_with_callbacks!(inputs, iter_state)
         
+        # Note: we don't update gustiness here again, as we are done iterating.
+        
         # Read back
         Ts_val = iter_state.Ts
         qs_val = iter_state.qs
-        current_gustiness = iter_state.gustiness
+        current_buoyancy_flux = iter_state.buoyancy_flux
     end
     
     # Final calculations using locals
@@ -588,7 +626,7 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     )
     
     (shf, lhf, buoy_flux, E, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, current_gustiness, Ts_val, qs_val, ρ_sfc, current_ΔU
+        param_set, inputs, Ch, Cd, Ts_val, qs_val, ρ_sfc, current_buoyancy_flux
     )
     
     return SurfaceFluxConditions(
@@ -613,7 +651,7 @@ end
         inputs.d,
         inputs.u_int,
         inputs.u_sfc,
-        iter_state.gustiness,
+        iter_state.buoyancy_flux,
         iter_state.ustar,
         iter_state.Cd,
         iter_state.Ch,
