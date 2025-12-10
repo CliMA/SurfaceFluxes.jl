@@ -73,9 +73,9 @@ function heat_exchange_coefficient(
 end
 
 """
-    heat_conductance(inputs, Ch, gustiness)
+    heat_conductance(inputs, Ch, param_set, buoyancy_flux)
 
-Compute the heat conductance (speed * Ch).
+Compute the heat conductance (speed * Ch), including any gustiness factor in the wind speed.
 """
-@inline heat_conductance(inputs::SurfaceFluxInputs, Ch, gustiness) =
-    Ch * windspeed(inputs, gustiness)
+@inline heat_conductance(inputs::SurfaceFluxInputs, Ch, param_set, buoyancy_flux) =
+    Ch * windspeed(inputs, param_set, buoyancy_flux)

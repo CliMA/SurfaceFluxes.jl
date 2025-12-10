@@ -53,7 +53,11 @@ end
             nothing, # roughness_inputs
             nothing, # update_Ts!
             nothing, # update_qs!
-            flux_specs,
+            flux_specs.shf,
+            flux_specs.lhf,
+            flux_specs.ustar,
+            flux_specs.Cd,
+            flux_specs.Ch,
         )
     end
 

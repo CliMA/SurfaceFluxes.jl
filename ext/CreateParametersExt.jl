@@ -56,11 +56,19 @@ function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {F
     )
     parameters = CP.get_parameter_values(toml_dict, name_map_core, "SurfaceFluxes")
 
+    # Gustiness parameters
+    name_map_gustiness = (;
+        :gustiness_coeff => :gustiness_coeff,
+        :gustiness_zi => :gustiness_zi,
+    )
+    gustiness_params = CP.get_parameter_values(toml_dict, name_map_gustiness, "SurfaceFluxes")
+
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
 
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
         parameters...,
+        gustiness_params...,
         ufp,
         thermo_params,
     )

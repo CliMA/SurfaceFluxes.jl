@@ -12,6 +12,8 @@ struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
     value::TG
 end
 
+struct DeardorffGustinessSpec <: AbstractGustinessSpec end
+
 Base.broadcastable(p::AbstractRoughnessParams) = tuple(p)
 Base.broadcastable(p::AbstractGustinessSpec) = tuple(p)
 
@@ -123,11 +125,11 @@ end
 Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     Ts::FT = FT(0)
     qs::FT = FT(0)
-    gustiness::FT = FT(1)
     ustar::FT = FT(0.1)
     Cd::FT = FT(0)
     Ch::FT = FT(0)
     ρ_sfc::FT = FT(1)
+    buoyancy_flux::FT = FT(0)
 end
 
 struct CallableContext{FT, U}
@@ -141,7 +143,7 @@ struct CallableContext{FT, U}
     d::FT
     u_int::U
     u_sfc::U
-    gustiness::FT
+    buoyancy_flux::FT
     ustar::FT
     Cd::FT
     Ch::FT
@@ -159,7 +161,7 @@ Base.propertynames(::CallableContext) = (
     :d,
     :u_int,
     :u_sfc,
-    :gustiness,
+    :buoyancy_flux,
     :ustar,
     :Cd,
     :Ch,

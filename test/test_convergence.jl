@@ -23,6 +23,17 @@ const SYNTH_PRESSURES = (9.5e4, 1.0e5)
 const TEMP_NEUTRAL_THRESHOLD = 0.3
 const HUMIDITY_NEUTRAL_THRESHOLD = 1e-4
 
+# Mock Charnock roughness for testing (restoring deleted functionality for tests)
+struct CharnockMock{FT} <: SF.AbstractRoughnessParams
+    alpha::FT
+    z0s::FT
+end
+SF.momentum_roughness(spec::CharnockMock, ustar, param_set, args...) = spec.alpha * max(ustar, 0)^2 / SFP.grav(param_set)
+SF.scalar_roughness(spec::CharnockMock, ustar, param_set, args...) = spec.z0s
+SF.momentum_and_scalar_roughness(spec::CharnockMock, ustar, param_set, args...) = (SF.momentum_roughness(spec, ustar, param_set, args...), spec.z0s)
+
+charnock_momentum(; alpha, scalar) = CharnockMock(alpha, scalar)
+
 # Helper function to compute specific humidity from relative humidity
 function qt_from_RH(::Type{FT}, RH, T, p) where {FT}
     # Create a minimal param_set to get thermo_params for Thermodynamics calculations
@@ -152,14 +163,14 @@ end
         roughness_config_factories = (
             (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, z0h), SF.ConstantGustinessSpec(FT(1.0))),
             (z0m, z0h) -> SF.SurfaceFluxConfig(
-                SF.charnock_momentum(alpha = FT(0.0185), scalar = z0h),
+                charnock_momentum(alpha = FT(0.0185), scalar = z0h),
                 SF.ConstantGustinessSpec(FT(1.0)),
             ),
         )
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
             param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
-            tol_neutral = FT(SF.Parameters.cp_d(param_set) / 1e5)  # TODO: remove tol_neutral as a relevant threshold
+            # tol_neutral removed
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
             for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
                 sc = build_surface_condition(param_set, case)
@@ -169,7 +180,6 @@ end
                     sc,
                     scheme;
                     maxiter = 15,
-                    tol_neutral = tol_neutral,
                     config = config,
                 )
                 assert_flux_expectations(result, case, FT, param_set, sc)
