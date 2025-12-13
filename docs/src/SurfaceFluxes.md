@@ -181,37 +181,33 @@ we can use Newton's method to iteratively solve for the stability parameter $\ze
 
 ### Profile recovery using MOST
 
-The `recover_profile` method recovers profiles of variables (e.g., velocity, potential temperature) at specified heights within the surface layer using Monin-Obukhov Similarity Theory. The method signature is:
+The `compute_profile_value` method recovers profiles of variables (e.g., velocity, potential temperature) at specified heights within the surface layer using Monin-Obukhov Similarity Theory. The method signature is:
 
 ```julia
-recover_profile(
+compute_profile_value(
     param_set,
-    sc,
     L_MO,
-    𝓁,
-    Z,
-    X_star,
-    X_sfc,
+    z0,
+    Δz,
+    scale,
+    val_sfc,
     transport,
-    scheme
 )
 ```
 
 **Arguments:**
 - `param_set`: Abstract Parameter Set containing physical and thermodynamic parameters
-- `sc`: Container for surface conditions (`AbstractSurfaceConditions`) based on known combination of the state vector, and {fluxes, friction velocity, exchange coefficients} for a given experiment
 - `L_MO`: Monin-Obukhov length
-- `𝓁`: Roughness length for the variable (e.g., `z_{0m}` for momentum, `z_{0b}` for scalars)
-- `Z`: Z coordinate(s) (within surface layer) for which variable values are required
-- `X_star`: Scale parameter for variable X (e.g., `u_{\star}` for velocity, `\theta_{\star}` for potential temperature)
-- `X_sfc`: For variable X, values at surface nodes
+- `z0`: Roughness length for the variable (e.g., `z_{0m}` for momentum, `z_{0b}` for scalars)
+- `Δz`: Height above the surface [m]
+- `scale`: Similarity scale (e.g., `u_{\star}` for velocity, `\theta_{\star}` for potential temperature)
+- `val_sfc`: For variable X, values at surface nodes
 - `transport`: Transport type (e.g., `MomentumTransport()` or `HeatTransport()`, used to determine physical scale coefficients)
-- `scheme`: Discretization scheme (`PointValueScheme()` for finite difference or `LayerAverageScheme()` for finite volume)
 
 The method follows equations (21,22) from [Nishizawa2018](@cite) and computes the profile using:
 
 ```math
-X(z) = \frac{X_{\star}}{\kappa} \left[ \log\left(\frac{z}{\ell}\right) - \psi\left(\frac{z}{L_O}\right) + \psi\left(\frac{\ell}{L_O}\right) \right] + X_{sfc}
+X(\Delta z) = \frac{X_{\star}}{\kappa} \left[ \log\left(\frac{\Delta z}{z_0}\right) - \psi\left(\frac{\Delta z}{L_O}\right) + \psi\left(\frac{z_0}{L_O}\right) \right] + X_{sfc}
 ```
 
 Here, we demonstrate the recovered velocity and potential temperature functions in a dry atmosphere example, verifying the plots shown in Fig 6.4 in [Bonan2019](@cite). 

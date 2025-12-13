@@ -10,7 +10,7 @@ include("test_utils.jl")
 
 Numerical regression cases derived from challenging configurations.
 Each case stores the state specification and the expected `SurfaceFluxConditions`
-returned by `surface_conditions`. The expected values were generated using 
+returned by `surface_fluxes`. The expected values were generated using 
 SurfaceFluxes v0.13.1 and provide a regression target for changes.
 """
 function case_definitions(::Type{FT}) where {FT}
@@ -18,11 +18,11 @@ function case_definitions(::Type{FT}) where {FT}
         (
             name = "Strong wind shear, strongly stable #1",
             Δz = FT(15.000001),
-            u_in = (FT(-19.07545), FT(16.88031)),
+            u_int = (FT(-19.07545), FT(16.88031)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.2595116f0,
                 99902.82f0,
                 12337.749f0,
@@ -37,26 +37,26 @@ function case_definitions(::Type{FT}) where {FT}
                 275.1768f0,
             ),
             expected = (;  # Regression targets
-                L_MO = FT(2156.5898),
-                shf = FT(-20.321943),
-                lhf = FT(-0.69523025),
-                buoy_flux = FT(-5.7318626f-4),
-                ρτxz = FT(0.47999802),
-                ρτyz = FT(-0.42476144),
-                ustar = FT(0.71481687),
-                Cd = FT(7.875295f-4),
-                Ch = FT(0.0010633721),
-                evaporation = FT(-2.7800314f-7),
+                L_MO = FT(1.0154548e6),
+                shf = FT(-20.373146),
+                lhf = FT(-0.69898504),
+                buoy_flux = FT(-0.0005755669),
+                ρτxz = FT(0.48220262),
+                ρτyz = FT(-0.4267123),
+                ustar = FT(0.71645653),
+                Cd = FT(0.00079114654),
+                Ch = FT(0.0010691151),
+                evaporation = FT(-2.7950458e-7),
             ),
         ),
         (
             name = "Weak wind, weakly stratified #2",
             Δz = FT(15.000001),
-            u_in = (FT(-0.168524), FT(-0.000566946)),
+            u_int = (FT(-0.168524), FT(-0.000566946)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.2605726f0,
                 100331.47f0,
                 7956.4053f0,
@@ -71,26 +71,26 @@ function case_definitions(::Type{FT}) where {FT}
                 276.01752f0,
             ),
             expected = (;
-                L_MO = FT(1.1920929f-7),
-                shf = FT(-6.100155f-16),
-                lhf = FT(3.5936135f-15),
-                buoy_flux = FT(-1.0295639f-20),
-                ρτxz = FT(9.6366225f-20),
-                ρτyz = FT(3.2419386f-22),
-                ustar = FT(1.1920929f-7),
-                Cd = FT(4.5746986f-19),
-                Ch = FT(4.5746986f-19),
-                evaporation = FT(1.4369855f-21),
+                L_MO = FT(-5.2631125),
+                shf = FT(-1.9265472),
+                lhf = FT(11.302928),
+                buoy_flux = FT(-3.274816e-5),
+                ρτxz = FT(0.00021387689),
+                ρτyz = FT(7.195215e-7),
+                ustar = FT(0.031864032),
+                Cd = FT(0.0010153166),
+                Ch = FT(0.0014388718),
+                evaporation = FT(4.519725e-6),
             ),
         ),
         (
             name = "Strong wind shear, strongly stable #3",
             Δz = FT(15.000001),
-            u_in = (FT(-14.154735), FT(-5.1905923)),
+            u_int = (FT(-14.154735), FT(-5.1905923)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.1730341f0,
                 98689.72f0,
                 43302.703f0,
@@ -105,26 +105,26 @@ function case_definitions(::Type{FT}) where {FT}
                 290.97592f0,
             ),
             expected = (;
-                L_MO = FT(22423.342),
-                shf = FT(-0.7561525),
-                lhf = FT(5.82858),
-                buoy_flux = FT(-7.745661f-6),
-                ρτxz = FT(0.19813664),
-                ρτyz = FT(0.07265742),
-                ustar = FT(0.42396805),
-                Cd = FT(7.908046f-4),
-                Ch = FT(0.0010685718),
-                evaporation = FT(2.3306861f-6),
+                L_MO = FT(-22733.092),
+                shf = FT(-0.75684166),
+                lhf = FT(5.833838),
+                buoy_flux = FT(-9.548945e-6),
+                ρτxz = FT(0.19829303),
+                ρτyz = FT(0.07271477),
+                ustar = FT(0.42413536),
+                Cd = FT(0.00079142884),
+                Ch = FT(0.0010695357),
+                evaporation = FT(2.3327887e-6),
             ),
         ),
         (
             name = "Strong wind shear, strongly stable #4",
             Δz = FT(15.000001),
-            u_in = (FT(-13.526638), FT(-8.794365)),
+            u_int = (FT(-13.526638), FT(-8.794365)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.1698402f0,
                 98647.89f0,
                 44855.285f0,
@@ -139,26 +139,26 @@ function case_definitions(::Type{FT}) where {FT}
                 291.5569f0,
             ),
             expected = (;
-                L_MO = FT(22546.48),
-                shf = FT(-0.9248207),
-                lhf = FT(7.22102),
-                buoy_flux = FT(-9.300392f-6),
-                ρτxz = FT(0.20206536),
-                ρτyz = FT(0.1313731),
-                ustar = FT(0.45371297),
-                Cd = FT(7.908065f-4),
-                Ch = FT(0.0010685748),
-                evaporation = FT(2.887484f-6),
+                L_MO = FT(-22413.842),
+                shf = FT(-0.9256648),
+                lhf = FT(7.227552),
+                buoy_flux = FT(-1.1460169e-5),
+                ρτxz = FT(0.20222539),
+                ρτyz = FT(0.13147715),
+                ustar = FT(0.4538926),
+                Cd = FT(0.00079143274),
+                Ch = FT(0.0010695414),
+                evaporation = FT(2.8900959e-6),
             ),
         ),
         (
             name = "High wind, near-neutral #5",
             Δz = FT(15.000001),
-            u_in = (FT(-41.34482), FT(-23.609104)),
+            u_int = (FT(-41.34482), FT(-23.609104)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.2182463f0,
                 96874.9f0,
                 13805.914f0,
@@ -173,26 +173,26 @@ function case_definitions(::Type{FT}) where {FT}
                 276.38446f0,
             ),
             expected = (;
-                L_MO = FT(2.065302f7),
-                shf = FT(-0.7819739),
-                lhf = FT(12.135478),
-                buoy_flux = FT(9.084079f-7),
-                ρτxz = FT(1.899524),
-                ρτyz = FT(1.0846839),
-                ustar = FT(1.3391694),
-                Cd = FT(7.9115434f-4),
-                Ch = FT(7.9115434f-4),
-                evaporation = FT(3.5909552f-6),
+                L_MO = FT(-351333.28),
+                shf = FT(-0.8296894),
+                lhf = FT(12.135787),
+                buoy_flux = FT(-2.043232e-7),
+                ρτxz = FT(1.8995668),
+                ρτyz = FT(1.0847083),
+                ustar = FT(1.3391849),
+                Cd = FT(0.00079117215),
+                Ch = FT(0.0010691539),
+                evaporation = FT(4.852762e-6),
             ),
         ),
         (
             name = "Weak wind, stable #6",
             Δz = FT(15.000001),
-            u_in = (FT(-0.75088084), FT(-0.09317328)),
+            u_int = (FT(-0.75088084), FT(-0.09317328)),
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
-            z0b = FT(1e-5),
-            ts_in = TD.PhaseEquil{FT}(
+            z0h = FT(1e-5),
+            ts_int = TD.PhaseEquil{FT}(
                 1.2317619f0,
                 99965.086f0,
                 12921.355f0,
@@ -207,16 +207,16 @@ function case_definitions(::Type{FT}) where {FT}
                 280.76575f0,
             ),
             expected = (;
-                L_MO = FT(1.1920929f-7),
-                shf = FT(-9.024182f-16),
-                lhf = FT(5.5160268f-15),
-                buoy_flux = FT(-1.4714911f-20),
-                ρτxz = FT(4.1733562f-19),
-                ρτyz = FT(5.178522f-20),
-                ustar = FT(1.1920929f-7),
-                Cd = FT(4.5746986f-19),
-                Ch = FT(4.5746986f-19),
-                evaporation = FT(2.205705f-21),
+                L_MO = FT(-3.385903),
+                shf = FT(-3.034892),
+                lhf = FT(18.299839),
+                buoy_flux = FT(-5.0476297e-5),
+                ρτxz = FT(0.0009687537),
+                ρτyz = FT(0.000120208104),
+                ustar = FT(0.032587063),
+                Cd = FT(0.0010619167),
+                Ch = FT(0.0015176912),
+                evaporation = FT(7.317594e-6),
             ),
         ),
     ]
@@ -237,9 +237,9 @@ const CASE_NUMERIC_FIELDS = (
 
 function build_values_only_case(case, ::Type{FT}) where {FT}
     state_sfc = SF.StateValues(FT(0), case.u_sfc, case.ts_sfc)
-    state_in = SF.StateValues(case.Δz, case.u_in, case.ts_in)
-    sc = SF.ValuesOnly(state_in, state_sfc, case.z0m, case.z0b)
-    return sc, state_in, state_sfc
+    state_int = SF.StateValues(case.Δz, case.u_int, case.ts_int)
+    sc = SF.ValuesOnly(state_int, state_sfc, case.z0m, case.z0h)
+    return sc, state_int, state_sfc
 end
 
 function assert_coefficient_reasonableness(result, ::Type{FT}) where {FT}
@@ -258,8 +258,8 @@ end
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     for case in case_definitions(FT)
         @testset "$(case.name)" begin
-            sc, state_in, state_sfc = build_values_only_case(case, FT)
-            result = surface_conditions_wrapper(param_set, sc)
+            sc, state_int, state_sfc = build_values_only_case(case, FT)
+            result = surface_fluxes_wrapper(param_set, sc)
 
             for field in CASE_NUMERIC_FIELDS
                 expected_value = getfield(case.expected, field)
@@ -287,34 +287,34 @@ end
     FT = Float32
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     base_case = case_definitions(FT)[1]
-    base_sc, state_in, state_sfc = build_values_only_case(base_case, FT)
-    base_result = surface_conditions_wrapper(param_set, base_sc)
+    base_sc, state_int, state_sfc = build_values_only_case(base_case, FT)
+    base_result = surface_fluxes_wrapper(param_set, base_sc)
 
-    z0m, z0b = base_case.z0m, base_case.z0b
+    z0m, z0h = base_case.z0m, base_case.z0h
     @testset "Flux-prescribed container" begin
         flux_sc = SF.Fluxes(
-            state_in,
+            state_int,
             state_sfc,
             base_result.shf,
             base_result.lhf,
             z0m,
-            z0b,
+            z0h,
         )
-        flux_result = surface_conditions_wrapper(param_set, flux_sc)
+        flux_result = surface_fluxes_wrapper(param_set, flux_sc)
         @test isapprox(flux_result.L_MO, base_result.L_MO; rtol = FT(1e-3))
     end
 
     @testset "Flux+ustar container" begin
         fluxustar_sc = SF.FluxesAndFrictionVelocity(
-            state_in,
+            state_int,
             state_sfc,
             base_result.shf,
             base_result.lhf,
             base_result.ustar,
             z0m,
-            z0b,
+            z0h,
         )
-        result_fluxustar = surface_conditions_wrapper(param_set, fluxustar_sc)
+        result_fluxustar = surface_fluxes_wrapper(param_set, fluxustar_sc)
         @test isapprox(
             result_fluxustar.ustar,
             base_result.ustar;
@@ -337,12 +337,14 @@ end
 
     @testset "Coefficient-prescribed container" begin
         coeff_sc = SF.Coefficients(
-            state_in,
+            state_int,
             state_sfc,
             base_result.Cd,
             base_result.Ch,
+            z0m,
+            z0h,
         )
-        coeff_result = surface_conditions_wrapper(param_set, coeff_sc)
+        coeff_result = surface_fluxes_wrapper(param_set, coeff_sc)
         @test isapprox(
             coeff_result.ustar,
             base_result.ustar;

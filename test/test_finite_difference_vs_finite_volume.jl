@@ -12,7 +12,7 @@ function compute_physical_scale_coeff_with_checks(
     L_MO,
     scheme,
     z0m,
-    z0b,
+    z0h,
 )
     @test_allocs_and_ts SF.compute_physical_scale_coeff(
         param_set,
@@ -34,9 +34,9 @@ end
     thermo_params = param_set.thermo_params
 
     ρ_sfc = FloatType(1.15)
-    ρ_in = FloatType(1.13)
+    ρ_int = FloatType(1.13)
     qt_sfc = FloatType(0.01)
-    qt_in = FloatType(0.009)
+    qt_int = FloatType(0.009)
 
     # Discretization altitude z [m]
     z = ArrayType(
@@ -59,7 +59,7 @@ end
     )
 
     # Temperature at interior level at height z [K]
-    T_in = ArrayType(
+    T_int = ArrayType(
         FloatType[
             271.62735,
             272.46533,
@@ -119,36 +119,36 @@ end
             # TODO: Remove thermodynamic states from here and use the signature 
             # Create thermodynamic states from temperature, density, and specific humidity
             ts_sfc = TD.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc[ii], qt_sfc)
-            ts_in = TD.PhaseEquil_ρTq(thermo_params, ρ_in, T_in[ii], qt_in)
+            ts_int = TD.PhaseEquil_ρTq(thermo_params, ρ_int, T_int[ii], qt_int)
 
             state_sfc =
                 SF.StateValues(FloatType(0), (FloatType(0), FloatType(0)), ts_sfc)
-            state_in =
-                SF.StateValues(z[ii], (FloatType(speed[ii]), FloatType(0)), ts_in)
+            state_int =
+                SF.StateValues(z[ii], (FloatType(speed[ii]), FloatType(0)), ts_int)
 
             # State containers for different computation modes
             z0m = z0[ii]
-            z0b = FloatType(0.001)
+            z0h = FloatType(0.001)
 
             state_containers = (
                 SF.Fluxes(
-                    state_in,
+                    state_int,
                     state_sfc,
                     FloatType(0),
                     FloatType(0),
                     z0m,
-                    z0b,
+                    z0h,
                 ),
                 SF.FluxesAndFrictionVelocity(
-                    state_in,
+                    state_int,
                     state_sfc,
                     FloatType(0),
                     FloatType(0),
                     u_star[ii],
                     z0m,
-                    z0b,
+                    z0h,
                 ),
-                SF.ValuesOnly(state_in, state_sfc, z0m, z0b),
+                SF.ValuesOnly(state_int, state_sfc, z0m, z0h),
             )
 
             point_scales = FloatType[]
@@ -162,7 +162,7 @@ end
                     L_MO,
                     SF.PointValueScheme(),
                     z0m,
-                    z0b,
+                    z0h,
                 )
 
                 # Layer-averaged scheme
@@ -172,7 +172,7 @@ end
                     L_MO,
                     SF.LayerAverageScheme(),
                     z0m,
-                    z0b,
+                    z0h,
                 )
 
                 @test isfinite(u_scale_fd) && u_scale_fd > FloatType(0)
