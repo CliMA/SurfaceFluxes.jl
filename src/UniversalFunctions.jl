@@ -16,6 +16,8 @@ Supports the following universal functions:
  - [Gryanik et al.] (2020): [https://doi.org/10.1175/JAS-D-19-0255.1](https://doi.org/10.1175/JAS-D-19-0255.1)
  - [Grachev et al.] (2007): [https://doi.org/10.1007/s10546-007-9177-6](https://doi.org/10.1007/s10546-007-9177-6)
  - [Nishizawa & Kitamura] (2018): [https://doi.org/10.1029/2018MS001534](https://doi.org/10.1029/2018MS001534)
+ - [Panofsky et al.] (1977): [https://doi.org/10.1007/BF02186086](https://doi.org/10.1007/BF02186086)
+ - [Wyngaard et al.] (1971): [https://doi.org/10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2)
 """
 module UniversalFunctions
 
@@ -68,6 +70,20 @@ Type selecting heat/scalar-transfer stability functions (ϕₕ, ψₕ, Ψₕ).
 """
 struct HeatTransport <: AbstractTransportType end
 
+"""
+    MomentumVariance
+
+Type selecting momentum variance stability functions (ϕ_σu).
+"""
+struct MomentumVariance <: AbstractTransportType end
+
+"""
+    HeatVariance
+
+Type selecting heat/scalar variance stability functions (ϕ_σθ).
+"""
+struct HeatVariance <: AbstractTransportType end
+
 Base.broadcastable(tt::AbstractTransportType) = tuple(tt)
 Base.broadcastable(p::AbstractUniversalFunctionParameters) = tuple(p)
 
@@ -78,6 +94,14 @@ Universal stability function for wind shear (`ϕ_m`) and
 temperature gradient (`ϕ_h`)
 """
 function phi end
+
+"""
+    phi(p, ζ, u_star, w_star, transport)
+
+Extended similarity function allowing dependence on velocity scales (u_*, w_*).
+Default implementation falls back to `phi(p, ζ, transport)`.
+"""
+@inline phi(p, ζ, u_star, w_star, transport) = phi(p, ζ, transport)
 
 """
     psi(p, ζ, transport_type)
@@ -377,6 +401,70 @@ Volume-averaged Businger heat/scalar stability correction `Ψ_h`.
     end
 end
 
+# --- Variance Functions (Businger / Default) ---
+
+"""
+    phi(p::BusingerParams, ζ, ::MomentumVariance)
+
+Momentum variance similarity `ϕ_σu = σ_u / u_*`.
+
+# References
+ - Unstable (ζ < 0): Panofsky et al. (1977), with `ζ = zi / L` where `zi` 
+    is the mixed-layer height.
+ - Stable (ζ >= 0): Neutral limit constant (2.3), Panofsky & Dutton (1984)
+"""
+@inline function phi(p::BusingerParams, ζ, ::MomentumVariance)
+    FT = eltype(ζ)
+    if ζ < 0
+        # Panofsky et al. (1977): (12 + 0.5 * zi / |L|)^(1/3) -> (12 - 0.5 * ζ * (zi/Δz))^(1/3)
+        # Note: We interpret `ζ` here as the relevant stability parameter, which for 
+        # Panofsky et al. (1977) is `zi / L`. The caller must ensure this is passed correctly.
+        return cbrt(FT(12) - FT(0.5) * ζ)
+    else
+        return FT(2.3)
+    end
+end
+
+"""
+    phi(p::BusingerParams, ζ, u_star, w_star, ::MomentumVariance)
+
+Momentum variance (TKE) similarity based on Tan et al. (2018).
+Returns `sqrt(TKE) / u_*`.
+"""
+@inline function phi(p::BusingerParams, ζ, u_star, w_star, ::MomentumVariance)
+    FT = eltype(ζ)
+    if ζ < 0
+        # Tan et al. (2018) Eq. 22
+        # TKE = 3.75 u_*^2 + 0.2 w_*^2 + u_*^2 * (-ζ)^(2/3)
+        # We normalize by u_*^2 to keep the return type consistent.
+        w_ratio = w_star / u_star
+        tke_norm = FT(3.75) + FT(0.2) * w_ratio^2 + cbrt(-ζ)^2
+        return sqrt(tke_norm)
+    else
+        return sqrt(FT(3.75))
+    end
+end
+
+"""
+    phi(p::BusingerParams, ζ, ::HeatVariance)
+
+Heat variance similarity `ϕ_σθ = σ_θ / |θ_*|`.
+
+# References
+ - Unstable (ζ < 0): Wyngaard et al. (1971), with parameters from Tan et al. (2018)
+ - Stable (ζ >= 0): Constant (2.0)
+"""
+@inline function phi(p::BusingerParams, ζ, ::HeatVariance)
+    FT = eltype(ζ)
+    if ζ < 0
+        # Tan et al. (2018): f(ζ) = 2 * (1 - 8.3ζ)^(-1/3)
+        # (follows functional form in Wyngaard et al. (1971))
+        return FT(2) * cbrt(FT(1) / (FT(1) - FT(8.3) * ζ))
+    else
+        return FT(2.0)
+    end
+end
+
 #####
 ##### Gryanik
 #####
@@ -579,6 +667,18 @@ Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
     end
 end
 
+# Placeholder mappings for Gryanik (using Businger/standard variances for now)
+@inline phi(p::GryanikParams, ζ, tt::MomentumVariance) = phi(
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
+    ζ, 
+    tt
+)
+@inline phi(p::GryanikParams, ζ, tt::HeatVariance) = phi(
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
+    ζ, 
+    tt
+)
+
 #####
 ##### Grachev
 #####
@@ -762,6 +862,18 @@ Grachev heat/scalar stability correction `ψ_h`.
         return _psi_h_unstable(ζ, FT(b_h_unstable(p)))
     end
 end
+
+# Placeholder mappings for Grachev (using Businger/standard variances for now)
+@inline phi(p::GrachevParams, ζ, tt::MomentumVariance) = phi(
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
+    ζ, 
+    tt
+)
+@inline phi(p::GrachevParams, ζ, tt::HeatVariance) = phi(
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
+    ζ, 
+    tt
+)
 
 """
     bulk_richardson_number(uf_params, Δz, ζ, z0m, z0h)

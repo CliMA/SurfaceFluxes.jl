@@ -102,6 +102,8 @@ struct SurfaceFluxInputs{
 }
     Tin::FT
     qin::FT
+    ql_in::FT
+    qi_in::FT
     ρin::FT
     Ts_guess::FT
     qs_guess::FT
@@ -124,7 +126,7 @@ end
 
 Base.@kwdef mutable struct SurfaceFluxIterationState{FT}
     Ts::FT = FT(0)
-    qs::FT = FT(0)
+    qs::FT = FTSurfaceFluxIterationState(0)
     ustar::FT = FT(0.1)
     Cd::FT = FT(0)
     Ch::FT = FT(0)

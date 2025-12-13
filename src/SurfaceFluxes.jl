@@ -87,7 +87,53 @@ function surface_fluxes(
     update_Ts! = nothing,
     update_qs! = nothing,
 ) where {FT}
-    # 1. Build Inputs
+    return surface_fluxes(
+        param_set,
+        Tin,
+        qin,
+        zero(FT), # ql_in
+        zero(FT), # qi_in
+        ρin,
+        Ts_guess,
+        qs_guess,
+        Φs,
+        Δz,
+        d,
+        u_int,
+        u_sfc,
+        roughness_inputs,
+        config,
+        scheme,
+        solver_opts,
+        flux_specs,
+        update_Ts!,
+        update_qs!,
+    )
+end
+
+function surface_fluxes(
+    param_set::APS{FT},
+    Tin::FT,
+    qin::FT,
+    ql_in::FT,
+    qi_in::FT,
+    ρin::FT,
+    Ts_guess::FT,
+    qs_guess::FT,
+    Φs::FT,
+    Δz::FT,
+    d::FT,
+    u_int = nothing,
+    u_sfc = nothing,
+    roughness_inputs = nothing,
+    config = nothing,
+    scheme::SolverScheme = PointValueScheme(),
+    solver_opts = nothing,
+    flux_specs = nothing,
+    update_Ts! = nothing,
+    update_qs! = nothing,
+) where {FT}
+    # 1. Build inputs
     config_val = config === nothing ? default_surface_flux_config(FT) : config
     flux_specs_val = flux_specs === nothing ? FluxSpecs(FT) : flux_specs
     
@@ -95,6 +141,8 @@ function surface_fluxes(
         param_set,
         Tin,
         qin,
+        ql_in,
+        qi_in,
         ρin,
         Ts_guess,
         qs_guess,
@@ -177,7 +225,7 @@ function surface_fluxes(
 
     return surface_fluxes(
         param_set,
-        Tin, qin, ρin, Ts_guess, qs_guess, Φs, Δz, d,
+        Tin, qin, zero(FT), zero(FT), ρin, Ts_guess, qs_guess, Φs, Δz, d,
         u_int, u_sfc, nothing, config_val, scheme,
         SolverOptions(FT; kwargs...),
         flux_spec_args,
@@ -292,11 +340,11 @@ function compute_bulk_fluxes_with_coefficients(param_set::APS{FT}, inputs::Surfa
     Ts = inputs.Ts_guess
     qs = inputs.qs_guess
     ρ_sfc = surface_density(
-        TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)), # Approx
-        TD.gas_constant_air(thermo_params, TD.PhasePartition(inputs.qin)),
+        param_set,
         inputs.Tin,
         inputs.ρin,
-        Ts
+        Ts,
+        inputs.qin
     )
     
     # Coefficients
@@ -431,11 +479,11 @@ function (rf::ResidualFunction{FT})(ζ) where {FT}
 
     # 4. Compute Actual Bulk Richardson Number
     ρ_sfc_curr = surface_density(
-        TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)),
-        TD.gas_constant_air(thermo_params, TD.PhasePartition(inputs.qin)),
+        param_set,
         inputs.Tin,
         inputs.ρin,
-        Ts_curr
+        Ts_curr,
+        inputs.qin
     )
 
     if rf.iter_state !== nothing
@@ -618,11 +666,11 @@ function solve_monin_obukhov(param_set::APS{FT}, inputs::SurfaceFluxInputs{FT}, 
     # Re-calculate ρ_sfc here (as logic might have updated Ts)
     
     ρ_sfc = surface_density(
-        TD.cv_m(thermo_params, TD.PhasePartition(inputs.qin)), 
-        TD.gas_constant_air(thermo_params, TD.PhasePartition(inputs.qin)),
+        param_set,
         inputs.Tin,
         inputs.ρin,
-        Ts_val
+        Ts_val,
+        inputs.qin
     )
     
     (shf, lhf, buoy_flux, E, ρτxz, ρτyz) = compute_flux_components(

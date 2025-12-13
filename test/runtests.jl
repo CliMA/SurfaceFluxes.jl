@@ -48,6 +48,7 @@ end
 @testset "Physical correctness" begin
     # Tests for physical consistency (signs of fluxes, positivity of coefficients)
     include("test_bulk_fluxes.jl")
+    include("test_variance.jl")
 end
 
 @testset "Quality assurance" begin
