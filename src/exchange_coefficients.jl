@@ -33,6 +33,17 @@ function drag_coefficient(
 end
 
 """
+    drag_coefficient(inputs::SurfaceFluxInputs, speed)
+
+Compute the drag coefficient `Cd` from friction velocity (presumed to be in `inputs.ustar`) 
+and effective wind speed (including any gustiness factors).
+"""
+function drag_coefficient(inputs::SurfaceFluxInputs, speed)
+    ustar = inputs.ustar
+    return (ustar / speed)^2
+end
+
+"""
     heat_exchange_coefficient(param_set, L_MO, z0m, z0h, Δz, scheme)
 
 Compute the heat exchange coefficient `Ch` for scalar exchange.

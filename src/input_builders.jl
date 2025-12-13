@@ -30,6 +30,8 @@ function build_surface_flux_inputs(
     param_set::APS{FT},
     Tin,
     qin,
+    ql_in,
+    qi_in,
     ρin,
     Ts_guess,
     qs_guess,
@@ -58,6 +60,8 @@ function build_surface_flux_inputs(
     }(
         convert(FT, Tin),
         convert(FT, qin),
+        convert(FT, ql_in),
+        convert(FT, qi_in),
         convert(FT, ρin),
         convert(FT, Ts_guess),
         convert(FT, qs_guess),
