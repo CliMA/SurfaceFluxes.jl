@@ -246,7 +246,7 @@ function inputs_from_case(case, ::Type{FT}, param_set) where {FT}
     ρ_int = TD.air_density(thermo_params, case.ts_int)
     Ts = TD.air_temperature(thermo_params, case.ts_sfc)
     qs = TD.total_specific_humidity(thermo_params, case.ts_sfc)
-    
+
     # We construct minimal primitives
     return (;
         T_int, q_tot_int, ρ_int, Ts, qs,
@@ -279,7 +279,7 @@ end
         @testset "$(case.name)" begin
             inputs = inputs_from_case(case, FT, param_set)
             config = SF.SurfaceFluxConfig(inputs.roughness, inputs.gustiness, inputs.moisture_model)
-            
+
             result = SF.surface_fluxes(
                 param_set,
                 inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
@@ -287,7 +287,7 @@ end
                 inputs.Φs, inputs.Δz, inputs.d,
                 inputs.u_int, inputs.u_sfc,
                 nothing,
-                config
+                config,
             )
 
             for field in CASE_NUMERIC_FIELDS
@@ -318,7 +318,7 @@ end
     base_case = case_definitions(FT)[1]
     inputs = inputs_from_case(base_case, FT, param_set)
     config = SF.SurfaceFluxConfig(inputs.roughness, inputs.gustiness, inputs.moisture_model)
-    
+
     base_result = SF.surface_fluxes(
         param_set,
         inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
@@ -326,15 +326,15 @@ end
         inputs.Φs, inputs.Δz, inputs.d,
         inputs.u_int, inputs.u_sfc,
         nothing,
-        config
+        config,
     )
 
     z0m, z0h = base_case.z0m, base_case.z0h
-    
+
     @testset "Flux-prescribed" begin
         # Pass fluxes via FluxSpecs
-        flux_specs = SF.FluxSpecs(FT; shf=base_result.shf, lhf=base_result.lhf)
-        
+        flux_specs = SF.FluxSpecs(FT; shf = base_result.shf, lhf = base_result.lhf)
+
         flux_result = SF.surface_fluxes(
             param_set,
             inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
@@ -345,14 +345,14 @@ end
             config,
             SF.PointValueScheme(),
             nothing, # solver_opts
-            flux_specs
+            flux_specs,
         )
         @test isapprox(flux_result.L_MO, base_result.L_MO; rtol = FT(1e-3))
     end
 
     @testset "Flux+ustar prescribed" begin
-        flux_specs = SF.FluxSpecs(FT; shf=base_result.shf, lhf=base_result.lhf, ustar=base_result.ustar)
-        
+        flux_specs = SF.FluxSpecs(FT; shf = base_result.shf, lhf = base_result.lhf, ustar = base_result.ustar)
+
         result_fluxustar = SF.surface_fluxes(
             param_set,
             inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
@@ -363,7 +363,7 @@ end
             config,
             SF.PointValueScheme(),
             nothing, # solver_opts
-            flux_specs
+            flux_specs,
         )
         @test isapprox(
             result_fluxustar.ustar,
@@ -386,7 +386,7 @@ end
     end
 
     @testset "Coefficient-prescribed" begin
-        flux_specs = SF.FluxSpecs(FT; Cd=base_result.Cd, Ch=base_result.Ch)
+        flux_specs = SF.FluxSpecs(FT; Cd = base_result.Cd, Ch = base_result.Ch)
 
         coeff_result = SF.surface_fluxes(
             param_set,
@@ -398,7 +398,7 @@ end
             config,
             SF.PointValueScheme(),
             nothing, # solver_opts
-            flux_specs
+            flux_specs,
         )
         @test isapprox(
             coeff_result.ustar,

@@ -37,7 +37,7 @@ TD.PhaseEquil_ρTq(tp::MockThermoParams, ρ, T, q) = T
 # Parameters
 SFP.thermodynamics_params(::EarthParameterSet) = MockThermoParams(1004.0, 2.5e6, 287.0)
 SFP.uf_params(::EarthParameterSet) = UF.BusingerParams{Float64}(
-    Pr_0 = 0.74, a_m = 4.7, a_h = 4.7, b_m = 15.0, b_h = 9.0, ζ_a = 2.5, γ = 0.0
+    Pr_0 = 0.74, a_m = 4.7, a_h = 4.7, b_m = 15.0, b_h = 9.0, ζ_a = 2.5, γ = 0.0,
 )
 SFP.von_karman_const(::EarthParameterSet) = 0.4
 SFP.grav(::EarthParameterSet) = 9.81
@@ -49,7 +49,7 @@ const FT = Float64
 @testset "Surface flux primitives API" begin
     # Using mocked params instead of real construction to avoid issues
     # param_set and thermo_params are already defined globally above
-    
+
     T_int = FT(300)
     q_tot_int = FT(0.01)
     T_sfc_guess = FT(298)
@@ -143,21 +143,21 @@ end
     d = 0.0
     u_int = (10.0, 0.0)
     u_sfc = (0.0, 0.0)
-    
+
     # Configure with DryModel
     config = SF.SurfaceFluxConfig(
         SF.ConstantRoughnessParams(1e-3, 1e-3),
         SF.ConstantGustinessSpec(1.0),
-        SF.DryModel()
+        SF.DryModel(),
     )
-    
+
     # Call surface_fluxes
     sf = SF.surface_fluxes(
         param_set,
         T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
-        u_int, u_sfc, nothing, config
+        u_int, u_sfc, nothing, config,
     )
-    
+
     @test sf.lhf == 0.0
     @test sf.evaporation == 0.0
     @test sf.shf != 0.0 # Should be non-zero as T diff exists
@@ -168,9 +168,9 @@ end
     shf_pre = 100.0
     lhf_pre = 200.0
     ustar_pre = 0.5
-    
-    flux_specs = SF.FluxSpecs(FT; shf=shf_pre, lhf=lhf_pre, ustar=ustar_pre)
-    
+
+    flux_specs = SF.FluxSpecs(FT; shf = shf_pre, lhf = lhf_pre, ustar = ustar_pre)
+
     T_int = 300.0
     q_tot_int = 0.01
     ρ_int = 1.2
@@ -181,16 +181,16 @@ end
     d = 0.0
     u_int = (10.0, 0.0)
     u_sfc = (0.0, 0.0)
-    
+
     config = SF.default_surface_flux_config(FT)
-    
+
     sf = SF.surface_fluxes(
         param_set,
         T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
-        SF.PointValueScheme(), nothing, flux_specs
+        SF.PointValueScheme(), nothing, flux_specs,
     )
-    
+
     @test sf.shf == shf_pre
     @test sf.lhf == lhf_pre
     @test sf.ustar == ustar_pre
@@ -202,8 +202,8 @@ end
     # Prescribed Coefficients ONLY (Legacy path)
     Cd_pre = 1e-3
     Ch_pre = 1e-3
-    flux_specs = SF.FluxSpecs(FT; Cd=Cd_pre, Ch=Ch_pre)
-    
+    flux_specs = SF.FluxSpecs(FT; Cd = Cd_pre, Ch = Ch_pre)
+
     T_int = 300.0
     q_tot_int = 0.01
     ρ_int = 1.2
@@ -221,7 +221,7 @@ end
         param_set,
         T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
-        SF.PointValueScheme(), nothing, flux_specs
+        SF.PointValueScheme(), nothing, flux_specs,
     )
 
     @test sf.Cd == Cd_pre
@@ -231,8 +231,8 @@ end
 
 @testset "Prescribed Ustar Only" begin
     ustar_pre = 0.5
-    flux_specs = SF.FluxSpecs(FT; ustar=ustar_pre)
-    
+    flux_specs = SF.FluxSpecs(FT; ustar = ustar_pre)
+
     T_int = 300.0
     q_tot_int = 0.01
     ρ_int = 1.2
@@ -243,28 +243,29 @@ end
     d = 0.0
     u_int = (10.0, 0.0)
     u_sfc = (0.0, 0.0)
-    
+
     config = SF.default_surface_flux_config(FT)
-    
+
     sf = SF.surface_fluxes(
         param_set,
         T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
-        SF.PointValueScheme(), nothing, flux_specs
+        SF.PointValueScheme(), nothing, flux_specs,
     )
-    
+
     @test sf.ustar == ustar_pre
-    @test sf.Cd ≈ (ustar_pre / sqrt(10.0^2 + 1.0^2)) atol=0.1 # Approx check, gustiness is 1.0
+    @test sf.Cd ≈ (ustar_pre / sqrt(10.0^2 + 1.0^2)) atol = 0.1 # Approx check, gustiness is 1.0
     @test sf.shf != 0
-    
+
     # Test sensible_heat_flux default E
     # Manually call sensible_heat_flux to verify default arg
     shf_default_E = SF.sensible_heat_flux(
         param_set,
         SFP.thermodynamics_params(param_set),
         SF.build_surface_flux_inputs(
-             param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int, u_sfc, config,
-             nothing, SF.FluxSpecs(FT), nothing, nothing
+            param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+            u_int, u_sfc, config,
+            nothing, SF.FluxSpecs(FT), nothing, nothing,
         ),
         FT(0.01), # g_h
         T_int,
@@ -279,24 +280,25 @@ end
     ustar_test = FT(0.3)
     z0m_test = FT(1e-3)
     z0h_test = FT(1e-3)
-    
+
     # Rebuild inputs for the test call since sf is SurfaceFluxConditions
     inputs_test = SF.build_surface_flux_inputs(
-         param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int, u_sfc, config,
-         nothing, SF.FluxSpecs(FT), nothing, nothing
+        param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int,
+        u_sfc, config,
+        nothing, SF.FluxSpecs(FT), nothing, nothing,
     )
 
     shf_helper = SF.sensible_heat_flux(
         param_set,
         ζ_test,
         ustar_test,
-        inputs_test, 
+        inputs_test,
         z0m_test,
         z0h_test,
         T_sfc_guess,
         q_vap_sfc_guess,
         ρ_int,
-        SF.PointValueScheme()
+        SF.PointValueScheme(),
     )
     @test shf_helper isa FT
     @test shf_helper isa FT
@@ -307,7 +309,7 @@ end
         param_set,
         ζ_test,
         ustar_test,
-        inputs_test
+        inputs_test,
     )
     @test ws_helper isa FT
     @test ws_helper > 0
@@ -320,7 +322,7 @@ end
         inputs_test,
         z0m_test,
         z0h_test,
-        SF.PointValueScheme()
+        SF.PointValueScheme(),
     )
     @test gh_helper isa FT
     @test gh_helper isa FT
@@ -336,7 +338,7 @@ end
         z0h_test,
         q_vap_sfc_guess,
         ρ_int,
-        SF.PointValueScheme()
+        SF.PointValueScheme(),
     )
     @test evap_helper isa FT
     # Evaporation might be positive or negative depending on gradient, just check it runs
@@ -354,7 +356,7 @@ end
         z0h_test,
         q_vap_sfc_guess,
         ρ_int,
-        SF.PointValueScheme()
+        SF.PointValueScheme(),
     )
     @test lhf_helper isa FT
     @test !isnan(lhf_helper)

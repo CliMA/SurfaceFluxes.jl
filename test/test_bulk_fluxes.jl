@@ -165,18 +165,18 @@ end
         B_true = FT(0.05)
         ustar = FT(0.3)
         κ = SFP.von_karman_const(param_set)
-        L = -ustar^3 / (κ * B_true)
+        L = SF.obukhov_length(param_set, ustar, B_true)
         ζ = z_int / L # Using z_int as Δz from global scope in test
-        
+
         inputs = make_inputs(FT(300), FT(0.01), FT(1.2), FT(300), FT(0.01), (FT(10), FT(0)))
-        
+
         B_calc = SF.buoyancy_flux(param_set, ζ, ustar, inputs)
-        
+
         @test B_calc ≈ B_true
-        
+
         # Test negative B (stable)
         B_stable = FT(-0.01)
-        L_stable = -ustar^3 / (κ * B_stable) 
+        L_stable = SF.obukhov_length(param_set, ustar, B_stable)
         ζ_stable = z_int / L_stable
         B_calc_stable = SF.buoyancy_flux(param_set, ζ_stable, ustar, inputs)
         @test B_calc_stable ≈ B_stable

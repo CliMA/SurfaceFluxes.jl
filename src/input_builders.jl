@@ -56,11 +56,11 @@ function build_surface_flux_inputs(
         typeof(q_vap_sfc_guess),
         typeof(Φ_sfc),
         typeof(Δz),
-        typeof(d)
+        typeof(d),
     )
     u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
-    
+
     return SurfaceFluxInputs{
         FT,
         typeof(config.roughness),

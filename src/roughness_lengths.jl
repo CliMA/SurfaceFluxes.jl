@@ -333,15 +333,15 @@ function (ur::UstarResidual)(ustar)
     inputs = ur.inputs
     scheme = ur.scheme
     ζ = ur.ζ
-    
+
     # Ensure ustar is positive for physical consistency
     ustar_safe = max(ustar, FT(0))
     z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar_safe, param_set, inputs.roughness_inputs)
-    
+
     b_flux = buoyancy_flux(param_set, ζ, ustar_safe, inputs)
     gustiness_val = gustiness_value(inputs.gustiness_model, param_set, b_flux)
     ustar_calc = compute_ustar(param_set, ζ, z0m, inputs, scheme, gustiness_val)
-    
+
     return ustar - ustar_calc
 end
 
@@ -361,33 +361,33 @@ function compute_ustar_and_roughness(
     scheme,
 )
     FT = eltype(param_set)
-    
+
     if inputs.ustar !== nothing
         ustar = inputs.ustar
         z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
         return ustar, z0m, z0s
     end
-    
+
     u_star_guess_0 = FT(0.1)
     u_star_guess_1 = FT(1.0)
-    
+
     maxiter = 3
     tol = FT(0.1)
-    
+
     rf = UstarResidual(param_set, inputs, scheme, ζ)
-    
+
     sol = RS.find_zero(
         rf,
         RS.SecantMethod(u_star_guess_0, u_star_guess_1),
         RS.CompactSolution(),
         RS.SolutionTolerance(tol),
         maxiter,
-    ) 
+    )
     ustar = sol.root
-    
+
     ustar = max(ustar, eps(FT))
-    
+
     z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
-    
+
     return ustar, z0m, z0s
 end

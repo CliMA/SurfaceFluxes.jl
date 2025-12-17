@@ -43,7 +43,7 @@ eddies in unstable conditions, particularly important in low-wind regimes
     # Extract parameters
     β = SFP.gustiness_coeff(param_set)
     zi = SFP.gustiness_zi(param_set)
-    
+
     w_star = cbrt(max(buoyancy_flux * zi, 0))
     return β * w_star
 end

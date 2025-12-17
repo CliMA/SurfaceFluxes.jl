@@ -29,9 +29,9 @@ const FLOAT_TYPES = (Float32, Float64)
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         ts_int = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
         ts_sfc = TD.PhaseEquil{FT}(FT(1.2176297), FT(102852.51), FT(45087.812), FT(0.013232904), FT(291.96683))
-        
+
         thermo_params = SFP.thermodynamics_params(param_set)
-        
+
         T_int = TD.air_temperature(thermo_params, ts_int)
         q_tot_int = TD.total_specific_humidity(thermo_params, ts_int)
         ρ_int = TD.air_density(thermo_params, ts_int)
@@ -40,7 +40,7 @@ const FLOAT_TYPES = (Float32, Float64)
 
         for z_int in NEAR_ZERO_Z_LEVELS
             config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(1e-5), FT(1e-5)), SF.ConstantGustinessSpec(FT(1.0)))
-            
+
             sfc_output = SF.surface_fluxes(
                 param_set,
                 T_int, q_tot_int, ρ_int,
@@ -48,9 +48,9 @@ const FLOAT_TYPES = (Float32, Float64)
                 FT(0), FT(z_int), zero(FT),
                 (FT(0), FT(0)), (FT(0), FT(0)), # Zero wind for near-zero check?
                 nothing,
-                config
+                config,
             )
-            
+
             L_MO = sfc_output.L_MO
             @test L_MO != FT(0)
         end
@@ -63,7 +63,7 @@ end
     for (ii, FT) in enumerate(FLOAT_TYPES)
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         ts = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
-        
+
         thermo_params = SFP.thermodynamics_params(param_set)
         T_int = TD.air_temperature(thermo_params, ts)
         q_tot_int = TD.total_specific_humidity(thermo_params, ts)
@@ -76,7 +76,7 @@ end
             (ll, z0h) in enumerate(IDENTICAL_Z0)
 
             config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(z0m), FT(z0h)), SF.ConstantGustinessSpec(FT(1.0)))
-            
+
             sfc_output = SF.surface_fluxes(
                 param_set,
                 T_int, q_tot_int, ρ_int,
@@ -86,9 +86,9 @@ end
                 nothing,
                 config,
                 SF.PointValueScheme(),
-                SF.SolverOptions(FT; maxiter = 20)
+                SF.SolverOptions(FT; maxiter = 20),
             )
-            
+
             L = isinf(sfc_output.L_MO) ? FT(1e6) : sfc_output.L_MO
             sol_mat[ii, jj, kk, ll] = Float64(L)
         end

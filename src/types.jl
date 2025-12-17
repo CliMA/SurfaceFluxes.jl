@@ -137,10 +137,6 @@ struct SurfaceFluxInputs{
     Ch::Union{Nothing, FT}
 end
 
-
-
-
-
 """
     SurfaceFluxConditions
 
@@ -188,5 +184,3 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Monin-Obukhov length   = ", sfc.L_MO)
     println(io, "-----------------------")
 end
-
-

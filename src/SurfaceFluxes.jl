@@ -88,11 +88,11 @@ function surface_fluxes(
     q_ice_int = 0,
 )
     FT = eltype(param_set)
+
     # 1. Build inputs
     config_val = config === nothing ? default_surface_flux_config(FT) : config
     flux_specs_val = flux_specs === nothing ? FluxSpecs(FT) : flux_specs
-    
-    
+
     inputs = build_surface_flux_inputs(
         param_set,
         T_int,
@@ -113,18 +113,18 @@ function surface_fluxes(
         update_T_sfc,
         update_q_vap_sfc,
     )
-    
+
     # Dispatching based on availability:
     # Case A: Coefficients known
     if inputs.Cd !== nothing && inputs.Ch !== nothing
-        return compute_bulk_fluxes_with_coefficients(param_set, inputs, scheme)
+        return compute_fluxes_given_coefficients(param_set, inputs, scheme)
     end
 
     # Case B: Fully Prescribed Fluxes (shf, lhf, ustar known)
     if inputs.shf !== nothing && inputs.lhf !== nothing && inputs.ustar !== nothing
-         return compute_fluxes_from_prescribed(param_set, inputs, scheme)
+        return compute_fluxes_from_prescribed(param_set, inputs, scheme)
     end
-    
+
     # Case C: Standard MOST solve
     solver_opts_val = normalize_solver_options(param_set, solver_opts)
     return solve_monin_obukhov(param_set, inputs, scheme, solver_opts_val)
@@ -133,7 +133,7 @@ end
 function default_surface_flux_config(::Type{FT}) where {FT}
     return SurfaceFluxConfig(
         ConstantRoughnessParams(FT(1e-3), FT(1e-3)),
-        ConstantGustinessSpec(FT(1))
+        ConstantGustinessSpec(FT(1)),
     )
 end
 
@@ -142,16 +142,20 @@ end
 # ------------------------------------------------------------------------------
 
 """
-    compute_bulk_fluxes_with_coefficients(param_set, inputs, scheme)
+    compute_fluxes_given_coefficients(param_set, inputs, scheme)
 
 Computes fluxes when Cd and Ch are already known.
 """
-function compute_bulk_fluxes_with_coefficients(param_set::APS, inputs::SurfaceFluxInputs, scheme)
+function compute_fluxes_given_coefficients(
+    param_set::APS,
+    inputs::SurfaceFluxInputs,
+    scheme,
+)
+
     FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
-    
+
     # If update functions exist, we assume they are not needed for prescribed coefficients.
-    
     T_sfc = inputs.T_sfc_guess
     q_vap_sfc = inputs.q_vap_sfc_guess
     ρ_sfc = surface_density(
@@ -159,53 +163,129 @@ function compute_bulk_fluxes_with_coefficients(param_set::APS, inputs::SurfaceFl
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
-        inputs.q_tot_int
+        inputs.q_tot_int,
     )
-    
+
     # Coefficients
     Cd_in = inputs.Cd
     Ch_in = inputs.Ch
     if Cd_in === nothing || Ch_in === nothing
         # This function should only be called if both Cd and Ch are provided
-        error("Both Cd and Ch must be provided for compute_bulk_fluxes_with_coefficients")
+        error(
+            "Both Cd and Ch must be provided for compute_fluxes_given_coefficients",
+        )
     end
     Cd = Cd_in
     Ch = Ch_in
-    
+
     # We need gustiness to get ΔU.
     # For prescribed coefficients, we assume minimal or zero buoyancy flux for gustiness if not provided.
-    buoyancy_flux_val = FT(0) 
-    
+    buoyancy_flux_val = FT(0)
+
     # Fluxes
     (shf, lhf, E, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, buoyancy_flux_val
+        param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, buoyancy_flux_val,
     )
-    buoy_flux = buoyancy_flux(param_set, thermo_params, shf, lhf, T_sfc, q_vap_sfc, inputs.q_liq_int, inputs.q_ice_int, ρ_sfc, inputs.moisture_model)
-    
+    buoy_flux = buoyancy_flux(
+        param_set,
+        thermo_params,
+        shf,
+        lhf,
+        T_sfc,
+        q_vap_sfc,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        ρ_sfc,
+        inputs.moisture_model,
+    )
+
     # Helper to compute ustar from Cd
     # u*^2 = Cd * U^2
     ΔU = windspeed(inputs, param_set, buoyancy_flux_val)
     ustar = sqrt(Cd) * ΔU
-    
-    # Derived L_MO (if ustar > 0)
-    # L = -u*^3 / (k B_flux)
-    L_MO = zero(FT)
-    if non_zero(buoy_flux) != 0 && ustar > 0
-        κ = SFP.von_karman_const(param_set)
-        L_MO = -ustar^3 / (κ * buoy_flux)
-    end
-    
-    ζ = if non_zero(buoy_flux) != 0 && ustar > 0
-        inputs.Δz / L_MO
-    else
-        zero(FT)
-    end
-    
+
+    # Derived L_MO and stability parameter
+    L_MO = obukhov_length(param_set, ustar, buoy_flux)
+    ζ = obukhov_stability_parameter(param_set, inputs.Δz, ustar, buoy_flux)
+
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
         ustar, ζ, Cd, Ch,
-        L_MO
+        L_MO,
+    )
+end
+
+"""
+    compute_fluxes_from_prescribed(param_set, inputs, scheme)
+
+Computes diagnostics when ustar, shf, lhf are all prescribed.
+"""
+function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInputs, scheme)
+    FT = eltype(param_set)
+    # We assume state is known (or initial guess is sufficient).
+
+    T_sfc = inputs.T_sfc_guess
+    q_vap_sfc = inputs.q_vap_sfc_guess
+    ρ_sfc = surface_density(
+        param_set,
+        inputs.T_int,
+        inputs.ρ_int,
+        T_sfc,
+        inputs.q_tot_int,
+    )
+
+    thermo_params = SFP.thermodynamics_params(param_set)
+    model = inputs.moisture_model
+
+    # We need E for LHF calculation if LHF is prescribed but we need consistent E.
+    # However, flux functions handle prescribed returning if set.
+    g_h_dummy = FT(0)
+
+    E = evaporation(thermo_params, inputs, g_h_dummy, inputs.q_tot_int, q_vap_sfc, ρ_sfc, model)
+    lhf = latent_heat_flux(thermo_params, inputs, E, model)
+    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h_dummy, inputs.T_int, T_sfc, ρ_sfc, E)
+
+    # Compute buoyancy flux from prescribed fluxes
+    buoy_flux = buoyancy_flux(
+        param_set,
+        thermo_params,
+        shf,
+        lhf,
+        T_sfc,
+        q_vap_sfc,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        ρ_sfc,
+        model,
+    )
+
+    ustar = inputs.ustar
+
+    # Compute L_MO and stability parameter
+    L_MO = obukhov_length(param_set, ustar, buoy_flux)
+    ζ = obukhov_stability_parameter(param_set, inputs.Δz, ustar, buoy_flux)
+
+    # Compute Coefficients
+    ΔU = windspeed(inputs, param_set, buoy_flux)
+    Cd = (ustar / ΔU)^2
+
+    # If ustar is prescribed, we compute roughness from ustar.
+    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
+    z0h = z0s
+
+    # Compute Ch
+    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, inputs.Δz, scheme)
+
+    (shf_out, lhf_out, E_out, ρτxz, ρτyz) = compute_flux_components(
+        param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, buoy_flux,
+    )
+
+    return SurfaceFluxConditions(
+        shf_out, lhf_out, E_out,
+        ρτxz, ρτyz,
+        ustar, ζ, Cd, Ch,
+        L_MO,
     )
 end
 
@@ -227,98 +307,20 @@ function compute_flux_components(
 )
     FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
-    
+
     g_h = Ch * windspeed(inputs, param_set, b_flux)
     g_q = g_h
-    
+
     model = inputs.moisture_model
     E = evaporation(thermo_params, inputs, g_h, inputs.q_tot_int, qs, ρ_sfc, model)
     lhf = latent_heat_flux(thermo_params, inputs, E, model)
     shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h, inputs.T_int, Ts, ρ_sfc, E)
-    
+
     # Momentum fluxes
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
     (ρτxz, ρτyz) = momentum_fluxes(Cd, inputs, ρ_sfc, gustiness)
 
     return (shf, lhf, E, ρτxz, ρτyz)
-end
-
-
-
-"""
-    compute_fluxes_from_prescribed(param_set, inputs, scheme)
-
-Computes diagnostics when ustar, shf, lhf are all prescribed.
-"""
-function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInputs, scheme)
-    FT = eltype(param_set)
-    # We assume state is known (or initial guess is sufficient).
-    
-    T_sfc = inputs.T_sfc_guess
-    q_vap_sfc = inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.q_tot_int
-    )
-
-    # Compute B from prescribed fluxes
-    # We call buoyancy_flux directly (it will read inputs.shf/lhf)
-    thermo_params = SFP.thermodynamics_params(param_set)
-    model = inputs.moisture_model
-    
-    # We need E for LHF calculation if LHF is prescribed but we need consistent E.
-    # However, flux functions handle prescribed returning if set.
-    g_h_dummy = FT(0) 
-
-    E = evaporation(thermo_params, inputs, g_h_dummy, inputs.q_tot_int, q_vap_sfc, ρ_sfc, model)
-    lhf = latent_heat_flux(thermo_params, inputs, E, model)
-    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h_dummy, inputs.T_int, T_sfc, ρ_sfc, E)
-    
-    buoy_flux = buoyancy_flux(param_set, thermo_params, shf, lhf, T_sfc, q_vap_sfc, inputs.q_liq_int, inputs.q_ice_int, ρ_sfc, model)
-    
-    ustar = inputs.ustar
-
-    # Compute L_MO
-    L_MO = zero(FT)
-    if non_zero(buoy_flux) != 0 && ustar > 0
-        κ = SFP.von_karman_const(param_set)
-        L_MO = -ustar^3 / (κ * buoy_flux)
-    end
-    
-    # Compute Coefficients
-    ΔU = windspeed(inputs, param_set, buoy_flux)
-    # Cd = (u* / ΔU)^2
-    Cd = (ustar / ΔU)^2
-    
-    # If ustar is prescribed, we compute roughness from ustar.
-    
-    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
-    z0h = z0s
-    
-    # Check if we should use profile-based Ch or inverted Ch?
-    # Profile-based is consistent with L_MO and roughness.
-    ζ = inputs.Δz / L_MO
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, inputs.Δz, scheme)
-    
-    (shf_out, lhf_out, E_out, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, buoy_flux
-    )
-    
-    ζ = if non_zero(buoy_flux) != 0 && ustar > 0
-        inputs.Δz / L_MO
-    else
-        zero(FT)
-    end
-
-    return SurfaceFluxConditions(
-        shf_out, lhf_out, E_out,
-        ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
-        L_MO
-    )
 end
 
 struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
@@ -331,7 +333,7 @@ end
 
 function (rf::ResidualFunction)(ζ)
     FT = eltype(rf.param_set)
-    
+
     # Unpack parameters that do not change over iterations
     param_set = rf.param_set
     inputs = rf.inputs
@@ -341,10 +343,10 @@ function (rf::ResidualFunction)(ζ)
 
     # 1. Compute u_star and roughness lengths, iteratively if they are mutually dependent
     u_star, z0m, z0s = compute_ustar_and_roughness(
-        param_set, 
-        ζ, 
-        inputs, 
-        scheme, 
+        param_set,
+        ζ,
+        inputs,
+        scheme,
     )
     z0h = z0s # Assuming scalar roughness = heat roughness
 
@@ -355,7 +357,7 @@ function (rf::ResidualFunction)(ζ)
     else
         T_sfc_new = inputs.T_sfc_guess
     end
-    
+
     if inputs.update_q_vap_sfc !== nothing
         val = inputs.update_q_vap_sfc(ζ, param_set, thermo_params, inputs)
         q_vap_sfc_new = val isa FT ? val : inputs.q_vap_sfc_guess
@@ -369,13 +371,13 @@ function (rf::ResidualFunction)(ζ)
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_new,
-        inputs.q_tot_int
+        inputs.q_tot_int,
     )
-    
+
     # 4. Compute gustiness and ΔU
     # Use the buoyancy flux derived from the current ζ and ustar to calculate gustiness
     current_ΔU = windspeed(param_set, ζ, u_star, inputs)
-    
+
     # 5. Calculate state bulk Richardson number
     Rib_state = state_bulk_richardson_number(
         param_set,
@@ -384,7 +386,7 @@ function (rf::ResidualFunction)(ζ)
         T_sfc_new,
         q_vap_sfc_new,
         ρ_sfc,
-        current_ΔU
+        current_ΔU,
     )
 
     # 6. Evaluate residual
@@ -406,13 +408,13 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
     T_sfc_val = inputs.T_sfc_guess
     q_vap_sfc_val = inputs.q_vap_sfc_guess
     ρ_sfc_val = inputs.ρ_int
-    
+
     # Auxiliary variables constant during solve
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
     grav = SFP.grav(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
-    
+
     root_function = ResidualFunction(
         param_set,
         inputs,
@@ -420,16 +422,16 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
         uf_params,
         thermo_params,
     )
-    
+
     # Solve
     Ri_b_0 = root_function(FT(0.001))
-    
+
     x0, x1 = if Ri_b_0 < 0 # Stable
         (FT(0.01), FT(0.05))
     else # Unstable
         (FT(-0.01), FT(-0.05))
     end
-    
+
     sol = RS.find_zero(
         root_function,
         RS.SecantMethod(x0, x1),
@@ -437,11 +439,11 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
         RS.SolutionTolerance(options.tol),
         options.maxiter,
     )
-    
+
     # If failed, try other side?
     if !sol.converged
-         x0_alt, x1_alt = (-x0, -x1)
-         sol_alt = RS.find_zero(
+        x0_alt, x1_alt = (-x0, -x1)
+        sol_alt = RS.find_zero(
             root_function,
             RS.SecantMethod(x0_alt, x1_alt),
             RS.CompactSolution(),
@@ -453,7 +455,7 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
             ζ_final = sol.root
         else
             # Both failed.
-            if Ri_b_0 < 0 
+            if Ri_b_0 < 0
                 # Ri_b_state > 0 (Stable).
                 # Non-convergence in stable regime often implies Ri_b > Ri_critical.
                 # Collapse to laminar flow (large ζ).
@@ -467,15 +469,15 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
     else
         ζ_final = sol.root
     end
-    
+
     # Finalize state 
     # 1. Compute u_star and roughness
     # Consistent with ζ_final
     u_star_curr, z0m, z0s = compute_ustar_and_roughness(
-        param_set, 
-        ζ_final, 
-        inputs, 
-        scheme, 
+        param_set,
+        ζ_final,
+        inputs,
+        scheme,
     )
     z0h = z0s
 
@@ -491,14 +493,14 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
             q_vap_sfc_val = val
         end
     end
-    
+
     # Update ρ_sfc based on final state
     ρ_sfc_val = surface_density(
         param_set,
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_val,
-        inputs.q_tot_int
+        inputs.q_tot_int,
     )
 
     # Consistent gustiness/fluxes
@@ -509,16 +511,16 @@ function solve_monin_obukhov(param_set::APS, inputs::SurfaceFluxInputs, scheme, 
     Ch = inputs.Ch !== nothing ? inputs.Ch : heat_exchange_coefficient(param_set, ζ_final, z0m, z0h, inputs.Δz, scheme)
 
     (shf, lhf, E, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux_for_gustiness
+        param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux_for_gustiness,
     )
-    
-    L_MO = inputs.Δz / ζ_final
-    
+
+    L_MO = obukhov_length(param_set, u_star_curr, b_flux_for_gustiness)
+
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
         u_star_curr, ζ_final, Cd, Ch,
-        L_MO
+        L_MO,
     )
 end
 

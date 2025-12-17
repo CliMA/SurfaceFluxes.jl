@@ -98,9 +98,9 @@ function heat_conductance(
 )
     # Compute Ch
     Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, inputs.Δz, scheme)
-    
+
     # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
     current_speed = windspeed(param_set, ζ, ustar, inputs)
-    
+
     return Ch * current_speed
 end

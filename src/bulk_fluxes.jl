@@ -63,10 +63,10 @@ function sensible_heat_flux(
 
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
-    
+
     # Compute evaporation (needed for SHF correction)
     E = evaporation(thermo_params, inputs, g_h, inputs.q_tot_int, q_vap_sfc, ρ_sfc, inputs.moisture_model)
-    
+
     return sensible_heat_flux(
         param_set,
         thermo_params,
@@ -75,7 +75,7 @@ function sensible_heat_flux(
         inputs.T_int,
         T_sfc,
         ρ_sfc,
-        E
+        E,
     )
 end
 
@@ -150,7 +150,7 @@ function evaporation(
 )
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
-    
+
     thermo_params = SFP.thermodynamics_params(param_set)
     return evaporation(
         thermo_params,
@@ -159,7 +159,7 @@ function evaporation(
         inputs.q_tot_int,
         q_vap_sfc,
         ρ_sfc,
-        inputs.moisture_model
+        inputs.moisture_model,
     )
 end
 
@@ -232,7 +232,7 @@ function latent_heat_flux(
         ρ_sfc,
         scheme,
     )
-    
+
     thermo_params = SFP.thermodynamics_params(param_set)
     return latent_heat_flux(thermo_params, inputs, E, inputs.moisture_model)
 end
@@ -398,14 +398,14 @@ function state_bulk_richardson_number(
     q_tot_int = inputs.q_tot_int
     q_liq_int = inputs.q_liq_int
     q_ice_int = inputs.q_ice_int
-    
+
     # Assume condensate concentration is the same at the surface and in the interior
     theta_v_sfc = TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot_sfc, q_liq_int, q_ice_int)
     theta_v_int = TD.virtual_pottemp(thermo_params, inputs.T_int, inputs.ρ_int, q_tot_int, q_liq_int, q_ice_int)
-    
+
     Δtheta_v = theta_v_int - theta_v_sfc
     theta_v_ref = theta_v_int
-    
+
     Rib_state = (grav * inputs.Δz * Δtheta_v) / (theta_v_ref * ΔU^2)
     return Rib_state
 end

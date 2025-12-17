@@ -47,8 +47,3 @@ for the temperature ratio between the interior and surface.
     ratio = T_sfc / T_int
     return ρ_int * ratio^(cv_m / R_m)
 end
-
-
-
-
-

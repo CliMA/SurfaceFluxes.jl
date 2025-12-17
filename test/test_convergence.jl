@@ -28,9 +28,11 @@ struct CharnockMock{FT} <: SF.AbstractRoughnessParams
     alpha::FT
     z0s::FT
 end
-SF.momentum_roughness(spec::CharnockMock, ustar, param_set, args...) = spec.alpha * max(ustar, 0)^2 / SFP.grav(param_set)
+SF.momentum_roughness(spec::CharnockMock, ustar, param_set, args...) =
+    spec.alpha * max(ustar, 0)^2 / SFP.grav(param_set)
 SF.scalar_roughness(spec::CharnockMock, ustar, param_set, args...) = spec.z0s
-SF.momentum_and_scalar_roughness(spec::CharnockMock, ustar, param_set, args...) = (SF.momentum_roughness(spec, ustar, param_set, args...), spec.z0s)
+SF.momentum_and_scalar_roughness(spec::CharnockMock, ustar, param_set, args...) =
+    (SF.momentum_roughness(spec, ustar, param_set, args...), spec.z0s)
 
 charnock_momentum(; alpha, scalar) = CharnockMock(alpha, scalar)
 
@@ -94,15 +96,15 @@ function build_surface_inputs(param_set, case)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
     ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
-    
+
     grav = SFP.grav(param_set)
     Φs = FT(0) # Surface at z=0 relative to layer? 
     # Actually case.z is likely relative height given use in StateValues(..., z, ...)
     # Let's assume surface is at 0 geopotential for simplicity or calculate from 0 if needed.
     # In original: Φs = grav * sc.state_sfc.z. sc.state_sfc was initialized with 0.
-    
+
     Δz = case.z # Since sfc z was 0.
-    
+
     return (;
         T_int = case.T_int,
         q_tot_int = case.qt_int,
@@ -119,7 +121,7 @@ end
 
 function compute_ΔDSEᵥ(param_set, inputs, T_sfc, q_sfc, T_int, q_int, Φ_sfc, Φ_int)
     thermo_params = SFP.thermodynamics_params(param_set)
-    
+
     function local_ΔDSEᵥ(param_set, T_int, q_int, Φ_int, T_sfc, q_sfc, Φ_sfc)
         cp_d = SFP.cp_d(param_set)
         Tv_int = TD.virtual_temperature(SFP.thermodynamics_params(param_set), T_int, q_int)
@@ -128,24 +130,24 @@ function compute_ΔDSEᵥ(param_set, inputs, T_sfc, q_sfc, T_int, q_int, Φ_sfc,
         DSEv_sfc = cp_d * Tv_sfc + Φ_sfc
         return DSEv_int - DSEv_sfc
     end
-    
+
     return local_ΔDSEᵥ(param_set, T_int, q_int, Φ_int, T_sfc, q_sfc, Φ_sfc)
 end
 
 function assert_flux_expectations(result, case, FT, param_set, inputs)
     Δqt = case.qt_int - case.qt_sfc
-    
+
     grav = SFP.grav(param_set)
     Φ_int = grav * inputs.Δz
     Φ_sfc = inputs.Φ_sfc # 0
-    
+
     ΔDSEᵥ = compute_ΔDSEᵥ(
-        param_set, inputs, 
-        case.T_sfc, case.qt_sfc, 
-        case.T_int, case.qt_int, 
-        Φ_sfc, Φ_int
+        param_set, inputs,
+        case.T_sfc, case.qt_sfc,
+        case.T_int, case.qt_int,
+        Φ_sfc, Φ_int,
     )
-    
+
     heat_tolerance = FT(SFP.cp_d(param_set) * TEMP_NEUTRAL_THRESHOLD)
     if abs(ΔDSEᵥ) > heat_tolerance
         expected_heat_sign = -sign(ΔDSEᵥ)
@@ -193,17 +195,17 @@ end
             for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
                 inputs = build_surface_inputs(param_set, case)
                 config = config_factory(case.z0m, case.z0h)
-                
+
                 result = SF.surface_fluxes(
                     param_set,
                     inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
                     inputs.T_sfc_guess, inputs.q_vap_sfc_guess,
                     inputs.Φ_sfc, inputs.Δz, inputs.d,
-                    inputs.u_int, inputs.u_sfc, 
+                    inputs.u_int, inputs.u_sfc,
                     nothing, # roughness_inputs
                     config,
                     scheme,
-                    SF.SolverOptions(FT; maxiter = 15)
+                    SF.SolverOptions(FT; maxiter = 15),
                 )
                 assert_flux_expectations(result, case, FT, param_set, inputs)
             end

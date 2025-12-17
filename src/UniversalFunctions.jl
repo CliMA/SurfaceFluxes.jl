@@ -669,14 +669,14 @@ end
 
 # Placeholder mappings for Gryanik (using Businger/standard variances for now)
 @inline phi(p::GryanikParams, ζ, tt::MomentumVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
-    ζ, 
-    tt
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
+    ζ,
+    tt,
 )
 @inline phi(p::GryanikParams, ζ, tt::HeatVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
-    ζ, 
-    tt
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
+    ζ,
+    tt,
 )
 
 #####
@@ -865,14 +865,14 @@ end
 
 # Placeholder mappings for Grachev (using Businger/standard variances for now)
 @inline phi(p::GrachevParams, ζ, tt::MomentumVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
-    ζ, 
-    tt
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
+    ζ,
+    tt,
 )
 @inline phi(p::GrachevParams, ζ, tt::HeatVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)), 
-    ζ, 
-    tt
+    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
+    ζ,
+    tt,
 )
 
 """
