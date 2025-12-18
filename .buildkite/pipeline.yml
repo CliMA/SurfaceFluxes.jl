@@ -8,10 +8,13 @@ env:
   OPENBLAS_NUM_THREADS: 1
   JULIA_NVTX_CALLBACKS: gc
   OMPI_MCA_opal_warn_on_missing_libcuda: 0
+  JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/default"
 
 steps:
   - label: "init env"
     key: "init_env"
+    concurrency: 1
+    concurrency_group: 'depot/surfacefluxes-ci'
     command:
       - "echo $JULIA_DEPOT_PATH"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
