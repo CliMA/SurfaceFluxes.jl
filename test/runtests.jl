@@ -19,6 +19,7 @@ const ArrayType = Array
 const FloatType = Float32  # Default scalar type used in several tests
 
 include("test_utils.jl")  # common testing utilities (e.g. @test_allocs_and_ts)
+include("test_mocks.jl")  # shared mock parameter sets
 
 @info "CPU Tests"
 @info ArrayType
@@ -27,6 +28,9 @@ include("test_finite_difference_vs_finite_volume.jl")  # Finite-difference vs FV
 include("test_floating_point_consistency.jl")         # Float32 vs Float64 and near-zero L_MO consistency
 include("test_surface_fluxes_api.jl")                 # Primitive API regressions
 include("test_coare3.jl")                             # COARE 3.0 roughness tests
+include("test_gustiness.jl")                          # Gustiness parameterization tests
+include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
+include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
 
 @testset "Regression tests" begin
     # Regression tests with predefined (mostly stable) test cases.

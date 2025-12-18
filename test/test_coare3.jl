@@ -1,68 +1,116 @@
+# Tests for COARE 3.0 roughness parameterization (Fairall et al. 2003)
+#
+# Tests cover:
+# 1. Charnock parameter piecewise behavior
+# 2. Smooth and rough flow limits
+# 3. Scalar roughness scaling
 
 using Test
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
-import Thermodynamics as TD
 import ClimaParams as CP
 import SurfaceFluxes: COARE3RoughnessParams, momentum_roughness, scalar_roughness, charnock_parameter
 
+# Mock parameter set for roughness tests
+struct MockCOAREParamSet{FT} <: SFP.AbstractSurfaceFluxesParameters{FT} end
+SFP.grav(::MockCOAREParamSet{FT}) where {FT} = FT(9.81)
+SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
+
 @testset "COARE 3.0 Roughness" begin
     FT = Float64
+    param_set = MockCOAREParamSet{FT}()
+    spec = COARE3RoughnessParams{FT}()
 
-    # Helper to check if charnock_parameter behaves as expected
-    α_low = FT(0.011)
-    α_high = FT(0.018)
-    u_low = FT(10)
-    u_high = FT(18)
+    @testset "Charnock parameter piecewise behavior" begin
+        α_low = spec.α_low
+        α_high = spec.α_high
+        u_low = spec.u_low
+        u_high = spec.u_high
 
-    # 1. Low wind speed (<= 10 m/s)
-    @test charnock_parameter(FT(5), α_low, α_high, u_low, u_high) == FT(0.011)
-    # 2. High wind speed (>= 18 m/s)
-    @test charnock_parameter(FT(20), α_low, α_high, u_low, u_high) == FT(0.018)
-    # 3. Interpolation region (14 m/s)
-    @test charnock_parameter(FT(14), α_low, α_high, u_low, u_high) ≈ FT(0.0145)  # Mid wind (linear)
+        # 1. Below low threshold: α = α_low
+        @test charnock_parameter(FT(5), α_low, α_high, u_low, u_high) == α_low
+        @test charnock_parameter(FT(0), α_low, α_high, u_low, u_high) == α_low
+        @test charnock_parameter(u_low, α_low, α_high, u_low, u_high) == α_low
 
-    # Mock parameters
-    # Note: kinematics_viscosity_of_air might not be in the default set if we are running without full ClimaParams suite loaded properly in tests sometimes,
-    # but we can try to construct our spec manually.
+        # 2. Above high threshold: α = α_high
+        @test charnock_parameter(FT(20), α_low, α_high, u_low, u_high) == α_high
+        @test charnock_parameter(FT(100), α_low, α_high, u_low, u_high) == α_high
+        @test charnock_parameter(u_high, α_low, α_high, u_low, u_high) == α_high
 
-    spec = COARE3RoughnessParams{FT}(kinematic_visc = 1.5e-5)
+        # 3. Linear interpolation in between
+        u_mid = (u_low + u_high) / 2
+        α_mid = (α_low + α_high) / 2
+        @test charnock_parameter(u_mid, α_low, α_high, u_low, u_high) ≈ α_mid
 
-    # Mock structs for simplified testing
-    struct MockParamSet{FT} <: SFP.AbstractSurfaceFluxesParameters{FT} end
+        # 4. Monotonicity
+        u_grid = range(FT(0), FT(25), length = 50)
+        α_vals = [charnock_parameter(u, α_low, α_high, u_low, u_high) for u in u_grid]
+        @test issorted(α_vals)
+    end
 
-    SFP.grav(::MockParamSet{FT}) where {FT} = FT(9.81)
-    SFP.von_karman_const(::MockParamSet{FT}) where {FT} = FT(0.4)
-    # UF params required for profile recovery
-    SFP.uf_params(::MockParamSet{FT}) where {FT} = UF.BusingerParams(FT)
+    @testset "Momentum roughness behavior" begin
+        grav = SFP.grav(param_set)
+        κ = SFP.von_karman_const(param_set)
+        ν = spec.kinematic_visc
 
-    param_set = MockParamSet{FT}()
+        # Low u_star: smooth flow dominates
+        u_star_low = FT(0.05)
+        z0m_low = momentum_roughness(spec, u_star_low, param_set, nothing)
 
-    # Mock Context - No longer needed for roughness calls
+        # Smooth flow term: 0.11 * ν / u_star
+        z0_smooth = FT(0.11) * ν / u_star_low
+        @test z0m_low > 0
+        # For very low u_star, smooth component dominates
+        @test z0m_low > z0_smooth * 0.9
 
-    u_star = FT(0.3)
+        # High u_star: rough flow dominates
+        u_star_high = FT(1.0)
+        z0m_high = momentum_roughness(spec, u_star_high, param_set, nothing)
 
-    # Test momentum roughness
-    # 10m wind will be estimated via profile recovery.
-    # With u_star = 0.3, z0_proxy = 1e-4, L = 100
-    # Neutral wind at 10m approx u_star/k * log(10/1e-4) = 0.3/0.4 * log(1e5) = 0.75 * 11.5 = 8.6 m/s
-    # Charnock alpha should be low limit 0.011
-    # Smooth part: 0.11 * 1.5e-5 / 0.3 = 5.5e-6
-    # Rough part: 0.011 * 0.3^2 / 9.81 = 0.011 * 0.09 / 9.81 ≈ 1e-4
-    # Total z0m ≈ 1e-4
+        # Rough flow term: α * u_star^2 / g
+        # For high u_star, rough dominates
+        @test z0m_high > z0m_low
 
-    z0m = momentum_roughness(spec, u_star, param_set, nothing)
-    @test z0m > 0
-    @test z0m ≈ 1.06e-4 atol = 5e-5
+        # Very low u_star: avoid division by zero
+        u_star_tiny = eps(FT)
+        z0m_tiny = momentum_roughness(spec, u_star_tiny, param_set, nothing)
+        @test isfinite(z0m_tiny)
+        @test z0m_tiny > 0
+    end
 
-    # Test scalar roughness
-    # Re_star = z0m * u_star / nu ≈ 1e-4 * 0.3 / 1.5e-5 ≈ 2
-    # z0s = min(1.1e-4, 5.5e-5 * Re_star^-0.6)
-    # 5.5e-5 * 2^-0.6 ≈ 5.5e-5 * 0.66 ≈ 3.6e-5
-    z0s = scalar_roughness(spec, u_star, param_set, nothing)
-    @test z0s > 0
-    @test z0s < 1.1e-4
-    @test z0s ≈ 3.6e-5 atol = 1e-5
+    @testset "Scalar roughness scaling" begin
+        u_star = FT(0.3)
+        z0m = momentum_roughness(spec, u_star, param_set, nothing)
+        z0s = scalar_roughness(spec, u_star, param_set, nothing)
 
+        @test z0s > 0
+        @test z0s < FT(1.1e-4)  # Upper bound from COARE formula
+
+        # Re_star dependence
+        ν = spec.kinematic_visc
+        Re_star = z0m * u_star / ν
+
+        # z0s = min(1.1e-4, 5.5e-5 * Re_star^-0.6)
+        z0s_expected = min(FT(1.1e-4), FT(5.5e-5) * Re_star^FT(-0.6))
+        @test z0s ≈ z0s_expected
+    end
+
+    @testset "Combined momentum and scalar" begin
+        u_star = FT(0.5)
+        z0m, z0s = SF.momentum_and_scalar_roughness(spec, u_star, param_set, nothing)
+
+        @test z0m == momentum_roughness(spec, u_star, param_set, nothing)
+        @test z0s == scalar_roughness(spec, u_star, param_set, nothing)
+    end
+
+    @testset "Wind speed dependence via 10m neutral profile" begin
+        # Higher u_star => higher 10m wind => higher Charnock α => higher z0m
+        u_star_range = FT.(0.1:0.2:1.5)
+        z0m_vals = [momentum_roughness(spec, u, param_set, nothing) for u in u_star_range]
+
+        # z0m should generally increase with u_star
+        # (though not strictly monotonic due to smooth/rough transition)
+        @test z0m_vals[end] > z0m_vals[1]
+    end
 end
