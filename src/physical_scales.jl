@@ -145,14 +145,11 @@ end
 Computes the Monin-Obukhov length [m].
 Returns zero if `buoy_flux` is too small (using `non_zero`) or `ustar` is zero.
 """
-function obukhov_length(param_set::APS, ustar, buoy_flux)
+@inline function obukhov_length(param_set::APS, ustar, buoy_flux)
     FT = eltype(param_set)
-    if non_zero(buoy_flux) != 0 && ustar > 0
-        κ = SFP.von_karman_const(param_set)
-        return -ustar^3 / (κ * buoy_flux)
-    else
-        return zero(FT)
-    end
+    κ = SFP.von_karman_const(param_set)
+    L_MO_raw = -ustar^3 / (κ * non_zero(buoy_flux))
+    return ifelse(non_zero(buoy_flux) != 0 && ustar > 0, L_MO_raw, zero(FT))
 end
 
 """
@@ -161,12 +158,8 @@ end
 Computes the Monin-Obukhov stability parameter `ζ = Δz / L_MO`.
 Returns zero if `buoy_flux` is too small (using `non_zero`) or `ustar` is zero.
 """
-function obukhov_stability_parameter(param_set::APS, Δz, ustar, buoy_flux)
+@inline function obukhov_stability_parameter(param_set::APS, Δz, ustar, buoy_flux)
     FT = eltype(param_set)
     L_MO = obukhov_length(param_set, ustar, buoy_flux)
-    if L_MO != 0
-        return Δz / L_MO
-    else
-        return zero(FT)
-    end
+    return ifelse(L_MO != 0, Δz / L_MO, zero(FT))
 end

@@ -26,8 +26,8 @@ Parameters for SurfaceFluxes.jl.
 - `von_karman_const`: Von Karman constant
 - `ufp`: Universal function parameters
 - `thermo_params`: Thermodynamics parameters
-- `z0m_fixed`: [m] Fixed roughness length for momentum (for testing)
-- `z0s_fixed`: [m] Fixed roughness length for scalars (for testing)
+- `z0m_fixed`: [m] Fixed roughness length for momentum 
+- `z0s_fixed`: [m] Fixed roughness length for scalars 
 - `gustiness_coeff`: Scaling coefficient for Deardorff gustiness (often β)
 - `gustiness_zi`: [m] Boundary layer height for gustiness (if fixed)
 """

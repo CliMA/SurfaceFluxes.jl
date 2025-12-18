@@ -40,7 +40,7 @@ function case_definitions(::Type{FT}) where {FT}
                 275.1768f0,
             ),
             expected = (;  # Regression targets
-                L_MO = FT(1.0154548e6),
+                L_MO = FT(906302.9),
                 shf = FT(-20.373146),
                 lhf = FT(-0.69898504),
                 buoy_flux = FT(-0.0005755669),

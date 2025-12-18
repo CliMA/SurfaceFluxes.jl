@@ -1,9 +1,3 @@
-
-
-@inline function flux_spec(param_set::APS; kwargs...)
-    return FluxSpecs(param_set; kwargs...)
-end
-
 gustiness_constant(val) = ConstantGustinessSpec(val)
 
 # Velocity normalization helper (moved from types.jl)

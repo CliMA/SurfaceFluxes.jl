@@ -3,13 +3,11 @@
 
 Ensure that `v` is not zero, returning `eps(v)` (preserving sign) if `v` is too small.
 """
-function non_zero(v::FT) where {FT}
-    sign_of_v = v == 0 ? 1 : sign(v)
-    return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
+@inline function non_zero(v)
+    FT = typeof(v)
+    threshold = eps(FT)
+    return ifelse(abs(v) < threshold, copysign(threshold, v + threshold), v)
 end
-
-
-
 
 @inline function interior_geopotential(param_set::APS, inputs::SurfaceFluxInputs)
     return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz

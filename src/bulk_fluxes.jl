@@ -17,7 +17,7 @@ or sensible heat, plus potential energy Φ_sfc) carried by evaporating water.
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed sensible heat flux conditions.
 """
-function sensible_heat_flux(
+@inline function sensible_heat_flux(
     param_set::APS,
     thermo_params,
     inputs::SurfaceFluxInputs,
@@ -47,7 +47,7 @@ Computes the sensible heat flux given the Monin-Obukhov stability parameter `ζ`
 friction velocity `ustar`, roughness lengths, and surface state.
 Useful for computing fluxes from variables available inside the solver loop.
 """
-function sensible_heat_flux(
+@inline function sensible_heat_flux(
     param_set::APS,
     ζ,
     ustar,
@@ -98,7 +98,7 @@ If `inputs.lhf` is provided (not `nothing`), the function returns the evaporatio
 rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 `LH_v0` is the latent heat of vaporization at the reference temperature.
 """
-function evaporation(
+@inline function evaporation(
     thermo_params,
     inputs::SurfaceFluxInputs,
     g_h,
@@ -116,7 +116,7 @@ function evaporation(
     return -ρ_sfc * g_h * Δq_vap
 end
 
-function evaporation(
+@inline function evaporation(
     thermo_params,
     inputs::SurfaceFluxInputs,
     g_h,
@@ -137,7 +137,7 @@ Computes the evaporation rate given the Monin-Obukhov stability parameter `ζ`,
 friction velocity `ustar`, roughness lengths, and surface state.
 Calculates conductance internally.
 """
-function evaporation(
+@inline function evaporation(
     param_set::APS,
     ζ,
     ustar,
@@ -178,7 +178,7 @@ and `E` is the evaporation rate.
 If `inputs.lhf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed latent heat flux conditions.
 """
-function latent_heat_flux(
+@inline function latent_heat_flux(
     thermo_params,
     inputs::SurfaceFluxInputs,
     E,
@@ -192,7 +192,7 @@ function latent_heat_flux(
     return LH_v0 * E
 end
 
-function latent_heat_flux(
+@inline function latent_heat_flux(
     thermo_params,
     inputs::SurfaceFluxInputs,
     E,
@@ -210,7 +210,7 @@ Computes the latent heat flux given the Monin-Obukhov stability parameter `ζ`,
 friction velocity `ustar`, roughness lengths, and surface state.
 Calculates conductance and evaporation internally.
 """
-function latent_heat_flux(
+@inline function latent_heat_flux(
     param_set::APS,
     ζ,
     ustar,
@@ -258,7 +258,7 @@ Arguments:
  - `q_liq_sfc`: Specific humidity of liquid water at the surface.
  - `q_ice_sfc`: Specific humidity of ice at the surface.
 """
-function buoyancy_flux(
+@inline function buoyancy_flux(
     param_set::APS,
     thermo_params,
     shf,
@@ -288,7 +288,7 @@ function buoyancy_flux(
     return (grav / ρ_sfc) * (term_shf + term_lhf)
 end
 
-function buoyancy_flux(
+@inline function buoyancy_flux(
     param_set::APS,
     thermo_params,
     shf,
@@ -326,7 +326,7 @@ The relationship is derived from the definition of the Obukhov length:
     ζ = Δz / L
     => B = -(u_*^3 * ζ) / (κ * Δz)
 """
-function buoyancy_flux(
+@inline function buoyancy_flux(
     param_set::APS,
     ζ,
     ustar,
@@ -354,7 +354,7 @@ where:
 
 Returns a tuple `(ρτxz, ρτyz)`.
 """
-function momentum_fluxes(
+@inline function momentum_fluxes(
     Cd,
     inputs::SurfaceFluxInputs,
     ρ_sfc,
@@ -383,7 +383,7 @@ Computes the bulk Richardson number from the given state.
 
 Returns the bulk Richardson number.
 """
-function state_bulk_richardson_number(
+@inline function state_bulk_richardson_number(
     param_set::APS,
     thermo_params,
     inputs::SurfaceFluxInputs,
