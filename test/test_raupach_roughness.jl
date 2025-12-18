@@ -22,7 +22,7 @@ SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for
     spec = SF.RaupachRoughnessParams{FT}()
     u_star = FT(0.3)
 
-    @testset "Basic functionality" begin
+    @testset "Basic Functionality" begin
         # Normal canopy: LAI = 3, h = 10m
         inputs = (LAI = FT(3.0), h = FT(10.0))
 
@@ -35,7 +35,7 @@ SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for
         @test z0m < inputs.h  # Roughness length < canopy height
     end
 
-    @testset "LAI dependence" begin
+    @testset "LAI Dependence" begin
         h = FT(10.0)
 
         # Raupach formula is non-monotonic in LAI due to exponential term
@@ -55,7 +55,7 @@ SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for
     end
 
 
-    @testset "Canopy height dependence" begin
+    @testset "Canopy Height Dependence" begin
         LAI = FT(3.0)
 
         # Taller canopy => Higher z0m
@@ -68,7 +68,7 @@ SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for
         @test z0m_tall > z0m_short
     end
 
-    @testset "Zero/very low LAI fallback" begin
+    @testset "Zero/Very Low LAI Fallback" begin
         # With zero LAI, should fall back to fixed roughness
         inputs_zero = (LAI = FT(0.0), h = FT(10.0))
         z0m_zero = SF.momentum_roughness(spec, u_star, param_set, inputs_zero)
@@ -76,7 +76,7 @@ SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for
         @test z0m_zero ≈ SFP.z0m_fixed(param_set)
     end
 
-    @testset "Stanton number scaling" begin
+    @testset "Stanton Number Scaling" begin
         inputs = (LAI = FT(3.0), h = FT(10.0))
 
         z0m, z0s = SF.momentum_and_scalar_roughness(spec, u_star, param_set, inputs)

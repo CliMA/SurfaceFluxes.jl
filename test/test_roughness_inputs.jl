@@ -11,16 +11,31 @@ struct LAIRoughnessParams{FT} <: SF.AbstractRoughnessParams
 end
 
 # Define roughness methods for the custom model
-function SF.momentum_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
+function SF.momentum_roughness(
+    spec::LAIRoughnessParams{FT},
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+) where {FT}
     # Simple fake formula: z0 = base_z0 * LAI
     return spec.base_z0 * roughness_inputs.LAI
 end
 
-function SF.scalar_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
+function SF.scalar_roughness(
+    spec::LAIRoughnessParams{FT},
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+) where {FT}
     return spec.base_z0 * roughness_inputs.LAI * FT(0.1)
 end
 
-function SF.momentum_and_scalar_roughness(spec::LAIRoughnessParams{FT}, u★, sfc_param_set, roughness_inputs) where {FT}
+function SF.momentum_and_scalar_roughness(
+    spec::LAIRoughnessParams{FT},
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+) where {FT}
     z0m = SF.momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
     z0s = SF.scalar_roughness(spec, u★, sfc_param_set, roughness_inputs)
     return (z0m, z0s)
@@ -32,13 +47,14 @@ end
     thermo_params = SFP.thermodynamics_params(param_set)
 
     T_int = FT(300)
+    p_int = FT(1e5)
     q_tot_int = FT(0.01)
     T_sfc_guess = FT(302) # Unstable
     q_vap_sfc_guess = FT(0.012)
 
     # Calculate density
     R_m = TD.gas_constant_air(thermo_params, q_tot_int, FT(0), FT(0))
-    ρ_int = FT(100000) / (R_m * T_int)
+    ρ_int = p_int / (R_m * T_int)
 
     # Custom configuration with our LAI model
     config = SF.SurfaceFluxConfig(

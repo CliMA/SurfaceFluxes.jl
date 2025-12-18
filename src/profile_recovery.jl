@@ -1,31 +1,30 @@
 """
-    compute_profile_value(param_set, L_MO, z0, Δz, scale, val_sfc, transport, scheme)
+    compute_profile_value(param_set, L_MO, z0, Δz_eff, scale, val_sfc, transport, scheme)
 
 Compute the (nondimensional) value of a variable (momentum or scalar) 
-at height `Δz` (height above surface).
+at effective aerodynamic height `Δz_eff` (height above surface minus displacement height).
 
 # Arguments
-- `param_set`: Parameter set
-- `L_MO`: Monin-Obukhov length [m]
-- `z0`: Roughness length [m]
-- `Δz`: Height above the surface [m]
-- `scale`: Similarity scale (u_star, theta_star, etc.)
-- `val_sfc`: Surface value of the variable
-- `transport`: Transport type (`MomentumTransport` or `HeatTransport`, the latter being 
-    used for scalar transport)
-- `scheme`: Discretization scheme (default: `PointValueScheme()`)
+- `param_set`: Parameter set.
+- `L_MO`: Monin-Obukhov length [m].
+- `z0`: Roughness length [m].
+- `Δz_eff`: Effective aerodynamic height `z - d` [m].
+- `scale`: Similarity scale (u_star, theta_star, etc.).
+- `val_sfc`: Surface value of the variable.
+- `transport`: Transport type (`MomentumTransport` or `HeatTransport`).
+- `scheme`: Discretization scheme (default: `PointValueScheme()`).
 
 # Formula:
 
-    X(Δz) = (scale / κ) * F_z + val_sfc
+    X(Δz_eff) = (scale / κ) * F_z + val_sfc
 
-where `F_z` is the dimensionless profile at height `Δz`.
+where `F_z` is the dimensionless profile at height `Δz_eff`.
 """
 function compute_profile_value(
     param_set::APS,
     L_MO,
     z0,
-    Δz,
+    Δz_eff,
     scale,
     val_sfc,
     transport,
@@ -33,9 +32,9 @@ function compute_profile_value(
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
-    ζ = Δz / L_MO
+    ζ = Δz_eff / L_MO
 
-    F = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport, scheme)
+    F = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0, transport, scheme)
 
     return F * scale / κ + val_sfc
 end

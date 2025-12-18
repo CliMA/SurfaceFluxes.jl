@@ -18,18 +18,16 @@ const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
 const FLOAT_TYPES = (Float32, Float64)
 
 # Test case thermodynamic primitives:
-# Interior state: ρ=1.1751807, p=97086.64, e_int=10541.609, q_tot=0, T=287.85202
-# Surface state:  ρ=1.2176297, p=102852.51, e_int=45087.812, q_tot=0.013232904, T=291.96683
 const TEST_T_INT = 287.85202
 const TEST_Q_TOT_INT = 0.0
 const TEST_RHO_INT = 1.1751807
 const TEST_T_SFC = 291.96683
 const TEST_Q_SFC = 0.013232904
 
-@testset "SurfaceFluxes - Near-zero Obukhov length" begin
-    @test sign(SF.non_zero(1.0)) == 1
-    @test sign(SF.non_zero(-1.0)) == -1
-    @test sign(SF.non_zero(-0.0)) == 1
+@testset "SurfaceFluxes - Near-Zero Obukhov Length" begin
+    @test sign(SF.non_zero(0.1)) == 1
+    @test sign(SF.non_zero(-0.1)) == -1
+    @test sign(SF.non_zero(-0.0)) == -1
     @test sign(SF.non_zero(0.0)) == 1
 
     for FT in FLOAT_TYPES
@@ -42,7 +40,10 @@ const TEST_Q_SFC = 0.013232904
         q_vap_sfc_guess = FT(TEST_Q_SFC)
 
         for z_int in NEAR_ZERO_Z_LEVELS
-            config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(1e-5), FT(1e-5)), SF.ConstantGustinessSpec(FT(1.0)))
+            config = SF.SurfaceFluxConfig(
+                SF.roughness_lengths(FT(1e-5), FT(1e-5)),
+                SF.ConstantGustinessSpec(FT(1.0)),
+            )
 
             sfc_output = SF.surface_fluxes(
                 param_set,
@@ -61,7 +62,13 @@ const TEST_Q_SFC = 0.013232904
 end
 
 @testset "SurfaceFluxes - Identical thermodynamic states" begin
-    sol_mat = Array{Float64, 4}(undef, 2, length(IDENTICAL_Z_LEVELS), length(IDENTICAL_Z0), length(IDENTICAL_Z0))
+    sol_mat = Array{Float64, 4}(
+        undef,
+        2,
+        length(IDENTICAL_Z_LEVELS),
+        length(IDENTICAL_Z0),
+        length(IDENTICAL_Z0),
+    )
 
     for (ii, FT) in enumerate(FLOAT_TYPES)
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
@@ -77,7 +84,10 @@ end
             (kk, z0m) in enumerate(IDENTICAL_Z0),
             (ll, z0h) in enumerate(IDENTICAL_Z0)
 
-            config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(z0m), FT(z0h)), SF.ConstantGustinessSpec(FT(1.0)))
+            config = SF.SurfaceFluxConfig(
+                SF.roughness_lengths(FT(z0m), FT(z0h)),
+                SF.ConstantGustinessSpec(FT(1.0)),
+            )
 
             sfc_output = SF.surface_fluxes(
                 param_set,
@@ -88,7 +98,7 @@ end
                 nothing,
                 config,
                 SF.PointValueScheme(),
-                SF.SolverOptions(FT; maxiter = 20),
+                SF.SolverOptions{FT}(; maxiter = 20),
             )
 
             L = isinf(sfc_output.L_MO) ? FT(1e6) : sfc_output.L_MO

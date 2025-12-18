@@ -24,8 +24,8 @@ using Aqua
     # (e.g., FluxSpecs and SurfaceFluxInputs which use Union{X, Nothing} fields).
     unbound_args = Aqua.detect_unbound_args_recursively(SurfaceFluxes)
     allowed_unbound = [
-        "SurfaceFluxes.FluxSpecs(",
-        "SurfaceFluxes.SurfaceFluxInputs(",
+        "FluxSpecs(",
+        "SurfaceFluxInputs(",
     ]
     unbound_filtered = filter(unbound_args) do m
         !any(pat -> occursin(pat, string(m)), allowed_unbound)

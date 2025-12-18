@@ -1,5 +1,5 @@
 """
-    shf = sensible_heat_flux(param_set, thermo_params, inputs, g_h, T_int, T_sfc, ρ_sfc, E)
+    shf = sensible_heat_flux(param_set, inputs, g_h, T_int, T_sfc, ρ_sfc, E)
 
 Computes the sensible heat flux at the surface.
 
@@ -15,11 +15,19 @@ second term, `VSE_sfc * E`, accounts for the vapor static energy
 or sensible heat, plus potential energy Φ_sfc) carried by evaporating water.
 
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
-allowing for prescribed sensible heat flux conditions.
+allowing for prescribed sensible heat flux conditions. See [`SurfaceFluxInputs`](@ref).
+
+# Arguments
+- `param_set`: Parameter set.
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `g_h`: Heat/moisture conductance [m/s].
+- `T_int`: Interior temperature [K].
+- `T_sfc`: Surface temperature [K].
+- `ρ_sfc`: Surface air density [kg/m^3].
+- `E`: Evaporation rate [kg/m^2/s]. Optional, default 0.
 """
 @inline function sensible_heat_flux(
     param_set::APS,
-    thermo_params,
     inputs::SurfaceFluxInputs,
     g_h,
     T_int,
@@ -31,6 +39,7 @@ allowing for prescribed sensible heat flux conditions.
     if shf_in !== nothing
         return shf_in
     end
+    thermo_params = SFP.thermodynamics_params(param_set)
     Φ_sfc = surface_geopotential(inputs)
     Φ_int = interior_geopotential(param_set, inputs)
     DSE_int = TD.dry_static_energy(thermo_params, T_int, Φ_int)
@@ -46,6 +55,18 @@ end
 Computes the sensible heat flux given the Monin-Obukhov stability parameter `ζ`,
 friction velocity `ustar`, roughness lengths, and surface state.
 Useful for computing fluxes from variables available inside the solver loop.
+
+# Arguments
+- `param_set`: Parameter set.
+- `ζ`: Monin-Obukhov stability parameter.
+- `ustar`: Friction velocity [m/s].
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Thermal roughness length [m].
+- `T_sfc`: Surface temperature [K].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
+- `ρ_sfc`: Surface air density [kg/m^3].
+- `scheme`: Discretization scheme.
 """
 @inline function sensible_heat_flux(
     param_set::APS,
@@ -65,11 +86,18 @@ Useful for computing fluxes from variables available inside the solver loop.
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
     # Compute evaporation (needed for SHF correction)
-    E = evaporation(thermo_params, inputs, g_h, inputs.q_tot_int, q_vap_sfc, ρ_sfc, inputs.moisture_model)
+    E = evaporation(
+        param_set,
+        inputs,
+        g_h,
+        inputs.q_tot_int,
+        q_vap_sfc,
+        ρ_sfc,
+        inputs.moisture_model,
+    )
 
     return sensible_heat_flux(
         param_set,
-        thermo_params,
         inputs,
         g_h,
         inputs.T_int,
@@ -80,7 +108,7 @@ Useful for computing fluxes from variables available inside the solver loop.
 end
 
 """
-    E = evaporation(thermo_params, inputs, g_h, q_vap_int, q_vap_sfc, ρ_sfc, model)
+    E = evaporation(param_set, inputs, g_h, q_vap_int, q_vap_sfc, ρ_sfc, model)
 
 Computes the evaporation rate at the surface.
 
@@ -97,9 +125,18 @@ surface air density. Here `q_vap_int` and `q_vap_sfc` are the vapor specific hum
 If `inputs.lhf` is provided (not `nothing`), the function returns the evaporation
 rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 `LH_v0` is the latent heat of vaporization at the reference temperature.
+
+Arguments:
+- `param_set`: Parameter set.
+- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `g_h`: Heat conductance [m/s].
+- `q_vap_int`: Interior vapor specific humidity [kg/kg].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
+- `ρ_sfc`: Surface density [kg/m^3].
+- `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
 @inline function evaporation(
-    thermo_params,
+    param_set::APS,
     inputs::SurfaceFluxInputs,
     g_h,
     q_vap_int,
@@ -109,6 +146,7 @@ rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 )
     lhf_in = inputs.lhf
     if lhf_in !== nothing
+        thermo_params = SFP.thermodynamics_params(param_set)
         LH_v0 = TP.LH_v0(thermo_params)
         return lhf_in / LH_v0
     end
@@ -117,7 +155,7 @@ rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 end
 
 @inline function evaporation(
-    thermo_params,
+    param_set::APS,
     inputs::SurfaceFluxInputs,
     g_h,
     q_vap_int,
@@ -125,7 +163,7 @@ end
     ρ_sfc,
     model::DryModel,
 )
-    FT = eltype(thermo_params)
+    FT = eltype(param_set)
     return FT(0)
 end
 
@@ -135,7 +173,17 @@ end
 
 Computes the evaporation rate given the Monin-Obukhov stability parameter `ζ`,
 friction velocity `ustar`, roughness lengths, and surface state.
-Calculates conductance internally.
+
+# Arguments
+- `param_set`: Parameter set.
+- `ζ`: Monin-Obukhov stability parameter.
+- `ustar`: Friction velocity [m/s].
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Thermal roughness length [m].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
+- `ρ_sfc`: Surface air density [kg/m^3].
+- `scheme`: Discretization scheme.
 """
 @inline function evaporation(
     param_set::APS,
@@ -151,9 +199,8 @@ Calculates conductance internally.
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
-    thermo_params = SFP.thermodynamics_params(param_set)
     return evaporation(
-        thermo_params,
+        param_set,
         inputs,
         g_h,
         inputs.q_tot_int,
@@ -164,7 +211,7 @@ Calculates conductance internally.
 end
 
 """
-    latent_heat_flux(thermo_params, inputs, E)
+    latent_heat_flux(param_set, inputs, E, model)
 
 Computes the latent heat flux at the surface.
 
@@ -177,9 +224,15 @@ and `E` is the evaporation rate.
 
 If `inputs.lhf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed latent heat flux conditions.
+
+Arguments:
+- `param_set`: Parameter set.
+- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `E`: Evaporation rate [kg/m^2/s].
+- `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
 @inline function latent_heat_flux(
-    thermo_params,
+    param_set::APS,
     inputs::SurfaceFluxInputs,
     E,
     model::AbstractMoistureModel = MoistModel(),
@@ -188,17 +241,18 @@ allowing for prescribed latent heat flux conditions.
     if lhf_in !== nothing
         return lhf_in
     end
+    thermo_params = SFP.thermodynamics_params(param_set)
     LH_v0 = TP.LH_v0(thermo_params)
     return LH_v0 * E
 end
 
 @inline function latent_heat_flux(
-    thermo_params,
+    param_set::APS,
     inputs::SurfaceFluxInputs,
     E,
     model::DryModel,
 )
-    FT = eltype(thermo_params)
+    FT = eltype(param_set)
     return FT(0)
 end
 
@@ -209,6 +263,17 @@ end
 Computes the latent heat flux given the Monin-Obukhov stability parameter `ζ`,
 friction velocity `ustar`, roughness lengths, and surface state.
 Calculates conductance and evaporation internally.
+
+# Arguments
+- `param_set`: Parameter set.
+- `ζ`: Monin-Obukhov stability parameter.
+- `ustar`: Friction velocity [m/s].
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Thermal roughness length [m].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
+- `ρ_sfc`: Surface air density [kg/m^3].
+- `scheme`: Discretization scheme.
 """
 @inline function latent_heat_flux(
     param_set::APS,
@@ -233,12 +298,11 @@ Calculates conductance and evaporation internally.
         scheme,
     )
 
-    thermo_params = SFP.thermodynamics_params(param_set)
-    return latent_heat_flux(thermo_params, inputs, E, inputs.moisture_model)
+    return latent_heat_flux(param_set, inputs, E, inputs.moisture_model)
 end
 
 """
-    buoyancy_flux(param_set, thermo_params, shf, lhf, T_sfc, q_tot_sfc, q_liq_sfc, q_ice_sfc, ρ_sfc)
+    buoyancy_flux(param_set, shf, lhf, T_sfc, ρ_sfc, q_vap_sfc, q_liq_sfc, q_ice_sfc, model)
 
 Computes the buoyancy flux at the surface, accounting for the presence of liquid and ice condensate.
 
@@ -250,30 +314,34 @@ It is approximated by linearizing the density perturbations with respect to temp
 Where:
  - `cp_m` is the specific heat of moist air, calculated using `q_tot_sfc`, `q_liq_sfc`, and `q_ice_sfc`.
  - `ε_vd` is the ratio of gas constants for water vapor and dry air.
- - The term `(ε_vd - 1)` represents the density effect of water vapor relative to dry air (the virtual temperature 
-   correction factor).
+ - The term `(ε_vd - 1)` (approximately 0.61) represents the density effect of water vapor relative to dry air 
+    (the virtual temperature correction factor), ensuring the buoyancy flux accounts for the fact that moist 
+    air is lighter than dry air.
 
 Arguments:
- - `q_tot_sfc`: Specific humidity of total water at the surface.
- - `q_liq_sfc`: Specific humidity of liquid water at the surface.
- - `q_ice_sfc`: Specific humidity of ice at the surface.
+ - `ρ_sfc`: Surface air density [kg/m³].
+ - `q_vap_sfc`: Specific humidity of water vapor at the surface (default: 0).
+ - `q_liq_sfc`: Specific humidity of liquid water at the surface (default: 0).
+ - `q_ice_sfc`: Specific humidity of ice at the surface (default: 0).
+ - `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
 @inline function buoyancy_flux(
     param_set::APS,
-    thermo_params,
     shf,
     lhf,
     T_sfc,
-    q_tot_sfc,
-    q_liq_sfc,
-    q_ice_sfc,
     ρ_sfc,
+    q_vap_sfc = 0,
+    q_liq_sfc = 0,
+    q_ice_sfc = 0,
     model::AbstractMoistureModel = MoistModel(),
 )
+    thermo_params = SFP.thermodynamics_params(param_set)
     grav = SFP.grav(param_set)
-    ε_vd = SFP.Rv_over_Rd(param_set)
+    ε_vd = TD.Parameters.Rv_over_Rd(thermo_params)
 
     # Calculate specific heat of moist air at the surface including condensate
+    q_tot_sfc = q_vap_sfc + q_liq_sfc + q_ice_sfc
     cp_m_sfc = TD.cp_m(thermo_params, q_tot_sfc, q_liq_sfc, q_ice_sfc)
 
     LH_v0 = TP.LH_v0(thermo_params)
@@ -290,27 +358,25 @@ end
 
 @inline function buoyancy_flux(
     param_set::APS,
-    thermo_params,
     shf,
     lhf,
     T_sfc,
-    q_tot_sfc,
+    ρ_sfc,
+    q_vap_sfc,
     q_liq_sfc,
     q_ice_sfc,
-    ρ_sfc,
     model::DryModel,
 )
-    FT = eltype(thermo_params)
+    FT = eltype(param_set)
     return buoyancy_flux(
         param_set,
-        thermo_params,
         shf,
         FT(0),
         T_sfc,
-        FT(0),
-        FT(0),
-        FT(0),
         ρ_sfc,
+        FT(0),
+        FT(0),
+        FT(0),
         MoistModel(),
     )
 end
@@ -319,12 +385,19 @@ end
     buoyancy_flux(param_set, ζ, ustar, inputs)
 
 Computes the buoyancy flux given the Monin-Obukhov stability parameter `ζ`,
-friction velocity `ustar`, and geometric inputs.
+friction velocity `ustar`, and geometric inputs via [`SurfaceFluxInputs`](@ref).
 
 The relationship is derived from the definition of the Obukhov length:
+
     L = -u_*^3 / (κ * B)
     ζ = Δz / L
     => B = -(u_*^3 * ζ) / (κ * Δz)
+
+# Arguments
+- `param_set`: Parameter set.
+- `ζ`: Monin-Obukhov stability parameter.
+- `ustar`: Friction velocity [m/s].
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
 """
 @inline function buoyancy_flux(
     param_set::APS,
@@ -333,7 +406,8 @@ The relationship is derived from the definition of the Obukhov length:
     inputs::SurfaceFluxInputs,
 )
     κ = SFP.von_karman_const(param_set)
-    return -(ustar^3 * ζ) / (κ * inputs.Δz)
+    Δz_eff = effective_height(inputs)
+    return -(ustar^3 * ζ) / (κ * Δz_eff)
 end
 
 """
@@ -353,6 +427,14 @@ where:
  - `ρ_sfc`: Surface air density
 
 Returns a tuple `(ρτxz, ρτyz)`.
+
+See [`SurfaceFluxInputs`](@ref).
+
+# Arguments
+- `Cd`: Drag coefficient.
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `ρ_sfc`: Surface air density [kg/m^3].
+- `gustiness`: Gustiness velocity scale [m/s].
 """
 @inline function momentum_fluxes(
     Cd,
@@ -368,44 +450,53 @@ Returns a tuple `(ρτxz, ρτyz)`.
 end
 
 """
-    state_bulk_richardson_number(param_set, thermo_params, inputs, Ts, qs, ρ_sfc, ΔU)
+    state_bulk_richardson_number(param_set, inputs, T_sfc, ρ_sfc, ΔU, q_vap_sfc)
 
 Computes the bulk Richardson number from the given state.
 
 # Arguments
 - `param_set`: Parameter set.
-- `thermo_params`: Thermodynamics parameters.
-- `inputs`: `SurfaceFluxInputs` struct.
-- `T_sfc`: Surface temperature.
-- `q_tot_sfc`: Surface total specific humidity.
-- `ρ_sfc`: Surface air density.
+- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `T_sfc`: Surface temperature [K].
+- `ρ_sfc`: Surface air density [kg/m³].
 - `ΔU`: Wind speed difference [m/s].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg]. Default: 0.
 
 Returns the bulk Richardson number.
 """
 @inline function state_bulk_richardson_number(
     param_set::APS,
-    thermo_params,
     inputs::SurfaceFluxInputs,
     T_sfc,
-    q_tot_sfc,
     ρ_sfc,
     ΔU,
+    q_vap_sfc = 0,
 )
     FT = eltype(param_set)
     grav = SFP.grav(param_set)
+    thermo_params = SFP.thermodynamics_params(param_set)
 
     q_tot_int = inputs.q_tot_int
     q_liq_int = inputs.q_liq_int
     q_ice_int = inputs.q_ice_int
 
     # Assume condensate concentration is the same at the surface and in the interior
-    theta_v_sfc = TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot_sfc, q_liq_int, q_ice_int)
-    theta_v_int = TD.virtual_pottemp(thermo_params, inputs.T_int, inputs.ρ_int, q_tot_int, q_liq_int, q_ice_int)
+    q_tot_sfc = q_vap_sfc + q_liq_int + q_ice_int
+    theta_v_sfc =
+        TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot_sfc, q_liq_int, q_ice_int)
+    theta_v_int = TD.virtual_pottemp(
+        thermo_params,
+        inputs.T_int,
+        inputs.ρ_int,
+        q_tot_int,
+        q_liq_int,
+        q_ice_int,
+    )
 
     Δtheta_v = theta_v_int - theta_v_sfc
     theta_v_ref = theta_v_int
+    Δz_eff = effective_height(inputs)
 
-    Rib_state = (grav * inputs.Δz * Δtheta_v) / (theta_v_ref * ΔU^2)
+    Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
     return Rib_state
 end

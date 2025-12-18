@@ -8,17 +8,43 @@ abstract type AbstractGustinessSpec end
 
 
 
+"""
+    ConstantGustinessSpec{TG <: Real}
+
+A gustiness model where the gustiness velocity is a constant value.
+# Fields
+- `value`: The constant gustiness velocity [m/s].
+"""
 struct ConstantGustinessSpec{TG <: Real} <: AbstractGustinessSpec
     value::TG
 end
 
+"""
+    DeardorffGustinessSpec
+
+A gustiness model based on Deardorff (1970) scaling with convective velocity scale ``w_*``.
+The gustiness velocity is computed as:
+``U_{gust} = \\beta w_*^{1/3}``
+"""
 struct DeardorffGustinessSpec <: AbstractGustinessSpec end
 
 Base.broadcastable(p::AbstractRoughnessParams) = tuple(p)
 Base.broadcastable(p::AbstractGustinessSpec) = tuple(p)
 
 abstract type AbstractMoistureModel end
+
+"""
+    MoistModel
+
+Indicates that moisture effects (latent heat, virtual temperature) should be included in the flux calculations.
+"""
 struct MoistModel <: AbstractMoistureModel end
+
+"""
+    DryModel
+
+Indicates that moisture effects should be ignored (sensible heat and momentum only).
+"""
 struct DryModel <: AbstractMoistureModel end
 
 Base.broadcastable(m::AbstractMoistureModel) = tuple(m)
@@ -29,11 +55,15 @@ Base.broadcastable(m::AbstractMoistureModel) = tuple(m)
 Configuration for surface flux calculation components.
 
 # Fields
-- `roughness`: The roughness length parameterization to use.
-- `gustiness`: The gustiness parameterization to use.
-- `moisture_model`: The moisture model (e.g. `MoistModel` or `DryModel`).
+- `roughness`: The roughness length parameterization to use (e.g., [`ConstantRoughnessParams`](@ref)).
+- `gustiness`: The gustiness parameterization to use (e.g., [`ConstantGustinessSpec`](@ref)).
+- `moisture_model`: The moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
-struct SurfaceFluxConfig{R <: AbstractRoughnessParams, G <: AbstractGustinessSpec, M <: AbstractMoistureModel}
+struct SurfaceFluxConfig{
+    R <: AbstractRoughnessParams,
+    G <: AbstractGustinessSpec,
+    M <: AbstractMoistureModel,
+}
     roughness::R
     gustiness::G
     moisture_model::M
@@ -53,21 +83,36 @@ const FluxOption{FT} = Union{Nothing, FT}
 Container for prescribed surface flux boundary conditions.
 
 # Fields
-- `shf`: Sensible Heat Flux [W/m^2]
-- `lhf`: Latent Heat Flux [W/m^2]
-- `ustar`: Friction velocity [m/s]
-- `Cd`: Momentum exchange coefficient
-- `Ch`: Heat exchange coefficient
+- `shf`: Sensible Heat Flux [W/m^2].
+- `lhf`: Latent Heat Flux [W/m^2].
+- `ustar`: Friction velocity [m/s].
+- `Cd`: Momentum exchange coefficient.
+- `Ch`: Heat exchange coefficient.
 """
-Base.@kwdef struct FluxSpecs{FT}
-    shf::FluxOption{FT} = nothing
-    lhf::FluxOption{FT} = nothing
-    ustar::FluxOption{FT} = nothing
-    Cd::FluxOption{FT} = nothing
-    Ch::FluxOption{FT} = nothing
+Base.@kwdef struct FluxSpecs{
+    FT,
+    A <: FluxOption{FT},
+    B <: FluxOption{FT},
+    C <: FluxOption{FT},
+    D <: FluxOption{FT},
+    E <: FluxOption{FT},
+}
+    shf::A = nothing
+    lhf::B = nothing
+    ustar::C = nothing
+    Cd::D = nothing
+    Ch::E = nothing
 end
 
-FluxSpecs(::Type{FT}; kwargs...) where {FT} = FluxSpecs{FT}(; kwargs...)
+function FluxSpecs{FT}(;
+    shf::A = nothing,
+    lhf::B = nothing,
+    ustar::C = nothing,
+    Cd::D = nothing,
+    Ch::E = nothing,
+) where {FT, A, B, C, D, E}
+    return FluxSpecs{FT, A, B, C, D, E}(shf, lhf, ustar, Cd, Ch)
+end
 
 """
     SolverOptions{FT}
@@ -77,13 +122,13 @@ Options for the Monin-Obukhov similarity theory solver.
 # Fields
 - `tol`: Absolute tolerance on the change in the stability parameter for determining convergence.
 - `maxiter`: Maximum number of iterations.
+- `forced_fixed_iters`: If true, disables the tolerance check and forces the solver to run for exactly `maxiter` iterations (or until machine precision is reached/bypassed). Default is `true`.
 """
 Base.@kwdef struct SolverOptions{FT}
     tol::FT = FT(1e-2)
-    maxiter::Int = 15
+    maxiter::Int = 10
+    forced_fixed_iters::Bool = true
 end
-
-SolverOptions(::Type{FT}; kwargs...) where {FT} = SolverOptions{FT}(; kwargs...)
 
 """
     SurfaceFluxInputs
@@ -92,16 +137,20 @@ Immutable container describing the atmospheric and surface state using primitive
 quantities plus module-defined parameterizations. Instances of this type are
 passed to the functional surface flux solver.
 
-- `T_int`, `q_tot_int`, `ρ_int`: Interior air temperature [K], specific humidity [kg/kg], and density [kg/m³]
-- `Ts_guess`, `qs_guess`: Scalar initial guesses for surface temperature and humidity
-- `Φs`: Surface geopotential [m²/s²]
-- `Δz`: Height difference between interior and surface reference levels [m]
-- `d`: Displacement height [m]
-- `u_int`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s]
-- `roughness_model`: Module-defined roughness parameterization
-- `gustiness_model`: Module-defined gustiness parameterization
-- `update_T_sfc`, `update_q_vap_sfc`: Optional hooks invoked each solver iteration with signature `(ζ, param_set, thermo_params, inputs)`
-- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities supplied via `FluxSpecs`
+# Fields
+- `T_int`, `q_tot_int`, `ρ_int`: Interior air temperature [K], specific humidity [kg/kg], and density [kg/m^3].
+- `q_liq_int`, `q_ice_int`: Interior liquid and ice specific humidity [kg/kg].
+- `T_sfc_guess`, `q_vap_sfc_guess`: Initial guesses for surface temperature [K] and vapor specific humidity [kg/kg]. Optional, can be `nothing` for default fallback.
+- `Φ_sfc`: Surface geopotential [m^2/s^2].
+- `Δz`: Height difference between interior and surface reference levels [m].
+- `d`: Displacement height [m].
+- `u_int`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s].
+- `roughness_model`: Roughness parameterization (e.g., [`ConstantRoughnessParams`](@ref)).
+- `gustiness_model`: Gustiness parameterization (e.g., [`ConstantGustinessSpec`](@ref)).
+- `moisture_model`: Moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
+- `roughness_inputs`: Optional inputs for roughness models.
+- `update_T_sfc`, `update_q_vap_sfc`: Optional callbacks to update surface state during iteration.
+- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities supplied via [`FluxSpecs`](@ref).
 """
 struct SurfaceFluxInputs{
     FT,
@@ -111,14 +160,19 @@ struct SurfaceFluxInputs{
     R,
     F1,
     F2,
+    SHF,
+    LHF,
+    UST,
+    CD,
+    CH,
 }
     T_int::FT
     q_tot_int::FT
     q_liq_int::FT
     q_ice_int::FT
     ρ_int::FT
-    T_sfc_guess::FT
-    q_vap_sfc_guess::FT
+    T_sfc_guess::Union{FT, Nothing}
+    q_vap_sfc_guess::Union{FT, Nothing}
     Φ_sfc::FT
     Δz::FT
     d::FT
@@ -127,14 +181,14 @@ struct SurfaceFluxInputs{
     roughness_model::RM
     gustiness_model::GM
     moisture_model::MM
-    roughness_inputs::Union{R, Nothing}
+    roughness_inputs::R
     update_T_sfc::Union{F1, Nothing}
     update_q_vap_sfc::Union{F2, Nothing}
-    shf::Union{Nothing, FT}
-    lhf::Union{Nothing, FT}
-    ustar::Union{Nothing, FT}
-    Cd::Union{Nothing, FT}
-    Ch::Union{Nothing, FT}
+    shf::SHF
+    lhf::LHF
+    ustar::UST
+    Cd::CD
+    Ch::CH
 end
 
 """
@@ -152,6 +206,7 @@ Surface flux conditions, returned from `surface_fluxes`.
 - `Cd::FT`: Momentum exchange coefficient
 - `Ch::FT`: Heat exchange coefficient
 - `L_MO::FT`: Monin-Obukhov lengthscale [m]
+- `converged::Bool`: Solver convergence status
 """
 struct SurfaceFluxConditions{FT <: Real}
     shf::FT
@@ -164,12 +219,14 @@ struct SurfaceFluxConditions{FT <: Real}
     Cd::FT
     Ch::FT
     L_MO::FT
+    converged::Bool
 end
 
-SurfaceFluxConditions(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO) =
+SurfaceFluxConditions(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO, converged) =
     let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO)
-        SurfaceFluxConditions{eltype(vars)}(vars...)
+        SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
+
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
     println(io, "Sensible Heat Flux     = ", sfc.shf)
@@ -182,5 +239,6 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "C_drag                 = ", sfc.Cd)
     println(io, "C_heat                 = ", sfc.Ch)
     println(io, "Monin-Obukhov length   = ", sfc.L_MO)
+    println(io, "Converged              = ", sfc.converged)
     println(io, "-----------------------")
 end

@@ -43,10 +43,11 @@ import ClimaParams as CP
 
         # Larger B => larger gustiness
         B_large = FT(0.1)
-        @test SF.gustiness_value(spec, param_set, B_large) > SF.gustiness_value(spec, param_set, B_unstable)
+        @test SF.gustiness_value(spec, param_set, B_large) >
+              SF.gustiness_value(spec, param_set, B_unstable)
     end
 
-    @testset "Gustiness in windspeed" begin
+    @testset "Gustiness in Windspeed" begin
         # Test that gustiness affects effective windspeed
         Δu = (FT(5.0), FT(0.0))  # 5 m/s in x direction
         mean_speed = hypot(Δu...)

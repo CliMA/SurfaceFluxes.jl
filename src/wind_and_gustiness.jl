@@ -4,9 +4,9 @@
 Returns the gustiness velocity scale [m/s] based on the specification.
 
 # Arguments
-- `spec`: The gustiness specification (e.g. `ConstantGustinessSpec` or `DeardorffGustinessSpec`).
+- `spec`: The gustiness specification (e.g., [`ConstantGustinessSpec`](@ref) or [`DeardorffGustinessSpec`](@ref)).
 - `param_set`: Parameter set containing constants and coefficients.
-- `buoyancy_flux`: Surface buoyancy flux [m^2/s^3] (required for Deardorff gustiness).
+- `buoyancy_flux`: Surface buoyancy flux [m^2/s^3], required for Deardorff gustiness.
 
 """
 @inline gustiness_value(spec::ConstantGustinessSpec, param_set, buoyancy_flux) = spec.value
@@ -35,7 +35,7 @@ eddies in unstable conditions, particularly important in low-wind regimes
 - Deardorff, J. W. (1970). Convective velocity and temperature scales for the unstable planetary
   boundary layer and for Rayleigh convection. Journal of the Atmospheric Sciences, 27, 1211-1213.
   [DOI: 10.1175/1520-0469(1970)027<1211:CVATSF>2.0.CO;2](https://doi.org/10.1175/1520-0469(1970)027%3C1211:CVATSF%3E2.0.CO;2)
-- Beljaars, A. C. M. (1994). The parametrization of surface fluxes in large-scale models under free convection 
+- Beljaars, A. C. M. (1995). The parametrization of surface fluxes in large-scale models under free convection 
   Quarterly Journal of the Royal Meteorological Society, 121, 255-270.
   [DOI:  10.1002/qj.49712152203](https://doi.org/10.1002/qj.49712152203)
 """
@@ -72,7 +72,7 @@ Computes the effective wind speed magnitude [m/s], accounting for gustiness.
 The effective wind speed is calculated as the maximum of the mean wind speed difference
 and the gustiness scale:
 ```math
-U_{eff} = \\max(\\sqrt{\\Delta u_x^2 + \\Delta u_y^2}, U_{gust})
+U_{\text{eff}} = \\max(\\sqrt{\\Delta u_x^2 + \\Delta u_y^2}, U_{gust})
 ```
 This formulation ensures that surface fluxes remain non-zero even in the absence of mean wind,
 driven by convective eddies or other sub-grid variability represented by ``U_{gust}``. This is 
@@ -80,7 +80,7 @@ important in low-wind regimes in the free convection limit.
 
 # Arguments
 - `Δu`: Tuple of wind component differences `(Δu_x, Δu_y)`.
-- `inputs`: `SurfaceFluxInputs` struct (convenience wrapper).
+- `inputs`: [`SurfaceFluxInputs`](@ref) struct (convenience wrapper).
 - `gustiness`: Gustiness velocity scale [m/s].
 """
 @inline function windspeed(Δu::NTuple{2}, gustiness)

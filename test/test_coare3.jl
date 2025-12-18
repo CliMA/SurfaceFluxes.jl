@@ -10,19 +10,15 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import ClimaParams as CP
-import SurfaceFluxes: COARE3RoughnessParams, momentum_roughness, scalar_roughness, charnock_parameter
-
-# Mock parameter set for roughness tests
-struct MockCOAREParamSet{FT} <: SFP.AbstractSurfaceFluxesParameters{FT} end
-SFP.grav(::MockCOAREParamSet{FT}) where {FT} = FT(9.81)
-SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
+import SurfaceFluxes:
+    COARE3RoughnessParams, momentum_roughness, scalar_roughness, charnock_parameter
 
 @testset "COARE 3.0 Roughness" begin
     FT = Float64
-    param_set = MockCOAREParamSet{FT}()
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     spec = COARE3RoughnessParams{FT}()
 
-    @testset "Charnock parameter piecewise behavior" begin
+    @testset "Charnock Parameter Piecewise Behavior" begin
         α_low = spec.α_low
         α_high = spec.α_high
         u_low = spec.u_low
@@ -49,7 +45,7 @@ SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
         @test issorted(α_vals)
     end
 
-    @testset "Momentum roughness behavior" begin
+    @testset "Momentum Roughness Behavior" begin
         grav = SFP.grav(param_set)
         κ = SFP.von_karman_const(param_set)
         ν = spec.kinematic_visc
@@ -79,7 +75,7 @@ SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
         @test z0m_tiny > 0
     end
 
-    @testset "Scalar roughness scaling" begin
+    @testset "Scalar Roughness Scaling" begin
         u_star = FT(0.3)
         z0m = momentum_roughness(spec, u_star, param_set, nothing)
         z0s = scalar_roughness(spec, u_star, param_set, nothing)
@@ -96,7 +92,7 @@ SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
         @test z0s ≈ z0s_expected
     end
 
-    @testset "Combined momentum and scalar" begin
+    @testset "Combined Momentum and Scalar Roughness" begin
         u_star = FT(0.5)
         z0m, z0s = SF.momentum_and_scalar_roughness(spec, u_star, param_set, nothing)
 
@@ -104,7 +100,7 @@ SFP.von_karman_const(::MockCOAREParamSet{FT}) where {FT} = FT(0.4)
         @test z0s == scalar_roughness(spec, u_star, param_set, nothing)
     end
 
-    @testset "Wind speed dependence via 10m neutral profile" begin
+    @testset "Wind Speed Dependence via 10m Neutral Profile" begin
         # Higher u_star => higher 10m wind => higher Charnock α => higher z0m
         u_star_range = FT.(0.1:0.2:1.5)
         z0m_vals = [momentum_roughness(spec, u, param_set, nothing) for u in u_star_range]

@@ -33,12 +33,9 @@ end
 #   - `sf_params`: SurfaceFluxes parameters
 #   - `sc`: State container (e.g., `SF.ValuesOnly`, `SF.Fluxes`, etc.)
 #   - `scheme`: Computation scheme (default: `SurfaceFluxes.PointValueScheme()`)
-#   - `kwargs...`: Additional keyword arguments passed to `surface_fluxes`
 #
 # Returns:
 #   The result of `surface_fluxes`, after verifying allocations and type stability.
-# Wrapper for `SurfaceFluxes.surface_fluxes` that checks allocations and trivial
-# type stabilities for the given call signature.
-function surface_fluxes_wrapper(args...; kwargs...)
-    @test_allocs_and_ts SurfaceFluxes.surface_fluxes(args...; kwargs...)
+function surface_fluxes_wrapper(args...)
+    @test_allocs_and_ts SurfaceFluxes.surface_fluxes(args...)
 end

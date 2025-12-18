@@ -6,7 +6,7 @@ using Test
 
 # Maximum relative mismatch tolerated between the point-value and layer-average
 # velocity-scale computations. With the recovery profiles below, the schemes
-# usually agree to within ≲ 15%, so this limit still flags meaningful
+# usually agree to within ≲15%, so this limit still flags meaningful
 # regressions while allowing the expected discretization differences.
 const RECOVERY_SCHEME_RTOL = Float32(0.15)
 
@@ -106,7 +106,7 @@ end
 
     # Target Monin–Obukhov lengths [m]; the set spans unstable through very
     # stable surface layers and keeps the point-value vs layer-average schemes
-    # within ≲ 15% of each other.
+    # within ≲15% of each other.
     L_MO_targets = Array(
         Float32[
             -80,
@@ -147,8 +147,8 @@ end
             # compute_physical_scale_coeff expects inputs with Δz field
 
             sf_inputs = SF.build_surface_flux_inputs(
-                param_set,
-                inputs_container.T_int, inputs_container.q_tot_int, Float32(0), Float32(0), inputs_container.ρ_int,
+                inputs_container.T_int, inputs_container.q_tot_int, Float32(0),
+                Float32(0), inputs_container.ρ_int,
                 inputs_container.T_sfc_guess, inputs_container.q_vap_sfc_guess,
                 inputs_container.Φ_sfc, inputs_container.Δz, inputs_container.d,
                 inputs_container.u_int, inputs_container.u_sfc,
@@ -158,7 +158,7 @@ end
                     inputs_container.moisture_model,
                 ),
                 nothing, # roughness_inputs
-                SF.FluxSpecs(Float32), # Default specs
+                SF.FluxSpecs{Float32}(), # Default specs
                 nothing, nothing,
             )
 

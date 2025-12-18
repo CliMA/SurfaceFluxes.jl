@@ -64,19 +64,16 @@ for var in fieldnames(TDPS)
     @eval $var(ps::ASFP) = TD.Parameters.$var(thermodynamics_params(ps))
 end
 
-# Thermodynamics derived parameters
-Rv_over_Rd(ps::ASFP) = TD.Parameters.Rv_over_Rd(thermodynamics_params(ps))
-
-Pr_0(ps::SurfaceFluxesParameters) = Pr_0(uf_params(ps))
-a_m(ps::SurfaceFluxesParameters) = a_m(uf_params(ps))
-a_h(ps::SurfaceFluxesParameters) = a_h(uf_params(ps))
-b_m(ps::SurfaceFluxesParameters) = b_m(uf_params(ps))
-b_h(ps::SurfaceFluxesParameters) = b_h(uf_params(ps))
-c_m(ps::SurfaceFluxesParameters) = c_m(uf_params(ps))
-c_h(ps::SurfaceFluxesParameters) = c_h(uf_params(ps))
-d_m(ps::SurfaceFluxesParameters) = d_m(uf_params(ps))
-d_h(ps::SurfaceFluxesParameters) = d_h(uf_params(ps))
-ζ_a(ps::SurfaceFluxesParameters) = ζ_a(uf_params(ps))
-γ(ps::SurfaceFluxesParameters) = γ(uf_params(ps))
+Pr_0(ps::SurfaceFluxesParameters) = UF.Pr_0(uf_params(ps))
+a_m(ps::SurfaceFluxesParameters) = UF.a_m(uf_params(ps))
+a_h(ps::SurfaceFluxesParameters) = UF.a_h(uf_params(ps))
+b_m(ps::SurfaceFluxesParameters) = UF.b_m(uf_params(ps))
+b_h(ps::SurfaceFluxesParameters) = UF.b_h(uf_params(ps))
+c_m(ps::SurfaceFluxesParameters) = UF.c_m(uf_params(ps))
+c_h(ps::SurfaceFluxesParameters) = UF.c_h(uf_params(ps))
+d_m(ps::SurfaceFluxesParameters) = UF.d_m(uf_params(ps))
+d_h(ps::SurfaceFluxesParameters) = UF.d_h(uf_params(ps))
+ζ_a(ps::SurfaceFluxesParameters) = UF.ζ_a(uf_params(ps))
+γ(ps::SurfaceFluxesParameters) = UF.γ(uf_params(ps))
 
 end

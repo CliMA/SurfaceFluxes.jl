@@ -8,28 +8,19 @@ contribution to the effective windspeed.
 """
 gustiness_constant(val) = ConstantGustinessSpec(val)
 
-# Velocity normalization helper (moved from types.jl)
-@inline function _normalize_velocity(u::Tuple{Any, Any}, ::Type{FT}) where {FT}
-    return (convert(FT, u[1]), convert(FT, u[2]))
-end
-function _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT}
-    length(u) == 2 ||
-        throw(ArgumentError("Velocity vectors must have two horizontal components."))
-    return (convert(FT, u[1]), convert(FT, u[2]))
-end
-_normalize_velocity(u::Nothing, ::Type{FT}) where {FT} = (zero(FT), zero(FT))
-_normalize_velocity(u::Tuple{}, ::Type{FT}) where {FT} = (zero(FT), zero(FT))
+# Velocity normalization helper - specialized for 2-tuples to avoid GPU-unsafe throw
+@inline _normalize_velocity(u::NTuple{2}, ::Type{FT}) where {FT} = (FT(u[1]), FT(u[2]))
+@inline _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT} = (FT(u[1]), FT(u[2]))
 
 
 """
-    build_surface_flux_inputs(param_set, args...)
+    build_surface_flux_inputs(args...)
 
 Centralized helper that normalizes user-facing specifications (winds,
-roughness, gustiness, flux constraints) into a concrete `SurfaceFluxInputs`
+roughness, gustiness, flux constraints) into a concrete [`SurfaceFluxInputs`](@ref)
 instance.
 """
 function build_surface_flux_inputs(
-    param_set::APS,
     T_int,
     q_tot_int,
     q_liq_int,
@@ -48,18 +39,28 @@ function build_surface_flux_inputs(
     update_T_sfc,
     update_q_vap_sfc,
 )
-    FT = promote_type(
+    # Determine floating point type FT from inputs, handling optional Nothing values
+    types = (
         typeof(T_int),
         typeof(q_tot_int),
         typeof(q_liq_int),
         typeof(q_ice_int),
         typeof(ρ_int),
-        typeof(T_sfc_guess),
-        typeof(q_vap_sfc_guess),
         typeof(Φ_sfc),
         typeof(Δz),
         typeof(d),
     )
+
+
+    if T_sfc_guess !== nothing
+        types = (types..., typeof(T_sfc_guess))
+    end
+    if q_vap_sfc_guess !== nothing
+        types = (types..., typeof(q_vap_sfc_guess))
+    end
+
+    FT = promote_type(types...)
+
     u_int_tuple = _normalize_velocity(u_int, FT)
     u_sfc_tuple = _normalize_velocity(u_sfc, FT)
 
@@ -71,17 +72,22 @@ function build_surface_flux_inputs(
         typeof(roughness_inputs),
         typeof(update_T_sfc),
         typeof(update_q_vap_sfc),
+        typeof(flux_specs.shf),
+        typeof(flux_specs.lhf),
+        typeof(flux_specs.ustar),
+        typeof(flux_specs.Cd),
+        typeof(flux_specs.Ch),
     }(
-        convert(FT, T_int),
-        convert(FT, q_tot_int),
-        convert(FT, q_liq_int),
-        convert(FT, q_ice_int),
-        convert(FT, ρ_int),
-        convert(FT, T_sfc_guess),
-        convert(FT, q_vap_sfc_guess),
-        convert(FT, Φ_sfc),
-        convert(FT, Δz),
-        convert(FT, d),
+        FT(T_int),
+        FT(q_tot_int),
+        FT(q_liq_int),
+        FT(q_ice_int),
+        FT(ρ_int),
+        T_sfc_guess === nothing ? nothing : FT(T_sfc_guess),
+        q_vap_sfc_guess === nothing ? nothing : FT(q_vap_sfc_guess),
+        FT(Φ_sfc),
+        FT(Δz),
+        FT(d),
         u_int_tuple,
         u_sfc_tuple,
         config.roughness,

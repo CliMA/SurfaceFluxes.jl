@@ -12,7 +12,7 @@ import SurfaceFluxes.UniversalFunctions: BusingerParams
     # Inputs
     L_MO = FT(10)
     z0 = FT(0.1)
-    Δz = FT(10)
+    Δz_eff = FT(10)
     scale = FT(0.5) # u_star or theta_star
     val_sfc = FT(300) # Surface value
 
@@ -22,15 +22,15 @@ import SurfaceFluxes.UniversalFunctions: BusingerParams
 
     # Expected: val_sfc + (scale / k) * F_m
     uf_params = SFP.uf_params(param_set)
-    ζ = Δz / L_MO
-    F_m = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport, scheme)
+    ζ = Δz_eff / L_MO
+    F_m = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0, transport, scheme)
     expected = val_sfc + (scale / κ) * F_m
 
     result = SF.compute_profile_value(
         param_set,
         L_MO,
         z0,
-        Δz,
+        Δz_eff,
         scale,
         val_sfc,
         transport,
@@ -43,14 +43,14 @@ import SurfaceFluxes.UniversalFunctions: BusingerParams
     scheme_fv = UF.LayerAverageScheme()
     transport_h = UF.HeatTransport()
 
-    F_h = UF.dimensionless_profile(uf_params, Δz, ζ, z0, transport_h, scheme_fv)
+    F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0, transport_h, scheme_fv)
     expected_h = val_sfc + (scale / κ) * F_h
 
     result_h = SF.compute_profile_value(
         param_set,
         L_MO,
         z0,
-        Δz,
+        Δz_eff,
         scale,
         val_sfc,
         transport_h,
@@ -64,7 +64,7 @@ import SurfaceFluxes.UniversalFunctions: BusingerParams
         param_set,
         L_MO,
         z0,
-        Δz,
+        Δz_eff,
         scale,
         val_sfc,
         transport,

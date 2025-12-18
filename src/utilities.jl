@@ -6,13 +6,34 @@ Ensure that `v` is not zero, returning `eps(v)` (preserving sign) if `v` is too 
 @inline function non_zero(v)
     FT = typeof(v)
     threshold = eps(FT)
-    return ifelse(abs(v) < threshold, copysign(threshold, v + threshold), v)
+    return ifelse(abs(v) < threshold, copysign(FT(threshold), v), v)
 end
 
+"""
+    interior_geopotential(param_set, inputs)
+
+Compute the geopotential at the interior (atmospheric) reference level.
+
+# Arguments
+- `param_set`: Parameter set containing gravitational constant.
+- `inputs`: `SurfaceFluxInputs` struct with `Φ_sfc` and `Δz`.
+
+Returns `Φ_sfc + g * Δz` [m²/s²].
+"""
 @inline function interior_geopotential(param_set::APS, inputs::SurfaceFluxInputs)
     return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz
 end
 
+"""
+    surface_geopotential(inputs)
+
+Return the surface geopotential from the inputs.
+
+# Arguments
+- `inputs`: `SurfaceFluxInputs` struct.
+
+Returns `inputs.Φ_sfc` [m²/s²].
+"""
 @inline surface_geopotential(inputs::SurfaceFluxInputs) = inputs.Φ_sfc
 
 """
@@ -44,4 +65,19 @@ for the temperature ratio between the interior and surface.
     cv_m = TD.cv_m(thermo_params, qt_int, ql_int, qi_int)
     ratio = T_sfc / T_int
     return ρ_int * ratio^(cv_m / R_m)
+end
+
+"""
+    effective_height(inputs)
+
+Compute the effective aerodynamic height `z_eff = Δz - d`.
+
+# Arguments
+- `inputs`: `SurfaceFluxInputs` struct with `Δz` and `d`.
+
+Returns `Δz - d` [m].
+"""
+@inline function effective_height(inputs::SurfaceFluxInputs)
+    FT = typeof(inputs.Δz)
+    return max(inputs.Δz - inputs.d, eps(FT))
 end

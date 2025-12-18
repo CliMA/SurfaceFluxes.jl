@@ -1,13 +1,14 @@
 """
-    drag_coefficient(param_set, ζ, z0m, Δz, scheme)
+
+    drag_coefficient(param_set, ζ, z0m, Δz_eff, scheme)
 
 Compute the drag coefficient `Cd` for momentum exchange.
 
 # Arguments
 - `param_set`: Parameter set
-- `ζ`: Stability parameter `ζ = Δz / L_MO`
+- `ζ`: Stability parameter `ζ = Δz_eff / L_MO`
 - `z0m`: Roughness length for momentum [m]
-- `Δz`: Height difference between the surface and the reference height [m]
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m] 
 - `scheme`: Surface flux solver scheme (default: `PointValueScheme()`)
 
 # Formula:
@@ -20,13 +21,14 @@ function drag_coefficient(
     param_set::APS,
     ζ,
     z0m,
-    Δz,
+    Δz_eff,
     scheme = UF.PointValueScheme(),
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m = UF.dimensionless_profile(uf_params, Δz, ζ, z0m, UF.MomentumTransport(), scheme)
+    F_m =
+        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
     Cd = (κ / F_m)^2
     return Cd
 end
@@ -36,6 +38,12 @@ end
 
 Compute the drag coefficient `Cd` from friction velocity (presumed to be in `inputs.ustar`) 
 and effective wind speed (including any gustiness factors).
+
+See [`SurfaceFluxInputs`](@ref).
+
+# Arguments
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `speed`: Effective wind speed [m/s].
 """
 function drag_coefficient(inputs::SurfaceFluxInputs, speed)
     ustar = inputs.ustar
@@ -43,7 +51,8 @@ function drag_coefficient(inputs::SurfaceFluxInputs, speed)
 end
 
 """
-    heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz, scheme)
+
+    heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
 
 Compute the heat exchange coefficient `Ch` for scalar exchange.
 
@@ -57,10 +66,10 @@ Nishizawa & Kitamura (2018), Eqs. 21 & 22 (with Pr_0 absorbed into F_h).
 
 # Arguments
 - `param_set`: Parameter set
-- `ζ`: Stability parameter `ζ = Δz / L_MO`
+- `ζ`: Stability parameter `ζ = Δz_eff / L_MO`
 - `z0m`: Roughness length for momentum [m]
 - `z0h`: Roughness length for scalars (heat/moisture) [m]
-- `Δz`: Height difference between the surface and the reference height [m]
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m] 
 - `scheme`: Surface flux solver scheme (default: `PointValueScheme()`)
 """
 function heat_exchange_coefficient(
@@ -68,14 +77,15 @@ function heat_exchange_coefficient(
     ζ,
     z0m,
     z0h,
-    Δz,
+    Δz_eff,
     scheme = UF.PointValueScheme(),
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m = UF.dimensionless_profile(uf_params, Δz, ζ, z0m, UF.MomentumTransport(), scheme)
-    F_h = UF.dimensionless_profile(uf_params, Δz, ζ, z0h, UF.HeatTransport(), scheme)
+    F_m =
+        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
+    F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0h, UF.HeatTransport(), scheme)
 
     Ch = κ^2 / (F_m * F_h)
     return Ch
@@ -86,6 +96,17 @@ end
 
 Compute the heat conductance `g_h` (speed * Ch), including any gustiness factor in the wind speed.
 Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables.
+
+See [`SurfaceFluxInputs`](@ref).
+
+# Arguments
+- `param_set`: Parameter set.
+- `ζ`: Monin-Obukhov stability parameter.
+- `ustar`: Friction velocity [m/s].
+- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Thermal roughness length [m].
+- `scheme`: Discretization scheme.
 """
 function heat_conductance(
     param_set::APS,
@@ -97,7 +118,8 @@ function heat_conductance(
     scheme = UF.PointValueScheme(),
 )
     # Compute Ch
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, inputs.Δz, scheme)
+    Δz_eff = effective_height(inputs)
+    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
 
     # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
     current_speed = windspeed(param_set, ζ, ustar, inputs)

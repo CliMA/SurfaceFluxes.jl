@@ -7,46 +7,13 @@ import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
+using ClimaParams
 
-# Shared Mocks and Setup
-struct EarthParameterSet <: SF.Parameters.AbstractSurfaceFluxesParameters{Float64} end
+# Shared Parameter Set
+FT = Float64
+const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
-struct MockThermoParams{FT}
-    cp_d::FT
-    LH_v0::FT
-    R_d::FT
-end
-Base.eltype(::MockThermoParams{FT}) where {FT} = FT
-
-TDP.cp_d(tp::MockThermoParams) = tp.cp_d
-TDP.LH_v0(tp::MockThermoParams) = tp.LH_v0
-TD.air_density(tp::MockThermoParams, ts) = FT(1.2)
-TD.cp_m(tp::MockThermoParams, q_tot, q_liq, q_ice) = tp.cp_d
-TD.cp_m(tp::MockThermoParams, ts) = tp.cp_d
-TD.cv_m(tp::MockThermoParams, q_tot, q_liq, q_ice) = tp.cp_d - tp.R_d
-TD.gas_constant_air(tp::MockThermoParams, q_tot, q_liq, q_ice) = tp.R_d
-
-TD.virtual_pottemp(tp::MockThermoParams, ts) = ts # Approximation
-TD.virtual_pottemp(tp::MockThermoParams, T, ρ, qt, ql, qi) = T # Approximation
-
-TD.dry_static_energy(tp::MockThermoParams, T, Φ) = tp.cp_d * T + Φ
-TD.vapor_static_energy(tp::MockThermoParams, T, Φ) = tp.cp_d * T + Φ + tp.LH_v0
-
-# Parameters
-SFP.thermodynamics_params(::EarthParameterSet) = MockThermoParams(1004.0, 2.5e6, 287.0)
-SFP.uf_params(::EarthParameterSet) = UF.BusingerParams{Float64}(
-    Pr_0 = 0.74, a_m = 4.7, a_h = 4.7, b_m = 15.0, b_h = 9.0, ζ_a = 2.5, γ = 0.0,
-)
-SFP.von_karman_const(::EarthParameterSet) = 0.4
-SFP.grav(::EarthParameterSet) = 9.81
-SFP.Rv_over_Rd(::EarthParameterSet) = 1.61
-
-const param_set = EarthParameterSet()
-const FT = Float64
-
-@testset "Surface flux primitives API" begin
-    # Using mocked params instead of real construction to avoid issues
-    # param_set and thermo_params are already defined globally above
+@testset "Surface Flux Primitives API" begin
 
     T_int = FT(300)
     q_tot_int = FT(0.01)
@@ -71,14 +38,15 @@ const FT = Float64
 
     Ts_calls = Ref(0)
     qs_calls = Ref(0)
-    update_T_sfc = function (ζ, param_set, thermo_params, inputs)
+    update_T_sfc = function (ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0s)
         Ts_calls[] += 1
         return inputs.T_int - FT(5)
     end
-    update_q_vap_sfc = function (ζ, param_set, thermo_params, inputs)
-        qs_calls[] += 1
-        return inputs.q_tot_int + FT(2e-3)
-    end
+    update_q_vap_sfc =
+        function (ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0s)
+            qs_calls[] += 1
+            return inputs.q_tot_int + FT(2e-3)
+        end
 
     hooked_result = SF.surface_fluxes(
         param_set,
@@ -90,10 +58,10 @@ const FT = Float64
         FT(0),
         FT(10),
         FT(0),
+        (0, 0),
+        (0, 0),
         nothing,
-        nothing,
-        nothing,
-        nothing,
+        SF.default_surface_flux_config(FT),
         SF.PointValueScheme(),
         nothing,
         nothing,
@@ -120,8 +88,8 @@ const FT = Float64
         FT(0),
         FT(10),
         FT(0),
-        nothing,
-        nothing,
+        (0, 0),
+        (0, 0),
         nothing,
         config,
     )
@@ -167,7 +135,7 @@ end
     lhf_pre = 200.0
     ustar_pre = 0.5
 
-    flux_specs = SF.FluxSpecs(FT; shf = shf_pre, lhf = lhf_pre, ustar = ustar_pre)
+    flux_specs = SF.FluxSpecs{FT}(; shf = shf_pre, lhf = lhf_pre, ustar = ustar_pre)
 
     T_int = 300.0
     q_tot_int = 0.01
@@ -200,7 +168,7 @@ end
     # Prescribed Coefficients ONLY (Legacy path)
     Cd_pre = 1e-3
     Ch_pre = 1e-3
-    flux_specs = SF.FluxSpecs(FT; Cd = Cd_pre, Ch = Ch_pre)
+    flux_specs = SF.FluxSpecs{FT}(; Cd = Cd_pre, Ch = Ch_pre)
 
     T_int = 300.0
     q_tot_int = 0.01
@@ -229,7 +197,7 @@ end
 
 @testset "Prescribed Ustar Only" begin
     ustar_pre = 0.5
-    flux_specs = SF.FluxSpecs(FT; ustar = ustar_pre)
+    flux_specs = SF.FluxSpecs{FT}(; ustar = ustar_pre)
 
     T_int = 300.0
     q_tot_int = 0.01
@@ -259,11 +227,11 @@ end
     # Manually call sensible_heat_flux to verify default arg
     shf_default_E = SF.sensible_heat_flux(
         param_set,
-        SFP.thermodynamics_params(param_set),
         SF.build_surface_flux_inputs(
-            param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+            T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess,
+            Φ_sfc, Δz, d,
             u_int, u_sfc, config,
-            nothing, SF.FluxSpecs(FT), nothing, nothing,
+            nothing, SF.FluxSpecs{FT}(), nothing, nothing,
         ),
         FT(0.01), # g_h
         T_int,
@@ -273,7 +241,7 @@ end
     )
     @test shf_default_E isa FT
 
-    # Test new helper method
+    # Test helper methods
     ζ_test = FT(0.1)
     ustar_test = FT(0.3)
     z0m_test = FT(1e-3)
@@ -281,9 +249,10 @@ end
 
     # Rebuild inputs for the test call since sf is SurfaceFluxConditions
     inputs_test = SF.build_surface_flux_inputs(
-        param_set, T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int,
+        T_int, q_tot_int, zero(FT), zero(FT), ρ_int, T_sfc_guess, q_vap_sfc_guess,
+        Φ_sfc, Δz, d, u_int,
         u_sfc, config,
-        nothing, SF.FluxSpecs(FT), nothing, nothing,
+        nothing, SF.FluxSpecs{FT}(), nothing, nothing,
     )
 
     shf_helper = SF.sensible_heat_flux(

@@ -93,7 +93,7 @@ function density_from_state(thermo_params, T, pressure, qt)
     return pressure / (R_m * T)
 end
 
-function build_surface_inputs(param_set, case)
+function build_surface_inputs(param_set, case, config)
     FT = eltype(case.T_sfc)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
@@ -103,17 +103,24 @@ function build_surface_inputs(param_set, case)
     Φs = FT(0)  # Surface geopotential
     Δz = case.z
 
-    return (;
-        T_int = case.T_int,
-        q_tot_int = case.qt_int,
-        ρ_int = ρ_int,
-        T_sfc_guess = case.T_sfc,
-        q_vap_sfc_guess = case.qt_sfc,
-        Φ_sfc = FT(0),
-        Δz = Δz,
-        d = FT(0),  # zero(Δz)
-        u_int = case.wind,
-        u_sfc = (FT(0), FT(0)),
+    return SF.build_surface_flux_inputs(
+        case.T_int,
+        case.qt_int,
+        FT(0), # q_liq_int
+        FT(0), # q_ice_int
+        ρ_int,
+        case.T_sfc,
+        case.qt_sfc,
+        Φs,
+        Δz,
+        FT(0), # d
+        case.wind,
+        (FT(0), FT(0)), # u_sfc
+        config,
+        nothing, # roughness_inputs
+        SF.FluxSpecs{FT}(),
+        nothing, # update_T_sfc
+        nothing, # update_q_vap_sfc
     )
 end
 
@@ -174,12 +181,23 @@ function assert_flux_expectations(result, case, FT, param_set, inputs)
     @test result.Ch > FT(0)
 end
 
-@testset "SurfaceFluxes convergence matrix" begin
+@testset "SurfaceFluxes Convergence Matrix" begin
     schemes = (SF.PointValueScheme(), SF.LayerAverageScheme())
+
+    # Counter for convergence statistics
+    converged_count = 0
+    total_count = 0
+
+    # Storage for Ri_b of failed cases
+    failed_Rib = Float64[]
+
     for FT in (Float32, Float64)
         # Define roughness configs as functions of (z0m, z0h)
         roughness_config_factories = (
-            (z0m, z0h) -> SF.SurfaceFluxConfig(SF.roughness_lengths(z0m, z0h), SF.ConstantGustinessSpec(FT(1.0))),
+            (z0m, z0h) -> SF.SurfaceFluxConfig(
+                SF.roughness_lengths(z0m, z0h),
+                SF.ConstantGustinessSpec(FT(1.0)),
+            ),
             (z0m, z0h) -> SF.SurfaceFluxConfig(
                 charnock_momentum(alpha = FT(0.0185), scalar = z0h),
                 SF.ConstantGustinessSpec(FT(1.0)),
@@ -188,11 +206,20 @@ end
         cases = synthetic_cases(FT)
         for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
             param_set = SFP.SurfaceFluxesParameters(FT, uf_params)
-            # tol_neutral removed
+            thermo_params = SFP.thermodynamics_params(param_set)
             scheme_set = uf_params === UF.GrachevParams ? (SF.PointValueScheme(),) : schemes
-            for case in cases, config_factory in roughness_config_factories, scheme in scheme_set
-                inputs = build_surface_inputs(param_set, case)
+            for case in cases, config_factory in roughness_config_factories,
+                scheme in scheme_set
+
                 config = config_factory(case.z0m, case.z0h)
+                inputs = build_surface_inputs(param_set, case, config)
+
+                # Solver options for convergence testing
+                solver_opts = SF.SolverOptions{FT}(
+                    maxiter = 15,
+                    tol = 1e-2,
+                    forced_fixed_iters = false,
+                )
 
                 result = SF.surface_fluxes(
                     param_set,
@@ -203,11 +230,47 @@ end
                     nothing, # roughness_inputs
                     config,
                     scheme,
-                    SF.SolverOptions(FT; maxiter = 15),
+                    solver_opts,
                 )
+
+                total_count += 1
+                if result.converged
+                    converged_count += 1
+                else
+                    # Compute expected Ri_b for failed case
+                    ΔU = SF.windspeed(inputs, FT(0))
+                    ρ_sfc = density_from_state(
+                        thermo_params,
+                        inputs.T_sfc_guess,
+                        case.pressure,
+                        inputs.q_vap_sfc_guess,
+                    )
+
+                    Rib = SF.state_bulk_richardson_number(
+                        param_set,
+                        inputs,
+                        inputs.T_sfc_guess,
+                        ρ_sfc,
+                        ΔU,
+                        inputs.q_vap_sfc_guess,
+                    )
+                    push!(failed_Rib, Float64(Rib))
+                end
+
                 assert_flux_expectations(result, case, FT, param_set, inputs)
             end
         end
     end
+
     @info "Convergence matrix exercised Businger/Gryanik/Grachev UFs, Float32/Float64, synthetic dry/moist gradients, Scalar/Charnock roughness"
+    @info "Convergence Statistics" Total = total_count Converged = converged_count Failed =
+        (total_count - converged_count) FailurePercentage =
+        (1 - converged_count / total_count) * 100
+
+    if !isempty(failed_Rib)
+        import Statistics
+        @info "Failed Cases Ri_b Statistics" Min = minimum(failed_Rib) Max =
+            maximum(failed_Rib) Median =
+            Statistics.median(failed_Rib) Count = length(failed_Rib)
+    end
 end

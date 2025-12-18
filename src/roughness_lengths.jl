@@ -102,11 +102,21 @@ upper bounds based on COARE 3.0 (Fairall et al. 2003).
 end
 
 # Accessors
-@inline function momentum_roughness(spec::ConstantRoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function momentum_roughness(
+    spec::ConstantRoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     return spec.z0m
 end
 
-@inline function scalar_roughness(spec::ConstantRoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function scalar_roughness(
+    spec::ConstantRoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     return spec.z0s
 end
 
@@ -138,9 +148,9 @@ lower and upper bounds defined in `spec`.
 
 # Dependencies
 - `u★`: Friction velocity [m/s]
-- `kinematic_visc`: Kinematic viscosity of air [m^2/s] (from `spec`)
-- `grav`: Gravitational acceleration [m/s^2] (from `sfc_param_set`)
-- `mag_u_10`: 10m wind speed [m/s] (internally recovered from u★ assuming neutral log profile)
+- `kinematic_visc`: Kinematic viscosity of air [m^2/s], from `spec`
+- `grav`: Gravitational acceleration [m/s^2], from `sfc_param_set`
+- `mag_u_10`: 10m wind speed [m/s]. (internally recovered from u★ assuming neutral log profile)
 
 # References
 - Fairall, C. W., Bradley, E. F., Hare, J. E., Grachev, A. A., & Edson, J. B. (2003). 
@@ -155,7 +165,12 @@ lower and upper bounds defined in `spec`.
     Quarterly Journal of the Royal Meteorological Society, 81, 639–640.
     [DOI: 10.1002/qj.49708135027](https://doi.org/10.1002/qj.49708135027)
 """
-@inline function momentum_roughness(spec::COARE3RoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function momentum_roughness(
+    spec::COARE3RoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     FT = eltype(sfc_param_set)
     grav = SFP.grav(sfc_param_set)
     kinematic_visc = spec.kinematic_visc
@@ -203,7 +218,12 @@ where ``R_{e*} = z_{0m} u_* / \\nu``.
     Journal of Climate, 16, 571–591.
     [DOI: 10.1175/1520-0442(2003)016<0571:BPOASF>2.0.CO;2](https://doi.org/10.1175/1520-0442(2003)016<0571:BPOASF>2.0.CO;2)
 """
-@inline function scalar_roughness(spec::COARE3RoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function scalar_roughness(
+    spec::COARE3RoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     # Forward to combined calculation to avoid code duplication
     _, z0s = momentum_and_scalar_roughness(spec, u★, sfc_param_set, roughness_inputs)
     return z0s
@@ -251,7 +271,12 @@ Key features:
     Boundary-Layer Meteorology, 71, 211–216.
     [DOI: 10.1007/BF00709229](https://doi.org/10.1007/BF00709229)
 """
-@inline function momentum_roughness(spec::RaupachRoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function momentum_roughness(
+    spec::RaupachRoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     FT = eltype(sfc_param_set)
     k = SFP.von_karman_const(sfc_param_set)
 
@@ -266,12 +291,15 @@ Key features:
     c_d1 = spec.c_d1
 
     # Avoid division by zero if LAI is extremely small
-    if λ <= eps(FT)
-        return SFP.z0m_fixed(sfc_param_set)
-    end
+    # Small λ limit: Use fixed roughness
+    z0m_small = SFP.z0m_fixed(sfc_param_set)
+
+    # Large λ: Use Raupach model
+    # Avoid div by zero by clamping λ
+    λ_safe = max(λ, eps(FT))
 
     # d/h (Eq 15 in Raupach 1994)
-    sqrt_c_lambda = sqrt(c_d1 * λ)
+    sqrt_c_lambda = sqrt(c_d1 * λ_safe)
     d_over_h = FT(1) - (FT(1) - exp(-sqrt_c_lambda)) / sqrt_c_lambda
 
     # u_star / U(h) (Eq 8 in Raupach 1994)
@@ -281,9 +309,9 @@ Key features:
     # Psi_h (roughness sublayer influence function), approximated by fixed value 0.193
     Ψ_h = FT(0.193)
 
-    z0m = h * (FT(1) - d_over_h) * exp(-k * Uh_over_ustar - Ψ_h)
+    z0m_large = h * (FT(1) - d_over_h) * exp(-k * Uh_over_ustar - Ψ_h)
 
-    return z0m
+    return ifelse(λ <= eps(FT), z0m_small, z0m_large)
 end
 
 """
@@ -301,7 +329,12 @@ where ``St`` is `spec.stanton_number`.
 # Dependencies
 - `spec.stanton_number`: Stanton number specific to the canopy/surface type.
 """
-@inline function scalar_roughness(spec::RaupachRoughnessParams, u★, sfc_param_set, roughness_inputs)
+@inline function scalar_roughness(
+    spec::RaupachRoughnessParams,
+    u★,
+    sfc_param_set,
+    roughness_inputs,
+)
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
     return z0m * spec.stanton_number
 end
@@ -336,7 +369,12 @@ function (ur::UstarResidual)(ustar)
 
     # Ensure ustar is positive for physical consistency
     ustar_safe = max(ustar, FT(0))
-    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar_safe, param_set, inputs.roughness_inputs)
+    z0m, z0s = momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        ustar_safe,
+        param_set,
+        inputs.roughness_inputs,
+    )
 
     b_flux = buoyancy_flux(param_set, ζ, ustar_safe, inputs)
     gustiness_val = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -364,30 +402,37 @@ function compute_ustar_and_roughness(
 
     if inputs.ustar !== nothing
         ustar = inputs.ustar
-        z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
+        z0m, z0s = momentum_and_scalar_roughness(
+            inputs.roughness_model,
+            ustar,
+            param_set,
+            inputs.roughness_inputs,
+        )
         return ustar, z0m, z0s
     end
 
-    u_star_guess_0 = FT(0.1)
-    u_star_guess_1 = FT(1.0)
-
-    maxiter = 4
-    tol = FT(0.1) # Tolerance on successive iterates of ustar
-
     rf = UstarResidual(param_set, inputs, scheme, ζ)
+
+    ustar_min = FT(1e-4) # Sufficient for very calm conditions
+    ustar_max = FT(4.0)  # Sufficient for hurricane-force winds
+    maxiter = 4          # Relatively small maxiter for performance
+    rtol = FT(0.02) # Relative tolerance on successive iterates of ustar
 
     sol = RS.find_zero(
         rf,
-        RS.SecantMethod(u_star_guess_0, u_star_guess_1),
+        RS.BrentsMethod(ustar_min, ustar_max),
         RS.CompactSolution(),
-        RS.SolutionTolerance(tol),
+        RS.RelativeSolutionTolerance(rtol),
         maxiter,
     )
     ustar = sol.root
 
-    ustar = max(ustar, eps(FT))
-
-    z0m, z0s = momentum_and_scalar_roughness(inputs.roughness_model, ustar, param_set, inputs.roughness_inputs)
+    z0m, z0s = momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        ustar,
+        param_set,
+        inputs.roughness_inputs,
+    )
 
     return ustar, z0m, z0s
 end
