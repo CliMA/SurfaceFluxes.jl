@@ -32,7 +32,7 @@ The `src/` directory contains the following files organized by functionality:
 
 ```@docs
 SurfaceFluxes.surface_fluxes
-SurfaceFluxes.recover_profile
+SurfaceFluxes.compute_profile_value
 ```
 
 # Parameters

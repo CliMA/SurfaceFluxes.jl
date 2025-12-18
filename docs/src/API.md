@@ -12,7 +12,6 @@ SurfaceFluxes
 SurfaceFluxes.surface_fluxes
 SurfaceFluxes.SurfaceFluxConfig
 SurfaceFluxes.roughness_lengths
-SurfaceFluxes.charnock_momentum
 SurfaceFluxes.gustiness_constant
 SurfaceFluxes.SurfaceFluxConditions
 ```
@@ -52,4 +51,3 @@ SurfaceFluxes.UniversalFunctions.phi
 SurfaceFluxes.UniversalFunctions.psi
 SurfaceFluxes.UniversalFunctions.Psi
 ```
-
