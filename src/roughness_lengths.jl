@@ -371,8 +371,8 @@ function compute_ustar_and_roughness(
     u_star_guess_0 = FT(0.1)
     u_star_guess_1 = FT(1.0)
 
-    maxiter = 3
-    tol = FT(0.1)
+    maxiter = 4
+    tol = FT(0.1) # Tolerance on successive iterates of ustar
 
     rf = UstarResidual(param_set, inputs, scheme, ζ)
 

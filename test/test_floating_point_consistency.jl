@@ -11,13 +11,21 @@ include("test_utils.jl")
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
-import Thermodynamics as TD
 import ClimaParams as CP
 
 const NEAR_ZERO_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160, 320, 640)
 const IDENTICAL_Z_LEVELS = (1, 5, 10, 20, 40, 80, 160)
 const IDENTICAL_Z0 = (1e-5, 1e-4, 1e-3)
 const FLOAT_TYPES = (Float32, Float64)
+
+# Test case thermodynamic primitives:
+# Interior state: ρ=1.1751807, p=97086.64, e_int=10541.609, q_tot=0, T=287.85202
+# Surface state:  ρ=1.2176297, p=102852.51, e_int=45087.812, q_tot=0.013232904, T=291.96683
+const TEST_T_INT = 287.85202
+const TEST_Q_TOT_INT = 0.0
+const TEST_RHO_INT = 1.1751807
+const TEST_T_SFC = 291.96683
+const TEST_Q_SFC = 0.013232904
 
 @testset "SurfaceFluxes - Near-zero Obukhov length" begin
     @test sign(SF.non_zero(1.0)) == 1
@@ -27,16 +35,12 @@ const FLOAT_TYPES = (Float32, Float64)
 
     for FT in FLOAT_TYPES
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
-        ts_int = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
-        ts_sfc = TD.PhaseEquil{FT}(FT(1.2176297), FT(102852.51), FT(45087.812), FT(0.013232904), FT(291.96683))
 
-        thermo_params = SFP.thermodynamics_params(param_set)
-
-        T_int = TD.air_temperature(thermo_params, ts_int)
-        q_tot_int = TD.total_specific_humidity(thermo_params, ts_int)
-        ρ_int = TD.air_density(thermo_params, ts_int)
-        T_sfc_guess = TD.air_temperature(thermo_params, ts_sfc)
-        q_vap_sfc_guess = TD.total_specific_humidity(thermo_params, ts_sfc)
+        T_int = FT(TEST_T_INT)
+        q_tot_int = FT(TEST_Q_TOT_INT)
+        ρ_int = FT(TEST_RHO_INT)
+        T_sfc_guess = FT(TEST_T_SFC)
+        q_vap_sfc_guess = FT(TEST_Q_SFC)
 
         for z_int in NEAR_ZERO_Z_LEVELS
             config = SF.SurfaceFluxConfig(SF.roughness_lengths(FT(1e-5), FT(1e-5)), SF.ConstantGustinessSpec(FT(1.0)))
@@ -46,7 +50,7 @@ const FLOAT_TYPES = (Float32, Float64)
                 T_int, q_tot_int, ρ_int,
                 T_sfc_guess, q_vap_sfc_guess,
                 FT(0), FT(z_int), zero(FT),
-                (FT(0), FT(0)), (FT(0), FT(0)), # Zero wind for near-zero check?
+                (FT(0), FT(0)), (FT(0), FT(0)),  # Zero wind
                 nothing,
                 config,
             )
@@ -62,12 +66,11 @@ end
 
     for (ii, FT) in enumerate(FLOAT_TYPES)
         param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
-        ts = TD.PhaseEquil{FT}(FT(1.1751807), FT(97086.64), FT(10541.609), FT(0), FT(287.85202))
 
-        thermo_params = SFP.thermodynamics_params(param_set)
-        T_int = TD.air_temperature(thermo_params, ts)
-        q_tot_int = TD.total_specific_humidity(thermo_params, ts)
-        ρ_int = TD.air_density(thermo_params, ts)
+        # Use same thermodynamic state for interior and surface (identical states)
+        T_int = FT(TEST_T_INT)
+        q_tot_int = FT(TEST_Q_TOT_INT)
+        ρ_int = FT(TEST_RHO_INT)
         T_sfc_guess = T_int
         q_vap_sfc_guess = q_tot_int
 

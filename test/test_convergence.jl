@@ -4,8 +4,8 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import ClimaParams as CP
-
 import Thermodynamics as TD
+
 using RootSolvers
 const RS = RootSolvers
 
@@ -38,15 +38,17 @@ charnock_momentum(; alpha, scalar) = CharnockMock(alpha, scalar)
 
 # Helper function to compute specific humidity from relative humidity
 function qt_from_RH(::Type{FT}, RH, T, p) where {FT}
-    # Create a minimal param_set to get thermo_params for Thermodynamics calculations
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     thermo_params = SFP.thermodynamics_params(param_set)
 
-    # Approximate saturation specific humidity (neglecting density effect of water vapor)
-    qt_sat = TD.q_vap_saturation_from_pressure(thermo_params, FT(0), FT(p), FT(T), TD.PhaseEquil)
+    # Saturation vapor pressure over liquid water [Pa]
+    e_sat = TD.saturation_vapor_pressure(thermo_params, FT(T), TD.Liquid())
 
-    # Multiply by relative humidity to get actual specific humidity
-    return FT(RH * qt_sat)
+    # Saturation specific humidity: q_sat = ε * e_sat / (p - (1 - ε) * e_sat)
+    ε = FT(0.622)  # Rd / Rv
+    q_sat = ε * e_sat / (p - (FT(1) - ε) * e_sat)
+
+    return FT(RH * q_sat)
 end
 
 function synthetic_cases(::Type{FT}) where {FT}
@@ -98,12 +100,8 @@ function build_surface_inputs(param_set, case)
     ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
 
     grav = SFP.grav(param_set)
-    Φs = FT(0) # Surface at z=0 relative to layer? 
-    # Actually case.z is likely relative height given use in StateValues(..., z, ...)
-    # Let's assume surface is at 0 geopotential for simplicity or calculate from 0 if needed.
-    # In original: Φs = grav * sc.state_sfc.z. sc.state_sfc was initialized with 0.
-
-    Δz = case.z # Since sfc z was 0.
+    Φs = FT(0)  # Surface geopotential
+    Δz = case.z
 
     return (;
         T_int = case.T_int,

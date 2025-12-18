@@ -2,7 +2,6 @@ module TestRegressions
 
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
-import Thermodynamics as TD
 import ClimaParams as CP
 import SurfaceFluxes.Parameters as SFP
 using Test
@@ -15,6 +14,8 @@ Numerical regression cases derived from challenging configurations.
 Each case stores the state specification and the expected `SurfaceFluxConditions`
 returned by `surface_fluxes`. The expected values were generated using 
 SurfaceFluxes v0.13.1 and provide a regression target for changes.
+
+State values are stored as direct primitives (T, q_tot, ρ) for simplicity.
 """
 function case_definitions(::Type{FT}) where {FT}
     return [
@@ -25,20 +26,13 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.2595116f0,
-                99902.82f0,
-                12337.749f0,
-                0.0044478197f0,
-                275.624f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.2544012f0,
-                99335.55f0,
-                11996.086f0,
-                0.0044396375f0,
-                275.1768f0,
-            ),
+            # Interior state: ρ=1.2595116, T=275.624, q_tot=0.0044478197
+            T_int = FT(275.624),
+            q_tot_int = FT(0.0044478197),
+            ρ_int = FT(1.2595116),
+            # Surface state: ρ=1.2544012, T=275.1768, q_tot=0.0044396375
+            T_sfc = FT(275.1768),
+            q_sfc = FT(0.0044396375),
             expected = (;  # Regression targets
                 L_MO = FT(906302.9),
                 shf = FT(-20.373146),
@@ -59,20 +53,11 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.2605726f0,
-                100331.47f0,
-                7956.4053f0,
-                0.002202735f0,
-                276.95068f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.2499729f0,
-                99303.92f0,
-                13258.002f0,
-                0.0047157165f0,
-                276.01752f0,
-            ),
+            T_int = FT(276.95068),
+            q_tot_int = FT(0.002202735),
+            ρ_int = FT(1.2605726),
+            T_sfc = FT(276.01752),
+            q_sfc = FT(0.0047157165),
             expected = (;
                 L_MO = FT(-5.2631125),
                 shf = FT(-1.9265472),
@@ -93,20 +78,11 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.1730341f0,
-                98689.72f0,
-                43302.703f0,
-                0.012817842f0,
-                290.8733f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.1740736f0,
-                98819.375f0,
-                43671.336f0,
-                0.012941063f0,
-                290.97592f0,
-            ),
+            T_int = FT(290.8733),
+            q_tot_int = FT(0.012817842),
+            ρ_int = FT(1.1730341),
+            T_sfc = FT(290.97592),
+            q_sfc = FT(0.012941063),
             expected = (;
                 L_MO = FT(-22733.092),
                 shf = FT(-0.75684166),
@@ -127,20 +103,11 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.1698402f0,
-                98647.89f0,
-                44855.285f0,
-                0.013289474f0,
-                291.46088f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.1708081f0,
-                98770.55f0,
-                45266.523f0,
-                0.013432522f0,
-                291.5569f0,
-            ),
+            T_int = FT(291.46088),
+            q_tot_int = FT(0.013289474),
+            ρ_int = FT(1.1698402),
+            T_sfc = FT(291.5569),
+            q_sfc = FT(0.013432522),
             expected = (;
                 L_MO = FT(-22413.842),
                 shf = FT(-0.9256648),
@@ -161,20 +128,11 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.2182463f0,
-                96874.9f0,
-                13805.914f0,
-                0.0048752176f0,
-                276.25174f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.2197124f0,
-                97042.68f0,
-                14087.365f0,
-                0.004953378f0,
-                276.38446f0,
-            ),
+            T_int = FT(276.25174),
+            q_tot_int = FT(0.0048752176),
+            ρ_int = FT(1.2182463),
+            T_sfc = FT(276.38446),
+            q_sfc = FT(0.004953378),
             expected = (;
                 L_MO = FT(-351333.28),
                 shf = FT(-0.8296894),
@@ -195,20 +153,11 @@ function case_definitions(::Type{FT}) where {FT}
             u_sfc = (FT(0), FT(0)),
             z0m = FT(1e-5),
             z0h = FT(1e-5),
-            ts_int = TD.PhaseEquil{FT}(
-                1.2317619f0,
-                99965.086f0,
-                12921.355f0,
-                0.0026684932f0,
-                282.31366f0,
-            ),
-            ts_sfc = TD.PhaseEquil{FT}(
-                1.214932f0,
-                98294.87f0,
-                21252.703f0,
-                0.006637053f0,
-                280.76575f0,
-            ),
+            T_int = FT(282.31366),
+            q_tot_int = FT(0.0026684932),
+            ρ_int = FT(1.2317619),
+            T_sfc = FT(280.76575),
+            q_sfc = FT(0.006637053),
             expected = (;
                 L_MO = FT(-3.385903),
                 shf = FT(-3.034892),
@@ -239,17 +188,13 @@ const CASE_NUMERIC_FIELDS = (
 )
 
 function inputs_from_case(case, ::Type{FT}, param_set) where {FT}
-    thermo_params = SFP.thermodynamics_params(param_set)
-    # Unpack for clarity
-    T_int = TD.air_temperature(thermo_params, case.ts_int)
-    q_tot_int = TD.total_specific_humidity(thermo_params, case.ts_int)
-    ρ_int = TD.air_density(thermo_params, case.ts_int)
-    Ts = TD.air_temperature(thermo_params, case.ts_sfc)
-    qs = TD.total_specific_humidity(thermo_params, case.ts_sfc)
-
-    # We construct minimal primitives
+    # Use direct primitives from case definition
     return (;
-        T_int, q_tot_int, ρ_int, Ts, qs,
+        T_int = case.T_int,
+        q_tot_int = case.q_tot_int,
+        ρ_int = case.ρ_int,
+        Ts = case.T_sfc,
+        qs = case.q_sfc,
         Φs = FT(0),
         Δz = case.Δz,
         d = FT(0),
@@ -268,6 +213,7 @@ function assert_coefficient_reasonableness(result, ::Type{FT}) where {FT}
         @test coeff < FT(0.01)
     end
 end
+
 
 @testset "Numerical regression cases" begin
     FT = Float32

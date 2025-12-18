@@ -32,8 +32,6 @@ TD.virtual_pottemp(tp::MockThermoParams, T, ρ, qt, ql, qi) = T # Approximation
 TD.dry_static_energy(tp::MockThermoParams, T, Φ) = tp.cp_d * T + Φ
 TD.vapor_static_energy(tp::MockThermoParams, T, Φ) = tp.cp_d * T + Φ + tp.LH_v0
 
-TD.PhaseEquil_ρTq(tp::MockThermoParams, ρ, T, q) = T
-
 # Parameters
 SFP.thermodynamics_params(::EarthParameterSet) = MockThermoParams(1004.0, 2.5e6, 287.0)
 SFP.uf_params(::EarthParameterSet) = UF.BusingerParams{Float64}(

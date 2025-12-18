@@ -75,12 +75,12 @@ FluxSpecs(::Type{FT}; kwargs...) where {FT} = FluxSpecs{FT}(; kwargs...)
 Options for the Monin-Obukhov similarity theory solver.
 
 # Fields
-- `tol`: Absolute tolerance for determining convergence.
+- `tol`: Absolute tolerance on the change in the stability parameter for determining convergence.
 - `maxiter`: Maximum number of iterations.
 """
 Base.@kwdef struct SolverOptions{FT}
-    tol::FT = sqrt(eps(FT))
-    maxiter::Int = 100
+    tol::FT = FT(1e-2)
+    maxiter::Int = 15
 end
 
 SolverOptions(::Type{FT}; kwargs...) where {FT} = SolverOptions{FT}(; kwargs...)

@@ -145,20 +145,7 @@ end
             )
 
             # We create a dummy inputs structure. 
-            # Note: compute_physical_scale_coeff in src/physical_scales.jl takes (param_set, inputs, L_MO, z0, transport, scheme)
-            # It expects inputs to support `Δz(inputs)`.
-
-            # We can build a real SurfaceFluxInputs or just a NamedTuple if Δz() handles it?
-            # src/utilities.jl defines Δz(inputs) = inputs.Δz
-
-            # Let's create a minimal inputs struct using helper?
-            # Or just pass the NamedTuple directly if duck typing allows?
-            # SurfaceFluxInputs is explicitly typed in signatures sometimes, but let's check physical_scales.jl
-
-            # src/physical_scales.jl: compute_physical_scale_coeff(..., inputs, ...) 
-            # uses Δz(inputs).
-
-            # We will use the proper constructor.
+            # compute_physical_scale_coeff expects inputs with Δz field
 
             sf_inputs = SF.build_surface_flux_inputs(
                 param_set,

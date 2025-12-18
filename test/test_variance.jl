@@ -110,11 +110,8 @@ end
     var_theta_stable = SF.scalar_variance(param_set, theta_star, ζ_stable)
     @test isapprox(sqrt(var_theta_stable), theta_star * 2.0; rtol = 1e-4)
 
-    # 3. Neutral (L_MO -> Inf)
+    # 3. Neutral (L_MO -> Inf, falls into stable branch ζ >= 0)
     L_MO_neutral = FT(1e10)
-    # Should approach stable limit? Or is there a separate neutral limit?
-    # Code uses if ζ < 0 else ... so neutral falls into stable branch (ζ >= 0).
-    # So valid checks are 2.3 and 2.0.
 
     var_u_neutral = SF.u_variance(param_set, Δz(inputs), ustar, Δz(inputs) / L_MO_neutral)
     @test isapprox(sqrt(var_u_neutral), ustar * sqrt(3.75); rtol = 1e-4)
