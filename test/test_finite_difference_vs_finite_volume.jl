@@ -3,7 +3,6 @@ import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import ClimaParams
 using Test
-include("test_utils.jl")
 
 # Maximum relative mismatch tolerated between the point-value and layer-average
 # velocity-scale computations. With the recovery profiles below, the schemes

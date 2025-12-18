@@ -7,7 +7,6 @@
 #    heights and roughness lengths to make sure both precisions agree within 1%.
 
 using Test
-include("test_utils.jl")
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF

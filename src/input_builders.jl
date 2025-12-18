@@ -1,3 +1,11 @@
+"""
+    gustiness_constant(val)
+
+Create a constant gustiness parameterization with the given value.
+
+Returns a `ConstantGustinessSpec(val)` that provides a fixed gustiness 
+contribution to the effective windspeed.
+"""
 gustiness_constant(val) = ConstantGustinessSpec(val)
 
 # Velocity normalization helper (moved from types.jl)

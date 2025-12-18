@@ -30,10 +30,7 @@ The `src/` directory contains the following files organized by functionality:
 
 ## User-facing methods
 
-```@docs
-SurfaceFluxes.surface_fluxes
-SurfaceFluxes.compute_profile_value
-```
+See the [API Reference](API.md) for complete documentation of `surface_fluxes` and `compute_profile_value`.
 
 # Parameters
 Convenience constructors are provided for the `SurfaceFluxesParameters` and the various `UniversalFunctions` parameter structs.
