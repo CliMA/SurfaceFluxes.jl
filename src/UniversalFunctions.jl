@@ -783,17 +783,19 @@ Grachev heat/scalar-gradient similarity `ϕ_h`.
     FT = eltype(ζ)
     # Stable: Grachev et al. (2007) Eq. 9b:
     # ϕ_h(ζ) = 1 + (a_h * ζ + b_h * ζ^2) / (1 + c_h * ζ + ζ^2)
+    # Scaled by Pr_0 (which is 1.0 for Grachev) for consistency.
     _a_h = FT(a_h(p))
     _b_h = FT(b_h(p))
     _c_h = FT(c_h(p))
+    _Pr_0 = FT(Pr_0(p))
     ζ_safe = max(ζ, FT(0))
     phi_stable =
-        FT(1) + (_a_h * ζ_safe + _b_h * ζ_safe^2) / (FT(1) + _c_h * ζ_safe + ζ_safe^2)
+        _Pr_0 * (FT(1) + (_a_h * ζ_safe + _b_h * ζ_safe^2) / (FT(1) + _c_h * ζ_safe + ζ_safe^2))
 
     return ifelse(
         ζ > 0,
         phi_stable,
-        _phi_h_unstable(min(ζ, FT(0)), FT(b_h_unstable(p))),  # Businger fallback
+        _Pr_0 * _phi_h_unstable(min(ζ, FT(0)), FT(b_h_unstable(p))),  # Businger fallback (scaled by Pr_0)
     )
 end
 
@@ -894,11 +896,12 @@ Grachev heat/scalar stability correction `ψ_h`.
 
     # Final Sum: -coeff * fractional_logs - quadratic_log
     psi_stable = -coeff * fractional_logs - quadratic_log
+    _Pr_0 = FT(Pr_0(p))
 
     return ifelse(
         ζ > 0,
-        psi_stable,
-        _psi_h_unstable(min(ζ, FT(0)), FT(b_h_unstable(p))),
+        _Pr_0 * psi_stable,
+        _Pr_0 * _psi_h_unstable(min(ζ, FT(0)), FT(b_h_unstable(p))),
     )
 end
 

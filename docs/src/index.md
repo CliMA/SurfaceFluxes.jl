@@ -112,7 +112,7 @@ println("SHF at 300K:        ", round(shf_val; digits=2), " W/m²")
 println("d(SHF)/d(Ts):       ", round(dSHF_dT; digits=2), " W/m²/K")
 ```
 
-The derivative $\frac{\partial \text{SHF}}{\partial T_s} > 0$ indicates that increasing the surface temperature increases the upward sensible heat flux, as expected.
+The derivative $\partial \text{SHF}/\partial T_s > 0$ indicates that increasing the surface temperature increases the upward sensible heat flux, as expected.
 
 ## Documentation Structure
 

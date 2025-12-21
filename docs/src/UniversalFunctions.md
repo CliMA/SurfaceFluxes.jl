@@ -30,7 +30,7 @@ and
 ```
 where $\phi_m$ and $\phi_h$ are the universal stability functions for momentum and heat, respectively, and $\kappa \approx 0.4$ is the von Kármán constant.
 
-Note that $\phi_m(0) = 1$, while the heat function neutral limit $\phi_h(0)$ depends on the parameterization (typically $\text{Pr}_0$ for Businger/Gryanik, but 1.0 for Grachev).
+Note that $\phi_m(0) = 1$, while the heat function neutral limit is $\phi_h(0) = \text{Pr}_0$, where the turbulent Prandtl number $\text{Pr}_0$ depends on the parameterization (e.g., $\text{Pr}_0 = 1.0$ for Grachev).
 
 We also define the **integrated stability correction functions** ($\psi$) that define corrections to logarithmic profiles, including their **volume-averaged forms** ($\Psi$) used with finite-volume schemes:
 
@@ -57,7 +57,7 @@ Similarly, the potential temperature profile is obtained using the heat stabilit
 where $\theta_0$ is the surface potential temperature, $\zeta_0 = \frac{z_{0h}}{L}$ is the stability parameter at the roughness height $z_{0h}$, and $\theta_*$ is the temperature scale.
 
 !!! note "Neutral Prandtl Number"
-    Note the inclusion of $\phi_h(0)$ in the logarithmic term for heat and scalars. This accounts for the neutral limit of the non-dimensional gradient, which depends on the parameterization (typically $\phi_h(0) = \text{Pr}_0$ for Businger/Gryanik, but $\phi_h(0) = 1.0$ for Grachev).
+    Note the inclusion of $\phi_h(0)$ in the logarithmic term for heat and scalars. This accounts for the neutral limit of the non-dimensional gradient, which depends on the parameterization (typically $\phi_h(0) = \text{Pr}_0$, where $\text{Pr}_0 = 1.0$ for Grachev).
 
 * **The function $\Psi(\zeta)$**: The volume-averaged form required when model variables represent cell averages (in finite-volume schemes) rather than point values ([Nishizawa & Kitamura, 2018](https://doi.org/10.1029/2018MS001534)):
 ```math
@@ -68,7 +68,7 @@ where $\theta_0$ is the surface potential temperature, $\zeta_0 = \frac{z_{0h}}{
 For finite-volume schemes, where fluxes are computed using cell-averaged values, this function is used to obtain the vertical profiles. For example, the layer-averaged wind speed is calculated as:
 ```math
 \begin{equation}
-\bar u(z) = \frac{u_*}{\kappa} \left[ \ln\left(\frac{z-d}{z_0}\right) - \Psi_m(\zeta) + \frac{z_0}{\Delta z} \Psi_m(\zeta_0) + \left(1 - \frac{z_0}{\Delta z}\right)(\psi_m(\zeta_0) - 1) \right]
+\bar{u}(z) = \frac{u_*}{\kappa} \left[ \ln\left(\frac{z-d}{z_0}\right) - \Psi_m(\zeta) + \frac{z_0}{\Delta z} \Psi_m(\zeta_0) + \left(1 - \frac{z_0}{\Delta z}\right)(\psi_m(\zeta_0) - 1) \right]
 \end{equation}
 ```
 where $\Delta z = z - d$ is the thickness of the first layer.
@@ -135,7 +135,7 @@ and
 ```
 
 !!! note "Neutral Prandtl Number"
-    In our implementation, we scale the heat functions by $\text{Pr}_0$ so that $\phi_h(0) = \text{Pr}_0$. This ensures consistency with other parameterizations, such as Gryanik et al. (2020), and proper behavior of the dimensionless profiles.
+    In our implementation, we ensure that the heat functions satisfy the neutral limit $\phi_h(0) = \text{Pr}_0$. This ensures consistency with other parameterizations, such as Gryanik et al. (2020), and proper behavior of the dimensionless profiles.
 
 The integrated forms are ([Nishizawa & Kitamura 2018](https://doi.org/10.1029/2018MS001534), Eqs. A3-A4 for $L \ge 0$):
 ```math
@@ -261,7 +261,7 @@ and
 For the unstable regime, Gryanik et al. (2020) recommend reverting to the standard Businger-Dyer forms to ensure continuity at $\zeta=0$. Our implementation uses the Businger unstable forms with coefficients `b_m_unstable` and `b_h_unstable` (which are set to the Businger parameters). The unstable heat function is scaled by $\text{Pr}_0$ to ensure a continuous transition at the neutral limit ($\zeta=0$):
 ```math
 \begin{equation}
-\phi_h(\zeta) = \text{Pr}_0 \cdot \phi_{h,\text{Businger}}(\zeta; b_h = b_{h,\text{unstable}})
+\phi_h(\zeta) = \text{Pr}_0 (1 - b_{h,\text{unstable}} \zeta)^{-1/2}
 \end{equation}
 ```
 
@@ -274,12 +274,16 @@ The **[Grachev et al. (2007)](https://doi.org/10.1007/s10546-007-9177-6)** funct
 ### Parameter Structure
 
 The `GrachevParams` struct contains:
+- `Pr_0`: Neutral Prandtl number (explicitly set to 1.0)
 - `a_m`, `b_m`: Coefficients for momentum stability function
 - `a_h`, `b_h`, `c_h`: Coefficients for heat stability function (note: `c_h` is the coefficient for the linear $\zeta$ term in the denominator)
 - `b_m_unstable`, `b_h_unstable`: Parameters for unstable branch (automatically set to the Businger parameters)
 
 !!! note "Unstable Branch Parameters"
     Similar to Gryanik, the unstable branch parameters are automatically set to the Businger parameters to ensure consistency and continuity at $\zeta=0$.
+
+!!! note "Neutral Prandtl Number"
+    For Grachev, `Pr_0` is explicitly set to **1.0** to match the derivation in Grachev et al. (2007), which assumes $\phi_h(0) = 1$.
 
 ### Stable Conditions ($\zeta > 0$)
 
@@ -293,7 +297,7 @@ The `GrachevParams` struct contains:
 **Heat ($\phi_h$):**
 ```math
 \begin{equation}
-\phi_h(\zeta) = 1 + \frac{a_h \zeta + b_h \zeta^2}{1 + c_h \zeta + \zeta^2}.
+\phi_h(\zeta) = \text{Pr}_0 \left( 1 + \frac{a_h \zeta + b_h \zeta^2}{1 + c_h \zeta + \zeta^2} \right).
 \end{equation}
 ```
 
@@ -311,14 +315,20 @@ where $x = (1 + \zeta)^{1/3}$ and $B_m = ((1 - b_m)/b_m)^{1/3}$.
 For heat (Grachev et al. 2007, Eq. 13):
 ```math
 \begin{equation}
-\psi_h(\zeta) = -\frac{b_h}{2} \ln(1 + c_h \zeta + \zeta^2) + \left[-\frac{a_h}{B_h} + \frac{b_h c_h}{2 B_h}\right] \left[\ln\left(\frac{2\zeta + c_h - B_h}{2\zeta + c_h + B_h}\right) - \ln\left(\frac{c_h - B_h}{c_h + B_h}\right)\right],
+\psi_h(\zeta) = \text{Pr}_0 \left( -\frac{b_h}{2} \ln(1 + c_h \zeta + \zeta^2) + \left[-\frac{a_h}{B_h} + \frac{b_h c_h}{2 B_h}\right] \left[\ln\left(\frac{2\zeta + c_h - B_h}{2\zeta + c_h + B_h}\right) - \ln\left(\frac{c_h - B_h}{c_h + B_h}\right)\right] \right),
 \end{equation}
 ```
-where $B_h = \sqrt{c_h^2 - 4}$.
+where $B_h = \sqrt{c_h^2 - 4}$. Note that scalar multiplication by $\text{Pr}_0$ is applied to the entire result (consistent with the code), though physically $\text{Pr}_0 = 1.0$ for this parameterization.
 
 ### Unstable Conditions ($\zeta < 0$)
 
-Similar to Gryanik, the Grachev parameterization falls back to the Businger-Dyer forms for unstable conditions, using the `b_m_unstable` and `b_h_unstable` parameters.
+Similar to Gryanik, the Grachev parameterization falls back to the Businger-Dyer forms for unstable conditions, using the `b_m_unstable` and `b_h_unstable` parameters. The heat function is scaled by `Pr_0` (which is 1.0) for consistency with the code structure.
+
+```math
+\begin{equation}
+\phi_h(\zeta) = \text{Pr}_0 (1 - b_{h,\text{unstable}} \zeta)^{-1/2}
+\end{equation}
+```
 
 !!! note "Volume-Averaged Grachev Function"
     The volume-averaged function $\Psi(\zeta)$ is **not implemented** for Grachev due to the lack of closed-form analytical integrals for these complex functions.
