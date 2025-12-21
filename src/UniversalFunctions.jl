@@ -790,7 +790,8 @@ Grachev heat/scalar-gradient similarity `ϕ_h`.
     _Pr_0 = FT(Pr_0(p))
     ζ_safe = max(ζ, FT(0))
     phi_stable =
-        _Pr_0 * (FT(1) + (_a_h * ζ_safe + _b_h * ζ_safe^2) / (FT(1) + _c_h * ζ_safe + ζ_safe^2))
+        _Pr_0 *
+        (FT(1) + (_a_h * ζ_safe + _b_h * ζ_safe^2) / (FT(1) + _c_h * ζ_safe + ζ_safe^2))
 
     return ifelse(
         ζ > 0,
