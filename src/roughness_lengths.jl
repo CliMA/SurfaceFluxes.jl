@@ -66,16 +66,6 @@ Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     stanton_number::FT = 0.1
 end
 
-
-"""
-    roughness_lengths(z0m, z0s)
-
-Helper to construct `ConstantRoughnessParams`.
-"""
-@inline function roughness_lengths(z0m, z0s)
-    return ConstantRoughnessParams(z0m = z0m, z0s = z0s)
-end
-
 """
     charnock_parameter(mag_u_10, α_low, α_high, u_low, u_high)
 

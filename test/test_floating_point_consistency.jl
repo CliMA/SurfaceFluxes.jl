@@ -41,7 +41,7 @@ const TEST_Q_SFC = 0.013232904
 
         for z_int in NEAR_ZERO_Z_LEVELS
             config = SF.SurfaceFluxConfig(
-                SF.roughness_lengths(FT(1e-5), FT(1e-5)),
+                SF.ConstantRoughnessParams(FT(1e-5), FT(1e-5)),
                 SF.ConstantGustinessSpec(FT(1.0)),
             )
 
@@ -85,7 +85,7 @@ end
             (ll, z0h) in enumerate(IDENTICAL_Z0)
 
             config = SF.SurfaceFluxConfig(
-                SF.roughness_lengths(FT(z0m), FT(z0h)),
+                SF.ConstantRoughnessParams(FT(z0m), FT(z0h)),
                 SF.ConstantGustinessSpec(FT(1.0)),
             )
 

@@ -195,7 +195,7 @@ end
         # Define roughness configs as functions of (z0m, z0h)
         roughness_config_factories = (
             (z0m, z0h) -> SF.SurfaceFluxConfig(
-                SF.roughness_lengths(z0m, z0h),
+                SF.ConstantRoughnessParams(FT(z0m), FT(z0h)),
                 SF.ConstantGustinessSpec(FT(1.0)),
             ),
             (z0m, z0h) -> SF.SurfaceFluxConfig(

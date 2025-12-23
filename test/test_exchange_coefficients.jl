@@ -94,7 +94,7 @@ const FT = Float64
             FT(300), FT(0), FT(0), FT(10), FT(0), # T_sfc, q_vap, Φ, Δz, d 
             (speed_target, FT(0)), (FT(0), FT(0)), # u_int, u_sfc
             SF.SurfaceFluxConfig(
-                SF.roughness_lengths(z0m, z0h),
+                SF.ConstantRoughnessParams(z0m, z0h),
                 SF.ConstantGustinessSpec(FT(0.0)),
                 SF.DryModel(),
             ),
@@ -128,7 +128,7 @@ const FT = Float64
             FT(300), FT(0), FT(0), FT(10), FT(0),
             (FT(10), FT(0)), (FT(0), FT(0)),
             SF.SurfaceFluxConfig(
-                SF.roughness_lengths(FT(0.01), FT(0.01)),
+                SF.ConstantRoughnessParams(FT(0.01), FT(0.01)),
                 SF.ConstantGustinessSpec(FT(0.0)),
                 SF.DryModel(),
             ),

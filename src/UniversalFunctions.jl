@@ -991,7 +991,6 @@ The neutral limit `ϕ(0)` determines the slope of the logarithmic profile:
 
 The resulting profile is:
     F(z) = ϕ(0) * ln(z/z0) - ψ(ζ) + ψ(ζ_0)
-"""
 
 Note that ϕ(0) corresponds
 to the neutral dimensionless gradient (slope), which depends on the parameterization 

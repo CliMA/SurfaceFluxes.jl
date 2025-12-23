@@ -57,8 +57,6 @@ SurfaceFluxes.obukhov_stability_parameter
 ## Roughness & Gustiness
 
 ```@docs
-SurfaceFluxes.roughness_lengths
-SurfaceFluxes.gustiness_constant
 SurfaceFluxes.ConstantRoughnessParams
 SurfaceFluxes.COARE3RoughnessParams
 SurfaceFluxes.RaupachRoughnessParams

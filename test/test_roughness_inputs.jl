@@ -43,7 +43,7 @@ end
 
 @testset "Roughness Inputs Verification" begin
     FT = Float64
-    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams())
     thermo_params = SFP.thermodynamics_params(param_set)
 
     T_int = FT(300)
@@ -59,7 +59,7 @@ end
     # Custom configuration with our LAI model
     config = SF.SurfaceFluxConfig(
         LAIRoughnessParams(0.01),
-        SF.gustiness_constant(1.0),
+        SF.ConstantGustinessSpec(1.0),
     )
 
     # Case 1: LAI = 1.0

@@ -75,7 +75,7 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
     config = SF.SurfaceFluxConfig(
         SF.COARE3RoughnessParams{FT}(),
-        SF.gustiness_constant(FT(0.5)),
+        SF.ConstantGustinessSpec(FT(0.5)),
     )
 
     config_result = SF.surface_fluxes(

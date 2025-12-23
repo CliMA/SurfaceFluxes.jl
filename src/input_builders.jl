@@ -1,17 +1,6 @@
-"""
-    gustiness_constant(val)
-
-Create a constant gustiness parameterization with the given value.
-
-Returns a `ConstantGustinessSpec(val)` that provides a fixed gustiness 
-contribution to the effective windspeed.
-"""
-gustiness_constant(val) = ConstantGustinessSpec(val)
-
 # Velocity normalization helper - specialized for 2-tuples to avoid GPU-unsafe throw
 @inline _normalize_velocity(u::NTuple{2}, ::Type{FT}) where {FT} = (FT(u[1]), FT(u[2]))
 @inline _normalize_velocity(u::AbstractVector, ::Type{FT}) where {FT} = (FT(u[1]), FT(u[2]))
-
 
 """
     build_surface_flux_inputs(args...)
@@ -50,7 +39,6 @@ function build_surface_flux_inputs(
         typeof(Δz),
         typeof(d),
     )
-
 
     if T_sfc_guess !== nothing
         types = (types..., typeof(T_sfc_guess))

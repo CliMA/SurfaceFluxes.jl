@@ -138,7 +138,7 @@ end
                 d = Float32(0),
                 u_int = (Float32(speed[ii]), Float32(0)),
                 u_sfc = (Float32(0), Float32(0)),
-                roughness = SF.roughness_lengths(z0m, z0h),
+                roughness = SF.ConstantRoughnessParams(Float32(z0m), Float32(z0h)),
                 gustiness = SF.ConstantGustinessSpec(Float32(1.0)),
                 moisture_model = SF.MoistModel(),
             )

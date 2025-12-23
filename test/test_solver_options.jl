@@ -30,7 +30,7 @@ import ClimaParams as CP
         T_sfc, FT(0), FT(0), z_int, FT(0),
         u_int, u_sfc,
         SF.SurfaceFluxConfig(
-            SF.roughness_lengths(z0m, z0h),
+            SF.ConstantRoughnessParams(FT(z0m), FT(z0h)),
             SF.ConstantGustinessSpec(FT(1.0)),
             SF.DryModel(),
         ),

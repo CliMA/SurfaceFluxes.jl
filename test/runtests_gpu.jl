@@ -47,7 +47,7 @@ else
             z0h = FT(0.001)
             cpu_configs = [
                 SF.SurfaceFluxConfig(
-                    SF.roughness_lengths(data.z0[i], z0h),
+                    SF.ConstantRoughnessParams(FT(data.z0[i]), FT(z0h)),
                     SF.ConstantGustinessSpec(FT(1.0)),
                 ) for i in 1:n
             ]
@@ -134,7 +134,7 @@ else
 
             cpu_configs = [
                 SF.SurfaceFluxConfig(
-                    SF.roughness_lengths(z0m, z0h),
+                    SF.ConstantRoughnessParams(z0m, z0h),
                     SF.ConstantGustinessSpec(gustiness_values[i]),
                 ) for i in 1:n
             ]
