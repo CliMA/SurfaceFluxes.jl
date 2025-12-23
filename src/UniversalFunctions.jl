@@ -317,9 +317,11 @@ end
 
 Businger heat/scalar-gradient similarity `ϕ_h`.
 
+Returns the non-dimensional gradient such that `ϕ_h(0) = Pr_0` in the neutral limit.
+
 # References
  - Stable (ζ >= 0): Eq. A2 (L >= 0) in Nishizawa & Kitamura (2018).
- - Unstable (ζ < 0): Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
+ - Unstable (ζ < 0): Eq. A2 (L < 0) in Nishizawa & Kitamura (2018), scaled by `Pr_0`.
 """
 @inline function phi(p::BusingerParams, ζ, tt::HeatTransport)
     FT = eltype(ζ)
@@ -717,9 +719,11 @@ end
 Parameter bundle for the Grachev et al. (2007) similarity relations,
 based on SHEBA data.
 
- - `a_m`, `b_m`: Coefficients for momentum stability function (Eq. 9a).
  - `a_h`, `b_h`, `c_h`: Coefficients for heat/scalar stability function (Eq. 9b).
    Note: `c_h` is the coefficient for the linear ζ term in the denominator.
+ - `Pr_0`: Neutral Prandtl number. In the original Grachev et al. (2007) derivation, 
+    this is 1.0. It is included here for structural consistency with other 
+    parameterizations.
 
 Reference: Grachev et al. (2007).
 """
@@ -769,6 +773,20 @@ Grachev momentum similarity `ϕ_m`.
         _phi_m_unstable(min(ζ, FT(0)), FT(b_m_unstable(p))),  # Businger fallback
     )
 end
+
+"""
+    phi(p::GrachevParams, ζ, ::HeatTransport)
+
+Grachev heat/scalar-gradient similarity `ϕ_h`.
+
+Calculates the gradient function scaled by `Pr_0`. While Grachev et al. (2007)
+assume `ϕ_h(0) = 1`, this implementation returns `ϕ_h(ζ) = Pr_0 * (...)` 
+to maintain the invariant `ϕ_h(0) = Pr_0` used by the solver.
+
+# References
+ - Stable (ζ > 0): Eq. 9b in Grachev et al. (2007).
+ - Unstable (ζ <= 0): Falls back to Businger form, Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
+"""
 
 """
     phi(p::GrachevParams, ζ, ::HeatTransport)
@@ -965,7 +983,17 @@ Defined as
     F(Δz_eff) = ϕ(0) * ln(Δz_eff/z0) - ψ(ζ) + ψ(ζ * z0/Δz_eff),
 
 This represents the integral of the dimensionless gradient function ϕ(ζ)/z
-from roughness length z0 to the given height `Δz_eff`. Note that ϕ(0) corresponds
+from the roughness length z0 to the given height `Δz_eff`. 
+
+The neutral limit `ϕ(0)` determines the slope of the logarithmic profile:
+- For `MomentumTransport`: `ϕ_m(0) = 1`.
+- For `HeatTransport`: `ϕ_h(0) = Pr_0` (Neutral Prandtl number).
+
+The resulting profile is:
+    F(z) = ϕ(0) * ln(z/z0) - ψ(ζ) + ψ(ζ_0)
+"""
+
+Note that ϕ(0) corresponds
 to the neutral dimensionless gradient (slope), which depends on the parameterization 
 (e.g., `Pr_0` for Businger/Gryanik, 1 for Grachev) and transport type.
 """
@@ -1006,7 +1034,7 @@ Derivation follows Nishizawa & Kitamura (2018), adapted for generalized neutral 
     F_ave(Δz_eff) = Slope * (ln(Δz_eff/z0) - R_z0) - Ψ(ζ) + (z0/Δz_eff) * Ψ(ζ * z0/Δz_eff) + R_z0 * ψ(ζ * z0/Δz_eff)
 
 where:
- - Slope = ϕ(0) (e.g., 1 for momentum or Pr_0 for heat/scalars)
+ - Slope = ϕ(0). This is `1` for momentum and `Pr_0` for heat/scalars.
  - R_z0 = 1 - z0/Δz_eff (Approximation of geometric factor)
 """
 @inline function dimensionless_profile(
