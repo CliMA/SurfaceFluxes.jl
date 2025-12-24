@@ -94,7 +94,8 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array,
+                    T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     Ref(nothing), gpu_configs,
                     Ref(SF.PointValueScheme()),
@@ -175,7 +176,8 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array,
+                    T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     Ref(nothing), gpu_configs,
                 )
@@ -276,7 +278,8 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array,
+                    T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     gpu_roughness_inputs, gpu_configs,
                 )

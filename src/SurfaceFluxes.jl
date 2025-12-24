@@ -178,7 +178,7 @@ function surface_fluxes(
     solver_opts = nothing,
     flux_specs = nothing,
     update_T_sfc = nothing,
-    update_q_vap_sfc = nothing,   
+    update_q_vap_sfc = nothing,
 )
     FT = eltype(param_set)
 
