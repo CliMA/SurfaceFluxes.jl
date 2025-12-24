@@ -6,8 +6,7 @@ import SurfaceFluxes.Parameters as SFP
 import ClimaParams as CP
 import Thermodynamics as TD
 
-using RootSolvers
-const RS = RootSolvers
+import RootSolvers as RS
 
 const SYNTH_T_SURFACE = (261.0, 282.0, 310.0)
 const SYNTH_DELTA_T = (-8.0, -2.0, 3.5)
@@ -223,7 +222,7 @@ end
 
                 result = SF.surface_fluxes(
                     param_set,
-                    inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
+                    inputs.T_int, inputs.q_tot_int, FT(0), FT(0), inputs.ρ_int,
                     inputs.T_sfc_guess, inputs.q_vap_sfc_guess,
                     inputs.Φ_sfc, inputs.Δz, inputs.d,
                     inputs.u_int, inputs.u_sfc,

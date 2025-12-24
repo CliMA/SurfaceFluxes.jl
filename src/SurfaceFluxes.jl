@@ -12,8 +12,7 @@ import Thermodynamics
 const TD = Thermodynamics
 const TP = Thermodynamics.Parameters
 
-import RootSolvers
-const RS = RootSolvers
+import RootSolvers as RS
 
 import .UniversalFunctions
 const UF = UniversalFunctions
@@ -128,6 +127,7 @@ Can operate in four modes depending on inputs:
 - `param_set`: SurfaceFluxes parameters (containing thermodynamics and universal function params).
 - `T_int`: Interior (air) temperature [K] at height `z`.
 - `q_tot_int`: Interior total specific humidity [kg/kg].
+- `q_liq_int`, `q_ice_int`: Interior liquid/ice specific humidity [kg/kg], default 0.
 - `ρ_int`: Interior air density [kg/m^3].
 - `T_sfc_guess`: Initial guess for surface temperature [K], updated via callback if provided.
 - `q_vap_sfc_guess`: Initial guess for surface vapor specific humidity [kg/kg], updated via callback if provided.
@@ -138,7 +138,7 @@ Can operate in four modes depending on inputs:
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
 - `roughness_inputs`: Optional roughness parameters for specific schemes (e.g., LAI, h for Raupach).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
-    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
+    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`). Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
@@ -146,7 +146,6 @@ Can operate in four modes depending on inputs:
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
 - `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
 - `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
-- `q_liq_int`, `q_ice_int`: Interior liquid/ice specific humidity [kg/kg], default 0.
 
 # Returns
 A [`SurfaceFluxConditions`](@ref) struct containing:
@@ -163,6 +162,8 @@ function surface_fluxes(
     param_set::APS,
     T_int,
     q_tot_int,
+    q_liq_int = 0,
+    q_ice_int = 0,
     ρ_int,
     T_sfc_guess,
     q_vap_sfc_guess,
@@ -177,9 +178,7 @@ function surface_fluxes(
     solver_opts = nothing,
     flux_specs = nothing,
     update_T_sfc = nothing,
-    update_q_vap_sfc = nothing,
-    q_liq_int = 0,
-    q_ice_int = 0,
+    update_q_vap_sfc = nothing,   
 )
     FT = eltype(param_set)
 
@@ -294,7 +293,9 @@ function compute_fluxes_given_coefficients(
         param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, b_flux_init,
     )
 
-    # Now compute actual buoyancy flux from the fluxes
+    # Now compute actual buoyancy flux from the fluxes. (This and the following 
+    # second pass computation could be skipped if gustiness does not depend on 
+    # buoyancy flux.)
     b_flux = buoyancy_flux(
         param_set,
         shf,
@@ -390,13 +391,13 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
     Cd = (ustar / ΔU_safe)^2
 
     # Compute roughness from ustar
-    z0m, z0s = momentum_and_scalar_roughness(
+    # Note: We assume z0h = z0s (scalar roughness) for now
+    z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
         ustar,
         param_set,
         inputs.roughness_inputs,
     )
-    z0h = z0s
 
     # Compute Ch
     Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
@@ -476,6 +477,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     # Compute roughness from ustar
+    # Note: We assume z0h = z0s (scalar roughness) for now
     z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
         ustar,
@@ -550,13 +552,12 @@ function (rf::ResidualFunction)(ζ)
     thermo_params = rf.thermo_params
 
     # 1. Compute u_star and roughness lengths, iteratively if they are mutually dependent
-    u_star, z0m, z0s = compute_ustar_and_roughness(
+    u_star, z0m, z0h = compute_ustar_and_roughness(
         param_set,
         ζ,
         inputs,
         scheme,
     )
-    z0h = z0s # Assuming scalar roughness = heat roughness
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
     # If guess is nothing, use interior values as safe dummy defaults
@@ -582,7 +583,7 @@ function (rf::ResidualFunction)(ζ)
         scheme,
         u_star,
         z0m,
-        z0s,
+        z0h,
     )
     q_vap_sfc_new = eval_callback(
         inputs.update_q_vap_sfc,
@@ -596,7 +597,7 @@ function (rf::ResidualFunction)(ζ)
         T_sfc_new,
         u_star,
         z0m,
-        z0s,
+        z0h,
     )
 
     # 3. Update density
@@ -675,13 +676,12 @@ function solve_monin_obukhov(
     # Finalize state 
     # 1. Compute u_star and roughness
     # Consistent with ζ_final
-    u_star_curr, z0m, z0s = compute_ustar_and_roughness(
+    u_star_curr, z0m, z0h = compute_ustar_and_roughness(
         param_set,
         ζ_final,
         inputs,
         scheme,
     )
-    z0h = z0s
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
     # Use type of T_int to allow for Dual numbers during AD
@@ -705,7 +705,7 @@ function solve_monin_obukhov(
         scheme,
         u_star_curr,
         z0m,
-        z0s,
+        z0h,
     )
     q_vap_sfc_val = eval_callback(
         inputs.update_q_vap_sfc,
@@ -719,7 +719,7 @@ function solve_monin_obukhov(
         T_sfc_val,
         u_star_curr,
         z0m,
-        z0s,
+        z0h,
     )
 
     # Update ρ_sfc based on final state

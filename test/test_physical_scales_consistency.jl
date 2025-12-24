@@ -47,7 +47,7 @@ import ClimaParams as CP
             # Call surface_fluxes
             result = SF.surface_fluxes(
                 param_set,
-                T_int, q_int, ρ_int,
+                T_int, q_int, FT(0), FT(0), ρ_int,
                 T_sfc, q_sfc,
                 FT(0), # rad level
                 z,

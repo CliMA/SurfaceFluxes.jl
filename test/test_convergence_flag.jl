@@ -37,7 +37,7 @@ thermo_params = SFP.thermodynamics_params(param_set)
 
     sf = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int,
+        T_int, q_tot_int, FT(0), FT(0), ρ_int,
         T_sfc, q_vap_sfc,
         Φ_sfc, Δz, d,
         u_int, u_sfc,
@@ -57,7 +57,7 @@ thermo_params = SFP.thermodynamics_params(param_set)
 
     sf_fail = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int,
+        T_int, q_tot_int, FT(0), FT(0), ρ_int,
         T_sfc, q_vap_sfc,
         Φ_sfc, Δz, d,
         u_int, u_sfc,
@@ -73,7 +73,7 @@ thermo_params = SFP.thermodynamics_params(param_set)
     flux_specs_prescribed = SF.FluxSpecs(ustar = FT(0.5), shf = FT(100.0), lhf = FT(200.0))
     sf_prescribed = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int,
+        T_int, q_tot_int, FT(0), FT(0), ρ_int,
         T_sfc, q_vap_sfc,
         Φ_sfc, Δz, d,
         u_int, u_sfc,
@@ -89,7 +89,7 @@ thermo_params = SFP.thermodynamics_params(param_set)
     flux_specs_coeffs = SF.FluxSpecs(Cd = FT(0.001), Ch = FT(0.001))
     sf_coeffs = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int,
+        T_int, q_tot_int, FT(0), FT(0), ρ_int,
         T_sfc, q_vap_sfc,
         Φ_sfc, Δz, d,
         u_int, u_sfc,

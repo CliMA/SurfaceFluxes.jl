@@ -424,7 +424,7 @@ include("plot_universal_functions.jl")
 
 ![](Gryanik3_phi_m.svg)
 
-*Heat stability function $\phi_h$ over extended stability range (log-log scale), illustratating continuity across the regimes.*
+*Heat stability function $\phi_h$ over extended stability range (log-log scale).*
 
 ![](Gryanik3_phi_h.svg)
 

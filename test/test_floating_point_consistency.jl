@@ -47,7 +47,7 @@ const TEST_Q_SFC = 0.013232904
 
             sfc_output = SF.surface_fluxes(
                 param_set,
-                T_int, q_tot_int, ρ_int,
+                T_int, q_tot_int, FT(0), FT(0), ρ_int,
                 T_sfc_guess, q_vap_sfc_guess,
                 FT(0), FT(z_int), zero(FT),
                 (FT(0), FT(0)), (FT(0), FT(0)),  # Zero wind
@@ -91,7 +91,7 @@ end
 
             sfc_output = SF.surface_fluxes(
                 param_set,
-                T_int, q_tot_int, ρ_int,
+                T_int, q_tot_int, FT(0), FT(0), ρ_int,
                 T_sfc_guess, q_vap_sfc_guess,
                 FT(0), FT(z_int), zero(FT),
                 (FT(0), FT(0)), (FT(0), FT(0)),

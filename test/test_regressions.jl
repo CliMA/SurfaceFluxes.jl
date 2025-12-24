@@ -62,7 +62,7 @@ end
 
             result = SF.surface_fluxes(
                 param_set,
-                inputs.T_int, inputs.q_tot_int, inputs.ρ_int,
+                inputs.T_int, inputs.q_tot_int, FT(0), FT(0), inputs.ρ_int,
                 inputs.Ts, inputs.qs,
                 inputs.Φs, inputs.Δz, inputs.d,
                 inputs.u_int, inputs.u_sfc,

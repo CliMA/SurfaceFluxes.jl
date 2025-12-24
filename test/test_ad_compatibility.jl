@@ -25,7 +25,7 @@ using ForwardDiff
     function compute_shf(T_sfc_val)
         result = SF.surface_fluxes(
             param_set,
-            T_int, q_int, ρ_int,
+            T_int, q_int, FT(0), FT(0), ρ_int,
             T_sfc_val, q_sfc,
             FT(0), z, dist,
             u_int, u_sfc,

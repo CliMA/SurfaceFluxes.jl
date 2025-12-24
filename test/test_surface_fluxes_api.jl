@@ -25,6 +25,8 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         param_set,
         T_int,
         q_tot_int,
+        FT(0),
+        FT(0),
         ρ_int,
         T_sfc_guess,
         q_vap_sfc_guess,
@@ -52,6 +54,8 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         param_set,
         T_int,
         q_tot_int,
+        FT(0),
+        FT(0),
         ρ_int,
         T_sfc_guess,
         q_vap_sfc_guess,
@@ -82,6 +86,8 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         param_set,
         T_int,
         q_tot_int,
+        FT(0),
+        FT(0),
         ρ_int,
         T_sfc_guess,
         q_vap_sfc_guess,
@@ -120,7 +126,7 @@ end
     # Call surface_fluxes
     sf = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+        T_int, q_tot_int, 0.0, 0.0, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
     )
 
@@ -152,7 +158,7 @@ end
 
     sf = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+        T_int, q_tot_int, 0.0, 0.0, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
         SF.PointValueScheme(), nothing, flux_specs,
     )
@@ -185,7 +191,7 @@ end
 
     sf = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+        T_int, q_tot_int, 0.0, 0.0, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
         SF.PointValueScheme(), nothing, flux_specs,
     )
@@ -214,7 +220,7 @@ end
 
     sf = SF.surface_fluxes(
         param_set,
-        T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
+        T_int, q_tot_int, 0.0, 0.0, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d,
         u_int, u_sfc, nothing, config,
         SF.PointValueScheme(), nothing, flux_specs,
     )

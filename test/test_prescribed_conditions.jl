@@ -33,7 +33,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     # 1. Run Standard MOST helper (Ground Truth)
     base_result = SF.surface_fluxes(
         param_set,
-        T_int, q_int, ρ_int,
+        T_int, q_int, FT(0), FT(0), ρ_int,
         T_sfc, q_sfc,
         FT(0), Δz, FT(0),
         u_int, u_sfc,
@@ -58,7 +58,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
         result = SF.surface_fluxes(
             param_set,
-            T_int, q_int, ρ_int,
+            T_int, q_int, FT(0), FT(0), ρ_int,
             T_sfc, q_sfc,
             FT(0), Δz, FT(0),
             u_int, u_sfc,
@@ -85,7 +85,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
         result = SF.surface_fluxes(
             param_set,
-            T_int, q_int, ρ_int,
+            T_int, q_int, FT(0), FT(0), ρ_int,
             T_sfc, q_sfc,
             FT(0), Δz, FT(0),
             u_int, u_sfc,
@@ -114,7 +114,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
         result = SF.surface_fluxes(
             param_set,
-            T_int, q_int, ρ_int,
+            T_int, q_int, FT(0), FT(0), ρ_int,
             T_sfc, q_sfc,
             FT(0), Δz, FT(0),
             u_int, u_sfc,
@@ -148,7 +148,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
         result = SF.surface_fluxes(
             param_set,
-            T_int, q_int, ρ_int,
+            T_int, q_int, FT(0), FT(0), ρ_int,
             nothing, nothing, # Pass nothing for guesses
             FT(0), Δz, FT(0),
             u_int, u_sfc,

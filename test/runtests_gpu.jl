@@ -61,7 +61,7 @@ else
             for i in 1:n
                 result = SF.surface_fluxes(
                     param_set,
-                    data.T_int[i], data.q_tot_int[i], data.ρ_int[i],
+                    data.T_int[i], data.q_tot_int[i], FT(0), FT(0), data.ρ_int[i],
                     data.T_sfc[i], data.q_sfc[i],
                     FT(0), data.z[i], FT(0),
                     (data.speed[i], FT(0)), (FT(0), FT(0)),
@@ -94,7 +94,7 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     Ref(nothing), gpu_configs,
                     Ref(SF.PointValueScheme()),
@@ -146,7 +146,7 @@ else
             for i in 1:n
                 result = SF.surface_fluxes(
                     param_set,
-                    data.T_int[i], data.q_tot_int[i], data.ρ_int[i],
+                    data.T_int[i], data.q_tot_int[i], FT(0), FT(0), data.ρ_int[i],
                     data.T_sfc[i], data.q_sfc[i],
                     FT(0), data.z[i], FT(0),
                     (data.speed[i], FT(0)), (FT(0), FT(0)),
@@ -175,7 +175,7 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     Ref(nothing), gpu_configs,
                 )
@@ -242,7 +242,7 @@ else
             for i in 1:n
                 result = SF.surface_fluxes(
                     param_set,
-                    data.T_int[i], data.q_tot_int[i], data.ρ_int[i],
+                    data.T_int[i], data.q_tot_int[i], FT(0), FT(0), data.ρ_int[i],
                     data.T_sfc[i], data.q_sfc[i],
                     FT(0), data.z[i], cpu_d[i],
                     (data.speed[i], FT(0)), (FT(0), FT(0)),
@@ -276,7 +276,7 @@ else
 
             gpu_results =
                 SF.surface_fluxes.(
-                    Ref(param_set), T_int, q_tot_int, ρ_int_array, T_sfc, q_sfc,
+                    Ref(param_set), T_int, q_tot_int, Ref(FT(0)), Ref(FT(0)), ρ_int_array, T_sfc, q_sfc,
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     gpu_roughness_inputs, gpu_configs,
                 )

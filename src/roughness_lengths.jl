@@ -10,7 +10,7 @@ Roughness lengths fixed to constant values.
 
 # Fields
 - `z0m`: Momentum roughness length [m]
-- `z0s`: Scalar roughness length [m]
+- `z0s`: Scalar roughness length [m]. Used for both heat (`z0h`) and humidity (`z0q`).
 
 The default values specified here are used when constructing the struct manually. When loading
 via `ClimaParams`, these values are overwritten by the parameters in the `ClimaParams` TOML file.
