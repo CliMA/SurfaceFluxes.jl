@@ -127,7 +127,7 @@ Can operate in four modes depending on inputs:
 - `param_set`: SurfaceFluxes parameters (containing thermodynamics and universal function params).
 - `T_int`: Interior (air) temperature [K] at height `z`.
 - `q_tot_int`: Interior total specific humidity [kg/kg].
-- `q_liq_int`, `q_ice_int`: Interior liquid/ice specific humidity [kg/kg], default 0.
+- `q_liq_int`, `q_ice_int`: Interior liquid/ice specific humidity [kg/kg].
 - `ρ_int`: Interior air density [kg/m^3].
 - `T_sfc_guess`: Initial guess for surface temperature [K], updated via callback if provided.
 - `q_vap_sfc_guess`: Initial guess for surface vapor specific humidity [kg/kg], updated via callback if provided.
@@ -162,8 +162,8 @@ function surface_fluxes(
     param_set::APS,
     T_int,
     q_tot_int,
-    q_liq_int = 0,
-    q_ice_int = 0,
+    q_liq_int,
+    q_ice_int,
     ρ_int,
     T_sfc_guess,
     q_vap_sfc_guess,
