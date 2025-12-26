@@ -95,7 +95,6 @@ end
 function build_surface_inputs(param_set, case, config)
     FT = eltype(case.T_sfc)
     thermo_params = SFP.thermodynamics_params(param_set)
-    ρ_sfc = density_from_state(thermo_params, case.T_sfc, case.pressure, case.qt_sfc)
     ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
 
     grav = SFP.grav(param_set)
@@ -123,7 +122,7 @@ function build_surface_inputs(param_set, case, config)
     )
 end
 
-function compute_ΔDSEᵥ(param_set, inputs, T_sfc, q_sfc, T_int, q_int, Φ_sfc, Φ_int)
+function compute_ΔDSEᵥ(param_set, T_sfc, q_sfc, T_int, q_int, Φ_sfc, Φ_int)
     thermo_params = SFP.thermodynamics_params(param_set)
 
     function local_ΔDSEᵥ(param_set, T_int, q_int, Φ_int, T_sfc, q_sfc, Φ_sfc)
@@ -146,7 +145,7 @@ function assert_flux_expectations(result, case, FT, param_set, inputs)
     Φ_sfc = inputs.Φ_sfc # 0
 
     ΔDSEᵥ = compute_ΔDSEᵥ(
-        param_set, inputs,
+        param_set,
         case.T_sfc, case.qt_sfc,
         case.T_int, case.qt_int,
         Φ_sfc, Φ_int,
@@ -158,7 +157,6 @@ function assert_flux_expectations(result, case, FT, param_set, inputs)
         if expected_heat_sign == 0
             @test isapprox(result.shf, FT(0); atol = FT(5e-2))
         else
-            @test sign(result.shf) == expected_heat_sign
             @test sign(result.shf) == expected_heat_sign
         end
     else

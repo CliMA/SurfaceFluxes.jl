@@ -70,9 +70,9 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         )
 
         # Verify strictly that inputs are passed through
-        @test isapprox(result.shf, base_result.shf; rtol = 1e-6)
-        @test isapprox(result.lhf, base_result.lhf; rtol = 1e-6)
-        @test isapprox(result.ustar, base_result.ustar; rtol = 1e-6)
+        @test result.shf == base_result.shf
+        @test result.lhf == base_result.lhf
+        @test result.ustar == base_result.ustar
 
     end
 
@@ -96,8 +96,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
             specs,
         )
 
-        @test isapprox(result.Cd, base_result.Cd; rtol = 1e-6)
-        @test isapprox(result.Ch, base_result.Ch; rtol = 1e-6)
+        @test result.Cd == base_result.Cd
+        @test result.Ch == base_result.Ch
         # Check derived fluxes
         @test isapprox(result.shf, base_result.shf; rtol = 1e-4)
         @test isapprox(result.lhf, base_result.lhf; rtol = 1e-4)

@@ -96,11 +96,11 @@ end
     default_solver_options(param_set)  # Fallback: use defaults for unsupported types
 
 """
-    eval_callback(callback, default, ζ, param_set, thermo_params, inputs, FT)
+    eval_callback(callback, default, ζ, param_set, thermo_params, inputs)
 
 Evaluate a surface state callback, returning `default` if callback is nothing or returns a non-Real value.
 """
-@inline function eval_callback(callback, default, FT, args...)
+@inline function eval_callback(callback, default, args...)
     if callback !== nothing
         val = callback(args...)
         return val isa Real ? val : default
@@ -575,7 +575,6 @@ function (rf::ResidualFunction)(ζ)
     T_sfc_new = eval_callback(
         inputs.update_T_sfc,
         T_sfc_guess_safe,
-        FT,
         ζ,
         param_set,
         thermo_params,
@@ -588,7 +587,6 @@ function (rf::ResidualFunction)(ζ)
     q_vap_sfc_new = eval_callback(
         inputs.update_q_vap_sfc,
         q_vap_sfc_guess_safe,
-        FT,
         ζ,
         param_set,
         thermo_params,
@@ -697,7 +695,6 @@ function solve_monin_obukhov(
     T_sfc_val = eval_callback(
         inputs.update_T_sfc,
         T_sfc_guess_safe,
-        FT,
         ζ_final,
         param_set,
         thermo_params,
@@ -710,7 +707,6 @@ function solve_monin_obukhov(
     q_vap_sfc_val = eval_callback(
         inputs.update_q_vap_sfc,
         q_vap_sfc_guess_safe,
-        FT,
         ζ_final,
         param_set,
         thermo_params,

@@ -59,14 +59,22 @@ import SurfaceFluxes:
         @test z0m_low > 0
         # For very low u_star, smooth component dominates
         @test z0m_low > z0_smooth * 0.9
+        @test z0m_low < z0_smooth * 1.1
 
         # High u_star: rough flow dominates
         u_star_high = FT(1.0)
         z0m_high = momentum_roughness(spec, u_star_high, param_set, nothing)
 
         # Rough flow term: α * u_star^2 / g
-        # For high u_star, rough dominates
-        @test z0m_high > z0m_low
+        # For high u_star, rough component dominates
+        # Explicitly calculate expected rough term
+        z0_proxy = spec.z0m_default
+        mag_u_10 = (u_star_high / κ) * log(FT(10) / z0_proxy)
+        α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high, spec.u_low, spec.u_high)
+        z0_rough = α * u_star_high^2 / grav
+
+        @test z0m_high > z0_rough * 0.9
+        @test z0m_high < z0_rough * 1.1
 
         # Very low u_star: avoid division by zero
         u_star_tiny = eps(FT)
@@ -81,7 +89,7 @@ import SurfaceFluxes:
         z0s = scalar_roughness(spec, u_star, param_set, nothing)
 
         @test z0s > 0
-        @test z0s < FT(1.1e-4)  # Upper bound from COARE formula
+        @test z0s <= FT(1.1e-4)  # Upper bound from COARE formula
 
         # Re_star dependence
         ν = spec.kinematic_visc
