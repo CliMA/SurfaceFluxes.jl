@@ -90,8 +90,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     @test isapprox(sqrt(var_u_neutral), ustar * sqrt(3.75); rtol = 1e-4)
 
     # 4. Theta Variance Wrapper (SHF input)
-    shf = FT(100.0) # W/m2
-    # mock rho = 1.2
+    shf = FT(100.0) # W/m2 
     rho = FT(1.2)
     thermo_params = SFP.thermodynamics_params(param_set)
     cp = TD.cp_m(thermo_params)

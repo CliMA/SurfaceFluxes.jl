@@ -22,19 +22,6 @@ const SYNTH_PRESSURES = (9.5e4, 1.0e5)
 const TEMP_NEUTRAL_THRESHOLD = 0.3
 const HUMIDITY_NEUTRAL_THRESHOLD = 1e-4
 
-# Mock Charnock roughness for testing (restoring deleted functionality for tests)
-struct CharnockMock{FT} <: SF.AbstractRoughnessParams
-    alpha::FT
-    z0s::FT
-end
-SF.momentum_roughness(spec::CharnockMock, ustar, param_set, args...) =
-    spec.alpha * max(ustar, 0)^2 / SFP.grav(param_set)
-SF.scalar_roughness(spec::CharnockMock, ustar, param_set, args...) = spec.z0s
-SF.momentum_and_scalar_roughness(spec::CharnockMock, ustar, param_set, args...) =
-    (SF.momentum_roughness(spec, ustar, param_set, args...), spec.z0s)
-
-charnock_momentum(; alpha, scalar) = CharnockMock(alpha, scalar)
-
 # Helper function to compute specific humidity from relative humidity
 function qt_from_RH(::Type{FT}, RH, T, p) where {FT}
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
@@ -97,7 +84,6 @@ function build_surface_inputs(param_set, case, config)
     thermo_params = SFP.thermodynamics_params(param_set)
     ρ_int = density_from_state(thermo_params, case.T_int, case.pressure, case.qt_int)
 
-    grav = SFP.grav(param_set)
     Φs = FT(0)  # Surface geopotential
     Δz = case.z
 
@@ -127,8 +113,8 @@ function compute_ΔDSEᵥ(param_set, T_sfc, q_sfc, T_int, q_int, Φ_sfc, Φ_int)
 
     function local_ΔDSEᵥ(param_set, T_int, q_int, Φ_int, T_sfc, q_sfc, Φ_sfc)
         cp_d = SFP.cp_d(param_set)
-        Tv_int = TD.virtual_temperature(SFP.thermodynamics_params(param_set), T_int, q_int)
-        Tv_sfc = TD.virtual_temperature(SFP.thermodynamics_params(param_set), T_sfc, q_sfc)
+        Tv_int = TD.virtual_temperature(thermo_params, T_int, q_int)
+        Tv_sfc = TD.virtual_temperature(thermo_params, T_sfc, q_sfc)
         DSEv_int = cp_d * Tv_int + Φ_int
         DSEv_sfc = cp_d * Tv_sfc + Φ_sfc
         return DSEv_int - DSEv_sfc
@@ -196,7 +182,7 @@ end
                 SF.ConstantGustinessSpec(FT(1.0)),
             ),
             (z0m, z0h) -> SF.SurfaceFluxConfig(
-                charnock_momentum(alpha = FT(0.0185), scalar = z0h),
+                SF.COARE3RoughnessParams{FT}(),
                 SF.ConstantGustinessSpec(FT(1.0)),
             ),
         )

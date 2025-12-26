@@ -8,15 +8,9 @@ import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
 import ClimaParams as CP
 
-# Mock parameter set for roughness tests
-struct MockRoughnessParamSet{FT} <: SFP.AbstractSurfaceFluxesParameters{FT} end
-SFP.grav(::MockRoughnessParamSet{FT}) where {FT} = FT(9.81)
-SFP.von_karman_const(::MockRoughnessParamSet{FT}) where {FT} = FT(0.4)
-SFP.z0m_fixed(::MockRoughnessParamSet{FT}) where {FT} = FT(1e-4)  # Fallback for zero LAI
-
 @testset "Raupach Roughness Parameterization" begin
     FT = Float64
-    param_set = MockRoughnessParamSet{FT}()
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
     # Default Raupach parameters
     spec = SF.RaupachRoughnessParams{FT}()
