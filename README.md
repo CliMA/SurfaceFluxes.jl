@@ -59,7 +59,9 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 result = surface_fluxes(
     param_set,
     T_int,           # Interior temperature [K]
-    q_tot,           # Interior specific humidity [kg/kg]
+    q_tot,           # Interior total specific humidity [kg/kg]
+    q_liq,           # Interior liquid specific humidity [kg/kg]
+    q_ice,           # Interior ice specific humidity [kg/kg]
     ρ_int,           # Interior density [kg/m³]
     T_sfc,           # Surface temperature [K]
     q_sfc,           # Surface specific humidity [kg/kg]
@@ -73,7 +75,10 @@ result = surface_fluxes(
 # Access results
 result.shf      # Sensible heat flux [W/m²]
 result.lhf      # Latent heat flux [W/m²]
+result.evaporation  # Evaporation rate [kg/(m²·s)]
 result.ustar    # Friction velocity [m/s]
+result.ρτxz     # Momentum flux, x-component [N/m²]
+result.ρτyz     # Momentum flux, y-component [N/m²]
 result.Cd       # Drag coefficient
 result.Ch       # Heat exchange coefficient
 ```

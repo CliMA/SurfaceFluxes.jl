@@ -10,11 +10,11 @@ The package implements **Monin-Obukhov Similarity Theory (MOST)** to relate surf
 
 ### Key Features
 
-- **Robust Iterative Solver**: Efficiently solves for the Monin-Obukhov stability parameter $\zeta$, supporting various roughness length parameterizations and flexible computation of skin temperature and humidity. 
+- **Robust Iterative Solver**: Efficiently solves for the Monin-Obukhov stability parameter $\zeta$, supporting various roughness length parameterizations and flexible computation of skin temperature and humidity.
 - **Universal Functions**: Supports multiple parameterizations:
-    - **Businger**: The classic Businger-Dyer formulations ([Businger et al. 1971](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2), [Dyer 1974](https://doi.org/10.1007/BF00240838)).
-    - **Gryanik**: Improved functions for the stable boundary layer ([Gryanik et al. 2020](https://doi.org/10.1175/JAS-D-19-0255.1)).
-    - **Grachev**: Functions derived from the SHEBA experiment for stable conditions over sea ice ([Grachev et al. 2007](https://doi.org/10.1007/s10546-007-9177-6)).
+  - **Businger**: The classic Businger-Dyer formulations ([Businger et al. 1971](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2), [Dyer 1974](https://doi.org/10.1007/BF00240838)).
+  - **Gryanik**: Improved functions for the stable boundary layer ([Gryanik et al. 2020](https://doi.org/10.1175/JAS-D-19-0255.1)).
+  - **Grachev**: Functions derived from the SHEBA experiment for stable conditions over sea ice ([Grachev et al. 2007](https://doi.org/10.1007/s10546-007-9177-6)).
 - **Thermodynamic Consistency**: Integrated with [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) for accurate and consistent handling of moist air properties.
 - **GPU Compatibility**: Type stable and designed for high-performance computing with full GPU support via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
 - **Automatic Differentiation**: Compatible with AD frameworks such as [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl).
@@ -49,6 +49,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 # Interior (air) state at height Δz
 T_int = FT(298.0)      # Temperature [K]
 q_tot = FT(0.017)      # Total specific humidity [kg/kg]
+q_liq = FT(0.0)        # Liquid specific humidity [kg/kg]
+q_ice = FT(0.0)        # Ice specific humidity [kg/kg]
 ρ_int = FT(1.2)        # Air density [kg/m³]
 u_int = (FT(5.0), FT(0.0)) # Wind vector [m/s]
 Δz    = FT(25.0)       # Height above surface [m]
@@ -64,7 +66,7 @@ d     = FT(5.0)        # Displacement height [m]
 # This function iterates to find the stability parameter ζ
 result = surface_fluxes(
     param_set,
-    T_int, q_tot, ρ_int,
+    T_int, q_tot, q_liq, q_ice, ρ_int,
     T_sfc, q_sfc, Φ_sfc,
     Δz, d,
     u_int, u_sfc
@@ -95,7 +97,7 @@ function compute_shf(T_sfc_val)
     # Note: ForwardDiff passes a dual number, so T_sfc_val will be of type Dual
     result = surface_fluxes(
         param_set,
-        T_int, q_tot, ρ_int,
+        T_int, q_tot, q_liq, q_ice, ρ_int,
         T_sfc_val, q_sfc, Φ_sfc,
         Δz, d,
         u_int, u_sfc
@@ -132,4 +134,4 @@ SurfaceFluxes.jl is part of the [CliMA](https://github.com/CliMA) ecosystem:
 
 - [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl): Moist thermodynamic calculations
 - [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl): Iterative root-finding algorithms
-- [ClimaParams](https://github.com/CliMA/ClimaParams): Centralized parameter management
+- [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl): Centralized parameter management

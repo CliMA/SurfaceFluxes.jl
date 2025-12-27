@@ -788,15 +788,6 @@ to maintain the invariant `ϕ_h(0) = Pr_0` used by the solver.
  - Unstable (ζ <= 0): Falls back to Businger form, Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
 """
 
-"""
-    phi(p::GrachevParams, ζ, ::HeatTransport)
-
-Grachev heat/scalar-gradient similarity `ϕ_h`.
-
-# References
- - Stable (ζ > 0): Eq. 9b in Grachev et al. (2007).
- - Unstable (ζ <= 0): Falls back to Businger form, Eq. A2 (L < 0) in Nishizawa & Kitamura (2018).
-"""
 @inline function phi(p::GrachevParams, ζ, ::HeatTransport)
     FT = eltype(ζ)
     # Stable: Grachev et al. (2007) Eq. 9b:

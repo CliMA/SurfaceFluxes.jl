@@ -110,7 +110,7 @@ Evaluate a surface state callback, returning `default` if callback is nothing or
 end
 
 """
-    surface_fluxes(param_set, T_int, q_tot_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int, u_sfc, roughness_inputs=nothing, config=default, scheme=PointValueScheme, solver_opts=nothing, flux_specs=nothing)
+    surface_fluxes(param_set, T_int, q_tot_int, q_liq_int, q_ice_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int, u_sfc, roughness_inputs=nothing, config=default, scheme=PointValueScheme, solver_opts=nothing, flux_specs=nothing)
 
 Core entry point for calculating surface fluxes using Monin-Obukhov Similarity Theory (MOST).
 

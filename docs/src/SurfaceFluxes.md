@@ -7,10 +7,11 @@ SurfaceFluxes.jl calculates turbulent surface fluxes using **Monin-Obukhov Simil
 The central hypothesis of MOST is that in the surface layer, turbulent fluxes are approximately constant with height and characterized by a single length scale, the **Obukhov length** ($L$), defined as
 
 ```math
-	L = - \frac{u_*^3}{\kappa B},
+ L = - \frac{u_*^3}{\kappa B},
 ```
 
 with
+
 - the friction velocity (scaling velocity) $u_*$,
 - the von Kármán constant ($\kappa \approx 0.4$), and
 - the surface buoyancy flux $B$.
@@ -24,7 +25,7 @@ The Obukhov length $L$ is a dimensionless quantity that characterizes the stabil
 The dimensionless stability parameter $\zeta$ is defined as
 
 ```math
-	\zeta = \frac{z - d}{L},
+ \zeta = \frac{z - d}{L},
 ```
 
 where $z$ is the height above the surface and $d$ is the displacement height. In stable conditions, $L > 0$ and $\zeta > 0$, while in unstable conditions, $L < 0$ and $\zeta < 0$. The displacement height $d$ is a parameter that accounts for the apparent upward "displacement" of the surface due to roughness elements (e.g., vegetation, buildings, etc.)
@@ -34,13 +35,13 @@ where $z$ is the height above the surface and $d$ is the displacement height. In
 The vertical gradients of mean variables are related to their surface fluxes through universal stability functions $(\phi_m, \phi_h)$,
 
 ```math
-	\frac{\kappa (z-d)}{u_*} \frac{\partial u}{\partial z} = \phi_m(\zeta)
+ \frac{\kappa (z-d)}{u_*} \frac{\partial u}{\partial z} = \phi_m(\zeta)
 ```
 
 and
 
 ```math
-	\frac{\kappa (z-d)}{\theta_*} \frac{\partial \theta}{\partial z} = \phi_h(\zeta),
+ \frac{\kappa (z-d)}{\theta_*} \frac{\partial \theta}{\partial z} = \phi_h(\zeta),
 ```
 
 where $\theta_*$ is the potential temperature scale. Similar relations hold for specific humidity ($q$) and other scalars.
@@ -58,7 +59,7 @@ Since $L$ depends on the fluxes (via $u_*$ and $B$), and the fluxes depend on $L
 The solver uses the **Bulk Richardson Number** ($Ri_b$) as a constraint. In terms of state variables, $Ri_b$ is defined as
 
 ```math
-	Ri_b(\text{state}) = \frac{g (z-d) \Delta \theta_v}{\theta_{v,\text{ref}} (\Delta U)^2},
+ Ri_b(\text{state}) = \frac{g (z-d) \Delta \theta_v}{\theta_{v,\text{ref}} (\Delta U)^2},
 ```
 
 where $\theta_v$ is the virtual potential temperature. The bulk Richardson number $Ri_b$ is a dimensionless quantity that characterizes the stability of the surface layer. In stable conditions, $Ri_b > 0$, while in unstable conditions, $Ri_b < 0$.
@@ -66,7 +67,7 @@ where $\theta_v$ is the virtual potential temperature. The bulk Richardson numbe
 Theoretical analysis shows that $Ri_b$ is universally related to $\zeta$:
 
 ```math
-	Ri_b(\zeta) = \zeta \frac{F_h(\zeta)}{F_m(\zeta)^2}.
+ Ri_b(\zeta) = \zeta \frac{F_h(\zeta)}{F_m(\zeta)^2}.
 ```
 
 Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and heat (derived from $\phi_m$ and $\phi_h$). The bulk Richardson number $Ri_b(\zeta)$ is a monotonic function of $\zeta$, enabling a robust and efficient root-finding algorithm.
@@ -76,7 +77,7 @@ Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and h
 The function `surface_fluxes` uses **Brent's Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
 
 ```math
-	Ri_b(\text{state}) - Ri_b(\zeta) = 0.
+ Ri_b(\text{state}) - Ri_b(\zeta) = 0.
 ```
 
 The solver operates within physical limits $\zeta \in [-100, 100]$, ensuring robust convergence. Unbracketed roots outside this range default to the closest limit, consistent with physical constraints.
@@ -96,15 +97,16 @@ The effective wind speed difference $\Delta U$ used in the solver is:
 where $\Delta u$ and $\Delta v$ are the horizontal wind components and $U_{\text{gust}}$ is a gustiness velocity scale. This prevents the wind speed from vanishing even when the mean horizontal wind is zero (e.g., in free convection).
 
 Supported parameterizations for $U_{\text{gust}}$:
-1.  **Constant Gustiness**: A fixed minimum wind speed value.
-2.  **Deardorff Gustiness**: Proportional to the convective velocity scale $w_*$, capturing gustiness induced by boundary layer eddies.
+
+1. **Constant Gustiness**: A fixed minimum wind speed value.
+2. **Deardorff Gustiness**: Proportional to the convective velocity scale $w_*$, capturing gustiness induced by boundary layer eddies.
 
 ## Discretization Schemes
 
 SurfaceFluxes.jl supports two interpretations of the boundary layer profiles, handled by the `UniversalFunctions` module:
 
-1.  **Point Value Scheme (Finite Difference)**: Assumes that the inputs represent values at exact heights $z$.
-2.  **Layer Average Scheme (Finite Volume)**: Assumes that the inputs represent volume-averaged values over a grid cell. This requires modified universal functions ($\Psi$) as derived by  ([Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534)).
+1. **Point Value Scheme (Finite Difference)**: Assumes that the inputs represent values at exact heights $z$.
+2. **Layer Average Scheme (Finite Volume)**: Assumes that the inputs represent volume-averaged values over a grid cell. This requires modified universal functions ($\Psi$) as derived by  ([Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534)).
 
 See [Universal Functions](UniversalFunctions.md) for details on the specific parameterizations.
 
@@ -142,5 +144,3 @@ The following figure demonstrates profile recovery using the universal functions
 ## References
 
 - Bonan, G. (2019). *Climate Change and Terrestrial Ecosystem Modeling*. Cambridge University Press. ISBN: 978-1-107-04378-7
-
-
