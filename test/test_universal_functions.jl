@@ -60,7 +60,7 @@ end
 # ---------------------------------------------------------------------------
 
 @testset "UniversalFunctions" begin
-    @testset "Type stability (phi & psi)" begin
+    @testset "Type Stability (Phi & Psi)" begin
         for FT in (Float32, Float64)
             fine_grid = FT(-2):FT(0.01):FT(200)
             near_zero = (-FT(1), FT(0.5) * eps(FT), FT(2) * eps(FT))
@@ -77,7 +77,7 @@ end
         end
     end
 
-    @testset "Type stability (Psi)" begin
+    @testset "Type Stability (Psi)" begin
         for FT in (Float32, Float64)
             ζ_values = (-FT(1), -FT(0.5) * eps(FT), FT(0.5) * eps(FT), FT(2) * eps(FT))
             for ufp in psi_parameter_sets(FT)
@@ -89,7 +89,7 @@ end
         end
     end
 
-    @testset "Neutral logarithmic velocity profile" begin
+    @testset "Neutral Logarithmic Velocity Profile" begin
         for FT in (Float32, Float64)
             z0 = FT(1)
             heights = (FT(2), FT(4), FT(8), FT(32), FT(128))
@@ -106,7 +106,7 @@ end
         end
     end
 
-    @testset "Asymptotic behavior (|ζ| → ∞)" begin
+    @testset "Asymptotic Behavior (|ζ| → ∞)" begin
         FT = Float32
         large_positive = FT(10) .^ (4, 6, 8, 10)
         very_large = FT(10) .^ (8, 9, 10)
@@ -149,7 +149,7 @@ end
         end
     end
 
-    @testset "Neutral continuity (ζ → 0)" begin
+    @testset "Neutral Continuity (ζ → 0)" begin
         for FT in (Float32, Float64)
             # Test close to zero to verify the limit, but not so close 
             # that we hit the linear approximation guards in the code.
@@ -186,7 +186,7 @@ end
         end
     end
 
-    @testset "Derivative consistency ϕ(ζ) ≈ ϕ(0) - ζ·ψ'(ζ)" begin
+    @testset "Derivative Consistency ϕ(ζ) ≈ ϕ(0) - ζ·ψ'(ζ)" begin
         # Test that the analytical psi is consistent with phi via finite differences
         for FT in (Float32, Float64)
             ζ_samples = (FT(-5), FT(-1), FT(-0.1), FT(0.1), FT(1), FT(5))
@@ -208,7 +208,7 @@ end
         end
     end
 
-    @testset "Integral consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
+    @testset "Integral Consistency ψ(ζ) = ∫(ϕ(0)-ϕ)/ζ′ dζ′" begin
         for FT in (Float32, Float64)
             ζ_samples = (
                 FT(-20),
@@ -268,12 +268,107 @@ end
                     # Slope is Pr_0 * a_h
                     expected_h = -FT(ufp.Pr_0) * FT(ufp.a_h) * ζ_tiny / 2
                 else
-                    # Businger Heat: phi_h ~ 1 + a_h * ζ / Pr_0 (Wait, check Businger def)
-                    # Code check: Businger stable phi_h returns a_h * ζ / Pr_0 + 1.
-                    # Slope is a_h / Pr_0.
-                    expected_h = -(FT(ufp.a_h) / FT(ufp.Pr_0)) * ζ_tiny / 2
+                    # Businger Heat: phi_h ~ Pr_0 + a_h * ζ
+                    # Psi_h ~ -a_h * ζ / 2
+                    expected_h = -FT(ufp.a_h) * ζ_tiny / 2
                 end
                 @test isapprox(Psi_h, expected_h; rtol = sqrt(eps(FT)))
+            end
+        end
+    end
+
+    @testset "Bulk Richardson Number" begin
+        for FT in (Float32, Float64)
+            # Choose a grid that avoids exactly 0 for monotonicity check steps if needed, 
+            # though we test 0 explicitly.
+            # Range including stable and unstable
+            ζ_grid = range(FT(-10), FT(10), length = 200)
+            Δz = FT(10)
+            z0m = FT(0.1)
+            z0h = FT(0.01)
+
+            schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
+
+            for ufp in universal_parameter_sets(FT), scheme in schemes
+                # Skip Grachev for LayerAverageScheme as Psi is not implemented
+                if scheme isa UF.LayerAverageScheme && ufp isa UF.GrachevParams
+                    continue
+                end
+
+                # 1. Neutral limit: Ri_b(0) should be 0
+                # Because thermal stratification is zero, buoyancy production is zero.
+                @test isapprox(
+                    UF.bulk_richardson_number(ufp, Δz, FT(0), z0m, z0h, scheme),
+                    FT(0);
+                    atol = eps(FT),
+                )
+
+                # 2. Continuity near neutral limit
+                ε = sqrt(eps(FT))
+                Rib_pos = UF.bulk_richardson_number(ufp, Δz, ε, z0m, z0h, scheme)
+                Rib_neg = UF.bulk_richardson_number(ufp, Δz, -ε, z0m, z0h, scheme)
+                # Should be small and order of ε
+                @test isapprox(Rib_pos, FT(0); atol = 10ε)
+                @test isapprox(Rib_neg, FT(0); atol = 10ε)
+
+                # 3. Monotonicity in ζ
+                # Ri_b should generally increase with ζ.
+                # Ri_b ~ ζ * F_h / F_m^2. 
+                # F_h and F_m are positive and monotonic.
+                # We check if Ri_b(ζ_{i+1}) > Ri_b(ζ_i).
+
+                # Compute Ri_b across the grid
+                Ris = [
+                    UF.bulk_richardson_number(ufp, Δz, ζ, z0m, z0h, scheme) for ζ in ζ_grid
+                ]
+
+                # Check sorted
+                @test issorted(Ris)
+            end
+        end
+    end
+
+    @testset "Dimensionless Profile" begin
+        for FT in (Float32, Float64)
+            z0 = FT(0.1)
+            Δz = FT(10)
+            ζ_grid = range(FT(-2), FT(2), length = 20)
+
+            schemes = (UF.PointValueScheme(), UF.LayerAverageScheme())
+
+            for ufp in universal_parameter_sets(FT), transport in TRANSPORTS,
+                scheme in schemes
+                # Skip Grachev for LayerAverageScheme
+                if scheme isa UF.LayerAverageScheme && ufp isa UF.GrachevParams
+                    continue
+                end
+
+                # 1. Neutral limit (ζ -> 0)
+                F_neutral = UF.dimensionless_profile(ufp, Δz, FT(0), z0, transport, scheme)
+                slope = UF.phi(ufp, FT(0), transport)
+
+                expected_neutral = if scheme isa UF.PointValueScheme
+                    slope * log(Δz / z0)
+                else # LayerAverageScheme
+                    # N&K 2018 approximation: slope * (log(Δz/z0) - (1 - z0/Δz))
+                    slope * (log(Δz / z0) - FT(1) + z0 / Δz)
+                end
+                @test isapprox(F_neutral, expected_neutral; atol = 10 * eps(FT))
+
+                # 2. Continuity near neutral limit
+                ε = sqrt(eps(FT))
+                F_pos = UF.dimensionless_profile(ufp, Δz, ε, z0, transport, scheme)
+                F_neg = UF.dimensionless_profile(ufp, Δz, -ε, z0, transport, scheme)
+                @test isapprox(F_pos, F_neutral; atol = 10ε)
+                @test isapprox(F_neg, F_neutral; atol = 10ε)
+
+                # 3. Monotonicity in ζ
+                # Dimensionless profile F(ζ) should generally increase with ζ (more stable = larger gradient)
+                Fs = [
+                    UF.dimensionless_profile(ufp, Δz, ζ, z0, transport, scheme) for
+                    ζ in ζ_grid
+                ]
+                @test issorted(Fs)
             end
         end
     end

@@ -1,67 +1,83 @@
+"""
+    non_zero(v)
 
-function non_zero(v::FT) where {FT}
-    sign_of_v = v == 0 ? 1 : sign(v)
-    return abs(v) < eps(FT) ? eps(FT) * sign_of_v : v
+Ensure that `v` is not zero, returning `eps(v)` (preserving sign) if `v` is too small.
+"""
+@inline function non_zero(v)
+    FT = typeof(v)
+    threshold = eps(FT)
+    return ifelse(abs(v) < threshold, copysign(FT(threshold), v), v)
 end
 
-function windspeed(sc::AbstractSurfaceConditions)
-    return max(hypot(Δu1(sc), Δu2(sc)), sc.gustiness)
+"""
+    interior_geopotential(param_set, inputs)
+
+Compute the geopotential at the interior (atmospheric) reference level.
+
+# Arguments
+- `param_set`: Parameter set containing gravitational constant.
+- `inputs`: `SurfaceFluxInputs` struct with `Φ_sfc` and `Δz`.
+
+Returns `Φ_sfc + g * Δz` [m²/s²].
+"""
+@inline function interior_geopotential(param_set::APS, inputs::SurfaceFluxInputs)
+    return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz
 end
 
-### Utilitity functions for calculations of differences between
-### atmospheric state properties at the first interior node and
+"""
+    surface_geopotential(inputs)
 
-# Thermodynamic States
-ts_in(sc::AbstractSurfaceConditions) = sc.state_in.ts
-ts_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.ts
+Return the surface geopotential from the inputs.
 
-# Near-surface layer depth
-z_in(sc::AbstractSurfaceConditions) = sc.state_in.z
-z_sfc(sc::AbstractSurfaceConditions) = sc.state_sfc.z
-Δz(sc::AbstractSurfaceConditions) = z_in(sc) - z_sfc(sc)
+# Arguments
+- `inputs`: `SurfaceFluxInputs` struct.
 
-# Velocity
-Δu1(sc::AbstractSurfaceConditions) = sc.state_in.u[1] - sc.state_sfc.u[1]
-Δu2(sc::AbstractSurfaceConditions) = sc.state_in.u[2] - sc.state_sfc.u[2]
+Returns `inputs.Φ_sfc` [m²/s²].
+"""
+@inline surface_geopotential(inputs::SurfaceFluxInputs) = inputs.Φ_sfc
 
-# Total Specific Humidity
-qt_in(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_in(sc))
-qt_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    TD.total_specific_humidity(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-function surface_specific_humidity(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
-    qt_sfc(param_set, sc, args)
+"""
+    surface_density(param_set, T_int, ρ_int, T_sfc, qt_int=0, ql_int=0, qi_int=0)
+
+Estimates the surface air density assuming an adiabatic lapse rate (isentropic process) 
+for the temperature ratio between the interior and surface.
+
+# Arguments
+- `param_set`: AbstractSurfaceFluxesParameters.
+- `T_int`: Interior temperature [K].
+- `ρ_int`: Interior density [kg/m^3].
+- `T_sfc`: Surface temperature [K].
+- `qt_int`: Interior total specific humidity.
+- `ql_int`: Interior liquid specific humidity.
+- `qi_int`: Interior ice specific humidity.
+"""
+@inline function surface_density(
+    param_set::APS,
+    T_int,
+    ρ_int,
+    T_sfc,
+    qt_int = 0,
+    ql_int = 0,
+    qi_int = 0,
+)
+    thermo_params = SFP.thermodynamics_params(param_set)
+    R_m = TD.gas_constant_air(thermo_params, qt_int, ql_int, qi_int)
+    cv_m = TD.cv_m(thermo_params, qt_int, ql_int, qi_int)
+    ratio = T_sfc / T_int
+    return ρ_int * ratio^(cv_m / R_m)
 end
-Δqt(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    qt_in(param_set, sc) - qt_sfc(param_set, sc, args)
 
-# Air temperature
-T_in(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.air_temperature(SFP.thermodynamics_params(param_set), ts_in(sc))
-T_sfc(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    TD.air_temperature(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-function surface_temperature(param_set::APS, sc::AbstractSurfaceConditions, args = nothing)
-    T_sfc(param_set, sc, args)
+"""
+    effective_height(inputs)
+
+Compute the effective aerodynamic height `z_eff = Δz - d`.
+
+# Arguments
+- `inputs`: `SurfaceFluxInputs` struct with `Δz` and `d`.
+
+Returns `Δz - d` [m].
+"""
+@inline function effective_height(inputs::SurfaceFluxInputs)
+    FT = typeof(inputs.Δz)
+    return max(inputs.Δz - inputs.d, eps(FT))
 end
-ΔT(param_set::APS, sc::AbstractSurfaceConditions, args = nothing) =
-    T_in(param_set, sc) - T_sfc(param_set, sc, args)
-
-# Virtual Potential Temperature
-θᵥ_in(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.virtual_pottemp(SFP.thermodynamics_params(param_set), ts_in(sc))
-θᵥ_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.virtual_pottemp(SFP.thermodynamics_params(param_set), ts_sfc(sc))
-Δθᵥ(param_set::APS, sc::AbstractSurfaceConditions) =
-    θᵥ_in(param_set, sc) - θᵥ_sfc(param_set, sc)
-
-# Virtual Dry Static Energy
-DSEᵥ_in(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.virtual_dry_static_energy(SFP.thermodynamics_params(param_set),
-        ts_in(sc),
-        SFP.grav(param_set) * z_in(sc))
-DSEᵥ_sfc(param_set::APS, sc::AbstractSurfaceConditions) =
-    TD.virtual_dry_static_energy(SFP.thermodynamics_params(param_set),
-        ts_sfc(sc),
-        SFP.grav(param_set) * z_sfc(sc))
-ΔDSEᵥ(param_set::APS, sc::AbstractSurfaceConditions) =
-    DSEᵥ_in(param_set, sc) - DSEᵥ_sfc(param_set, sc)

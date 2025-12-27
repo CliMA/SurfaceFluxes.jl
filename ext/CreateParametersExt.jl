@@ -9,6 +9,9 @@ import SurfaceFluxes.UniversalFunctions:
     GrachevParams
 import ClimaParams as CP
 
+import SurfaceFluxes
+import SurfaceFluxes: ConstantRoughnessParams, COARE3RoughnessParams, RaupachRoughnessParams
+
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
 
@@ -46,15 +49,85 @@ Construct `SurfaceFluxesParameters` from a TOML parameter dictionary.
 A `SurfaceFluxesParameters` instance with parameters read from the TOML dictionary.
 """
 function SurfaceFluxesParameters(toml_dict::CP.ParamDict{FT}, UFParams) where {FT}
-    name_map = (; :von_karman_constant => :von_karman_const)
-    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    name_map_core = (;
+        :von_karman_constant => :von_karman_const,
+        :default_momentum_roughness_length => :z0m_fixed,
+        :default_scalar_roughness_length => :z0s_fixed,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map_core, "SurfaceFluxes")
+
+    # Gustiness parameters
+    name_map_gustiness = (;
+        :gustiness_coeff => :gustiness_coeff,
+        :gustiness_zi => :gustiness_zi,
+    )
+    gustiness_params =
+        CP.get_parameter_values(toml_dict, name_map_gustiness, "SurfaceFluxes")
+
     ufp = UFParams(toml_dict)
     thermo_params = ThermodynamicsParameters(toml_dict)
+
     return SurfaceFluxesParameters{FT, typeof(ufp), typeof(thermo_params)}(;
         parameters...,
+        gustiness_params...,
         ufp,
         thermo_params,
     )
+end
+
+"""
+    ConstantRoughnessParams(toml_dict)
+
+Construct `ConstantRoughnessParams` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function ConstantRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :default_momentum_roughness_length => :z0m,
+        :default_scalar_roughness_length => :z0s,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return ConstantRoughnessParams{FT}(; parameters...)
+end
+
+"""
+    COARE3RoughnessParams(toml_dict)
+
+Construct `COARE3RoughnessParams` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function COARE3RoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :kinematic_viscosity_of_air => :kinematic_visc,
+        :default_momentum_roughness_length => :z0m_default,
+        :charnock_parameter_low => :α_low,
+        :charnock_parameter_high => :α_high,
+        :charnock_wind_low => :u_low,
+        :charnock_wind_high => :u_high,
+    )
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return COARE3RoughnessParams{FT}(; parameters...)
+end
+
+"""
+    RaupachRoughnessParams(toml_dict)
+
+Construct `RaupachRoughnessParams` from a TOML parameter dictionary.
+
+# Arguments
+- `toml_dict`: A `ClimaParams.ParamDict` containing parameter values.
+"""
+function RaupachRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
+    name_map = (;
+        :stanton_number => :stanton_number,
+    )
+
+    parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
+    return RaupachRoughnessParams{FT}(; parameters...)
 end
 
 """
@@ -267,6 +340,11 @@ function GrachevParams(toml_dict::CP.ParamDict{FT}) where {FT}
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     unstable_params = _get_businger_unstable_params(toml_dict)
+
+    # Override Pr_0 to 1.0 for Grachev as the formulation assumes phi_h(0) = 1.0
+    # and we want to use Pr_0 explicitly in the code.
+    parameters = (; parameters..., Pr_0 = FT(1))
+
     return GrachevParams{FT}(; parameters..., unstable_params...)
 end
 

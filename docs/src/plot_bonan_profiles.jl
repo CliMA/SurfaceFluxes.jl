@@ -18,7 +18,7 @@ thermo_params = param_set.thermo_params
 # for each variable
 θ_sfc = FT(295)
 p_sfc = FT(100000)
-p_in = FT(99100)
+p_int = FT(99100)
 
 bonan_data_dθz = [
     -3.552713678800501e-15 19.193548387096776
@@ -60,48 +60,30 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -127,48 +109,30 @@ LMO = FT(-50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -195,48 +159,30 @@ LMO = FT(-1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -271,48 +217,30 @@ result_u = [];
 result_θ = [];
 
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -337,48 +265,30 @@ LMO = FT(50)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
@@ -405,48 +315,30 @@ LMO = FT(1000)
 result_u = [];
 result_θ = [];
 for il in 1:10
-    ts_int_test = Thermodynamics.PhaseDry_pθ(
-        thermo_params,
-        p_in,
-        FT(θ_sfc + bonan_data_dθz[il, 1]),
-    )
-    ts_sfc_test = Thermodynamics.PhaseDry_pθ(thermo_params, p_sfc, θ_sfc)
-    sc = SF.ValuesOnly(
-        SF.StateValues(
-            FT(bonan_data_duz[il, 2] - canopy_disp),
-            (FT(bonan_data_duz[il, 1]), FT(0)),
-            ts_int_test,
-        ),
-        SF.StateValues(FT(0), (FT(0), FT(0)), ts_sfc_test),
-        FT(0.6),
-        FT(0.0816),
-    )
+    z0m = FT(0.6)
+    z0h = FT(0.0816)
     push!(
         result_u,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0m,
+            z0m,
             data_uz[il] - canopy_disp,
             ustar,
             FT(0),
             UniversalFunctions.MomentumTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
     push!(
         result_θ,
-        SurfaceFluxes.recover_profile(
+        SurfaceFluxes.compute_profile_value(
             param_set,
-            sc,
             LMO,
-            sc.z0b,
+            z0h,
             data_uz[il] - canopy_disp,
             θstar,
             θ_sfc,
             UniversalFunctions.HeatTransport(),
-            SurfaceFluxes.PointValueScheme(),
         ),
     )
 end
