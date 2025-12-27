@@ -274,7 +274,6 @@ end
         SF.PointValueScheme(),
     )
     @test shf_helper isa FT
-    @test shf_helper isa FT
     @test shf_helper != 0
 
     # Test windspeed helper
@@ -298,7 +297,6 @@ end
         SF.PointValueScheme(),
     )
     @test gh_helper isa FT
-    @test gh_helper isa FT
     @test gh_helper > 0
 
     # Test evaporation helper
@@ -313,8 +311,6 @@ end
         ρ_int,
         SF.PointValueScheme(),
     )
-    @test evap_helper isa FT
-    # Evaporation might be positive or negative depending on gradient, just check it runs
     @test evap_helper isa FT
     # Evaporation might be positive or negative depending on gradient, just check it runs
     @test !isnan(evap_helper)

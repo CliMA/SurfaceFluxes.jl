@@ -101,7 +101,6 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     var_theta_explicit = SF.scalar_variance(param_set, theta_star_calc, ζ_wrapper)
 
     @test isapprox(var_theta_wrapper, var_theta_explicit; rtol = 1e-6)
-    @test isapprox(var_theta_wrapper, var_theta_explicit; rtol = 1e-6)
 
 
 end

@@ -8,8 +8,7 @@ import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 import ClimaParams as CP
 
-# Helper to compute density from state.
-# TODO Replace by Thermodynamics.jl function
+# Helper to compute density from state using ideal gas law
 function _density_from_state(thermo_params, T, pressure::FT, qt) where {FT}
     R_m = TD.gas_constant_air(thermo_params, qt, FT(0), FT(0))
     return pressure / (R_m * T)

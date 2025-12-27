@@ -48,7 +48,6 @@ import ClimaParams as CP
     res_fixed = SF.solve_monin_obukhov(param_set, inputs, SF.PointValueScheme(), opts_fixed)
 
     # They should be very close (since standard usually converges in <10 iters and fixed continues to refine or holds)
-    println("Standard ζ: $(res_std), Fixed ζ: $(res_fixed)")
     @test isapprox(res_std.shf, res_fixed.shf; atol = 1e-2)
     @test isapprox(res_std.ustar, res_fixed.ustar; atol = 1e-3)
 end
