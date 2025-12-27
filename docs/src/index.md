@@ -49,6 +49,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 # Interior (air) state at height Δz
 T_int = FT(298.0)      # Temperature [K]
 q_tot = FT(0.017)      # Total specific humidity [kg/kg]
+q_liq = FT(0.0)        # Liquid specific humidity [kg/kg]
+q_ice = FT(0.0)        # Ice specific humidity [kg/kg]
 ρ_int = FT(1.2)        # Air density [kg/m³]
 u_int = (FT(5.0), FT(0.0)) # Wind vector [m/s]
 Δz    = FT(25.0)       # Height above surface [m]
@@ -64,7 +66,7 @@ d     = FT(5.0)        # Displacement height [m]
 # This function iterates to find the stability parameter ζ
 result = surface_fluxes(
     param_set,
-    T_int, q_tot, ρ_int,
+    T_int, q_tot, q_liq, q_ice, ρ_int,
     T_sfc, q_sfc, Φ_sfc,
     Δz, d,
     u_int, u_sfc
@@ -95,7 +97,7 @@ function compute_shf(T_sfc_val)
     # Note: ForwardDiff passes a dual number, so T_sfc_val will be of type Dual
     result = surface_fluxes(
         param_set,
-        T_int, q_tot, ρ_int,
+        T_int, q_tot, q_liq, q_ice, ρ_int,
         T_sfc_val, q_sfc, Φ_sfc,
         Δz, d,
         u_int, u_sfc
