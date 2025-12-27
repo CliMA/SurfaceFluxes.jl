@@ -10,11 +10,11 @@ The package implements **Monin-Obukhov Similarity Theory (MOST)** to relate surf
 
 ### Key Features
 
-- **Robust Iterative Solver**: Efficiently solves for the Monin-Obukhov stability parameter $\zeta$, supporting various roughness length parameterizations and flexible computation of skin temperature and humidity. 
+- **Robust Iterative Solver**: Efficiently solves for the Monin-Obukhov stability parameter $\zeta$, supporting various roughness length parameterizations and flexible computation of skin temperature and humidity.
 - **Universal Functions**: Supports multiple parameterizations:
-    - **Businger**: The classic Businger-Dyer formulations ([Businger et al. 1971](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2), [Dyer 1974](https://doi.org/10.1007/BF00240838)).
-    - **Gryanik**: Improved functions for the stable boundary layer ([Gryanik et al. 2020](https://doi.org/10.1175/JAS-D-19-0255.1)).
-    - **Grachev**: Functions derived from the SHEBA experiment for stable conditions over sea ice ([Grachev et al. 2007](https://doi.org/10.1007/s10546-007-9177-6)).
+  - **Businger**: The classic Businger-Dyer formulations ([Businger et al. 1971](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2), [Dyer 1974](https://doi.org/10.1007/BF00240838)).
+  - **Gryanik**: Improved functions for the stable boundary layer ([Gryanik et al. 2020](https://doi.org/10.1175/JAS-D-19-0255.1)).
+  - **Grachev**: Functions derived from the SHEBA experiment for stable conditions over sea ice ([Grachev et al. 2007](https://doi.org/10.1007/s10546-007-9177-6)).
 - **Thermodynamic Consistency**: Integrated with [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) for accurate and consistent handling of moist air properties.
 - **GPU Compatibility**: Type stable and designed for high-performance computing with full GPU support via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
 - **Automatic Differentiation**: Compatible with AD frameworks such as [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl).
@@ -134,4 +134,4 @@ SurfaceFluxes.jl is part of the [CliMA](https://github.com/CliMA) ecosystem:
 
 - [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl): Moist thermodynamic calculations
 - [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl): Iterative root-finding algorithms
-- [ClimaParams](https://github.com/CliMA/ClimaParams): Centralized parameter management
+- [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl): Centralized parameter management

@@ -59,7 +59,9 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 result = surface_fluxes(
     param_set,
     T_int,           # Interior temperature [K]
-    q_tot,           # Interior specific humidity [kg/kg]
+    q_tot,           # Interior total specific humidity [kg/kg]
+    q_liq,           # Interior liquid specific humidity [kg/kg]
+    q_ice,           # Interior ice specific humidity [kg/kg]
     ρ_int,           # Interior density [kg/m³]
     T_sfc,           # Surface temperature [K]
     q_sfc,           # Surface specific humidity [kg/kg]
