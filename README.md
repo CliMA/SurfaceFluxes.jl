@@ -75,7 +75,7 @@ result = surface_fluxes(
 # Access results
 result.shf      # Sensible heat flux [W/m²]
 result.lhf      # Latent heat flux [W/m²]
-result.E        # Evaporation rate [kg/(m²·s)]
+result.evaporation  # Evaporation rate [kg/(m²·s)]
 result.ustar    # Friction velocity [m/s]
 result.ρτxz     # Momentum flux, x-component [N/m²]
 result.ρτyz     # Momentum flux, y-component [N/m²]
