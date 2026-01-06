@@ -44,6 +44,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     )
 
     @test base_result.converged
+    @test base_result.T_sfc == T_sfc
+    @test base_result.q_vap_sfc == q_sfc
 
     # Note: "Flux-prescribed" (given shf/lhf, solve ustar) is not supported in current API.
     # We verify only "Flux+Ustar prescribed" and "Coefficient prescribed".
