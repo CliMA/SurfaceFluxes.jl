@@ -80,17 +80,17 @@ Useful for computing fluxes from variables available inside the solver loop.
     ρ_sfc,
     scheme,
 )
-    thermo_params = SFP.thermodynamics_params(param_set)
 
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
+    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
 
     # Compute evaporation (needed for SHF correction)
     E = evaporation(
         param_set,
         inputs,
         g_h,
-        inputs.q_tot_int,
+        q_vap_int,
         q_vap_sfc,
         ρ_sfc,
         inputs.moisture_model,
@@ -198,12 +198,13 @@ friction velocity `ustar`, roughness lengths, and surface state.
 )
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
+    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
 
     return evaporation(
         param_set,
         inputs,
         g_h,
-        inputs.q_tot_int,
+        q_vap_int,
         q_vap_sfc,
         ρ_sfc,
         inputs.moisture_model,

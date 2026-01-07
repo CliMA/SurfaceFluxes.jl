@@ -205,6 +205,8 @@ Surface flux conditions, returned from `surface_fluxes`.
 - `ζ::FT`: Monin-Obukhov stability parameter (z/L)
 - `Cd::FT`: Momentum exchange coefficient
 - `Ch::FT`: Heat exchange coefficient
+- `T_sfc::FT`: Surface temperature [K]
+- `q_vap_sfc::FT`: Surface air vapor specific humidity [kg/kg]
 - `L_MO::FT`: Monin-Obukhov lengthscale [m]
 - `converged::Bool`: Solver convergence status
 """
@@ -218,27 +220,45 @@ struct SurfaceFluxConditions{FT <: Real}
     ζ::FT
     Cd::FT
     Ch::FT
+    T_sfc::FT
+    q_vap_sfc::FT
     L_MO::FT
     converged::Bool
 end
 
-SurfaceFluxConditions(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO, converged) =
-    let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO)
+SurfaceFluxConditions(
+    shf,
+    lhf,
+    E,
+    ρτxz,
+    ρτyz,
+    ustar,
+    ζ,
+    Cd,
+    Ch,
+    T_sfc,
+    q_vap_sfc,
+    L_MO,
+    converged,
+) =
+    let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, T_sfc, q_vap_sfc, L_MO)
         SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
-    println(io, "Sensible Heat Flux     = ", sfc.shf)
-    println(io, "Latent Heat Flux       = ", sfc.lhf)
-    println(io, "Evaporation rate       = ", sfc.evaporation)
-    println(io, "Momentum Flux (x)      = ", sfc.ρτxz)
-    println(io, "Momentum Flux (y)      = ", sfc.ρτyz)
-    println(io, "Friction velocity u⋆   = ", sfc.ustar)
-    println(io, "Obukhov stability ζ    = ", sfc.ζ)
-    println(io, "C_drag                 = ", sfc.Cd)
-    println(io, "C_heat                 = ", sfc.Ch)
-    println(io, "Monin-Obukhov length   = ", sfc.L_MO)
-    println(io, "Converged              = ", sfc.converged)
+    println(io, "Sensible Heat Flux                  = ", sfc.shf)
+    println(io, "Latent Heat Flux                    = ", sfc.lhf)
+    println(io, "Evaporation rate                    = ", sfc.evaporation)
+    println(io, "Momentum Flux (x)                   = ", sfc.ρτxz)
+    println(io, "Momentum Flux (y)                   = ", sfc.ρτyz)
+    println(io, "Friction velocity u⋆                = ", sfc.ustar)
+    println(io, "Obukhov stability ζ                 = ", sfc.ζ)
+    println(io, "C_drag                              = ", sfc.Cd)
+    println(io, "C_heat                              = ", sfc.Ch)
+    println(io, "Surface temperature                 = ", sfc.T_sfc)
+    println(io, "Surface air vapor specific humidity = ", sfc.q_vap_sfc)
+    println(io, "Monin-Obukhov length                = ", sfc.L_MO)
+    println(io, "Converged                           = ", sfc.converged)
     println(io, "-----------------------")
 end
