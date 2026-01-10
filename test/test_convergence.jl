@@ -267,7 +267,8 @@ end
         cc = converged_count[uf_params]
         fc = tc - cc
         fp = tc > 0 ? round((1 - cc / tc) * 100; digits = 2) : 0.0
-        @info "Convergence: $uf_name" Total = tc Converged = cc Failed = fc FailurePercentage = fp
+        @info "Convergence: $uf_name" Total = tc Converged = cc Failed = fc FailurePercentage =
+            fp
 
         rib_vec = failed_Rib[uf_params]
         if !isempty(rib_vec)
@@ -276,4 +277,3 @@ end
         end
     end
 end
-
