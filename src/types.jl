@@ -128,7 +128,7 @@ Options for the Monin-Obukhov similarity theory solver.
 Base.@kwdef struct SolverOptions{FT}
     tol::FT = FT(1e-2)
     rtol::FT = FT(1e-2)
-    maxiter::Int = 20
+    maxiter::Int = 6
     forced_fixed_iters::Bool = true
 end
 
