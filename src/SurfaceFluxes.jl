@@ -161,7 +161,7 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
 - `ζ`: Stability parameter (`(z-d)/L`).
 - `Cd`, `Ch`: Drag and heat exchange coefficients.
-- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg].
+- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg] (final iterated values).
 - `L_MO`: Monin-Obukhov length [m].
 - `converged`: Convergence status.
 """
