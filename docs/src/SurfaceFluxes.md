@@ -80,7 +80,9 @@ The function `surface_fluxes` uses the **Secant Method** (via [RootSolvers.jl](h
  Ri_b(\text{state}) - Ri_b(\zeta) = 0.
 ```
 
-The solver is initialized with guesses at $\zeta = -1$ and $\zeta = 1$, spanning neutral stability. By default, the solver runs for a fixed number of iterations (`maxiter=7`, `forced_fixed_iters=true`) to ensure predictable performance on GPUs. After convergence, the solution is clamped to physical limits $\zeta \in [-100, 100]$ to handle supercritical stability cases where no finite solution exists.
+The solver is initialized with guesses at $\zeta = -1$ and $\zeta = 1$, spanning neutral stability. By default, the solver runs for a fixed number of iterations (`maxiter=7`, `forced_fixed_iters=true`) to ensure predictable, branch-free execution on GPUs.
+
+For the Businger-Dyer similarity functions, a critical bulk Richardson number $Ri_{b,\text{crit}} \approx 0.21$ exists, above which no finite $\zeta$ satisfies the stability relations due to the asymptotic behavior of the integrated profile functions. In such **supercritical** stable conditions, the solver cannot converge to a finite root. To ensure bounded output, the solution is clamped to physical limits $\zeta \in [-100, 100]$ after iteration. While the clamped solution does not satisfy the stability equations exactly, it provides physically reasonable fluxes that smoothly approach zero as stratification increases.
 
 Once $\zeta$ is found, the scaling parameters ($u_*, \theta_*, q_*$) and thus the fluxes of sensible heat, latent heat, and momentum (SHF, LHF, $\tau$) are computed directly.
 
