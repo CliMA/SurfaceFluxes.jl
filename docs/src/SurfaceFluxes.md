@@ -72,15 +72,15 @@ Theoretical analysis shows that $Ri_b$ is universally related to $\zeta$:
 
 Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and heat (derived from $\phi_m$ and $\phi_h$). The bulk Richardson number $Ri_b(\zeta)$ is a monotonic function of $\zeta$, enabling a robust and efficient root-finding algorithm.
 
-### Iterative Solver (Brent's Method)
+### Iterative Solver (Secant Method)
 
-The function `surface_fluxes` uses **Brent's Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
+The function `surface_fluxes` uses the **Secant Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
 
 ```math
  Ri_b(\text{state}) - Ri_b(\zeta) = 0.
 ```
 
-The solver operates within physical limits $\zeta \in [-100, 100]$, ensuring robust convergence. Unbracketed roots outside this range default to the closest limit, consistent with physical constraints. Convergence is determined when the change in $\zeta$ is within either the absolute (`tol`) or relative (`rtol`) tolerance.
+The solver is initialized with guesses at $\zeta = -1$ and $\zeta = 1$, spanning neutral stability. By default, the solver runs for a fixed number of iterations (`maxiter=7`, `forced_fixed_iters=true`) to ensure predictable performance on GPUs. After convergence, the solution is clamped to physical limits $\zeta \in [-100, 100]$ to handle supercritical stability cases where no finite solution exists.
 
 Once $\zeta$ is found, the scaling parameters ($u_*, \theta_*, q_*$) and thus the fluxes of sensible heat, latent heat, and momentum (SHF, LHF, $\tau$) are computed directly.
 
