@@ -84,7 +84,7 @@ end
 @inline normalize_solver_options(param_set::APS{FT}, ::Nothing) where {FT} =
     default_solver_options(param_set)
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts::Int) where {FT} =
-    SolverOptions{FT}(FT(1e-2), solver_opts, true)
+    SolverOptions{FT}(tol = FT(1e-2), maxiter = solver_opts)
 @inline normalize_solver_options(
     param_set::APS{FT},
     solver_opts::SolverOptions{FT},
@@ -93,7 +93,12 @@ end
     param_set::APS{FT},
     solver_opts::SolverOptions,
 ) where {FT} =
-    SolverOptions{FT}(solver_opts.tol, solver_opts.maxiter, solver_opts.forced_fixed_iters)
+    SolverOptions{FT}(
+        tol = solver_opts.tol,
+        rtol = solver_opts.rtol,
+        maxiter = solver_opts.maxiter,
+        forced_fixed_iters = solver_opts.forced_fixed_iters,
+    )
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts) where {FT} =
     default_solver_options(param_set)  # Fallback: use defaults for unsupported types
 
@@ -138,13 +143,16 @@ Can operate in four modes depending on inputs:
 - `d`: Displacement height [m]. Aerodynamic calculations (MOST) use effective height `Δz - d`.
 - `u_int`: Tuple of interior wind components `(u, v)` [m/s].
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
-- `roughness_inputs`: Optional roughness parameters for specific schemes (e.g., LAI, h for Raupach).
+- `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
+  directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
-    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`). Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the roughness length for scalars (`z0s`).
+    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
+      Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the 
+      roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
-- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `forced_fixed_iters`).
+- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
 - `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
 - `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
@@ -158,7 +166,7 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
 - `ζ`: Stability parameter (`(z-d)/L`).
 - `Cd`, `Ch`: Drag and heat exchange coefficients.
-- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg].
+- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg] (final iterated values).
 - `L_MO`: Monin-Obukhov length [m].
 - `converged`: Convergence status.
 """
@@ -283,7 +291,11 @@ function compute_fluxes_given_coefficients(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Coefficients (caller must ensure both are provided)
@@ -360,7 +372,11 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed flux values directly
@@ -444,7 +460,11 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed values
@@ -609,7 +629,11 @@ function (rf::ResidualFunction)(ζ)
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_new,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_new,
     )
 
     # 4. Compute gustiness and ΔU
@@ -670,7 +694,10 @@ function solve_monin_obukhov(
         root_function,
         RS.BrentsMethod(ζ_min, ζ_max),
         RS.CompactSolution(),
-        RS.SolutionTolerance(options.forced_fixed_iters ? FT(0) : options.tol),
+        RS.RelativeOrAbsoluteSolutionTolerance(
+            options.forced_fixed_iters ? FT(0) : options.rtol,
+            options.forced_fixed_iters ? FT(0) : options.tol,
+        ),
         options.maxiter,
     )
     ζ_final = sol.root
@@ -729,7 +756,11 @@ function solve_monin_obukhov(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_val,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_val,
     )
 
     # Consistent gustiness/fluxes

@@ -28,7 +28,7 @@ function generate_cases()
 
     maxiter = 100
     tol = FT(1e-10)
-    opts = SF.SolverOptions{FT}(maxiter = maxiter, tol = tol)
+    opts = SF.SolverOptions{FT}(maxiter = maxiter, tol = tol, rtol = tol)
 
     cases = []
 
