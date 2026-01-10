@@ -41,8 +41,8 @@ Returns `inputs.Φ_sfc` [m²/s²].
 
 Estimates the surface air density assuming hydrostatic balance between the interior and surface.
 It effectively extrapolates the interior pressure to the surface using the hydrostatic 
-equation with an average virtual potential temperature, and then computes the surface 
-density using the ideal gas law.
+equation with an average virtual temperature, and then computes the surface density using the 
+ideal gas law.
 
 # Arguments
 - `param_set`: AbstractSurfaceFluxesParameters.

@@ -147,7 +147,7 @@ Can operate in four modes depending on inputs:
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
-- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `forced_fixed_iters`).
+- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
 - `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
 - `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
@@ -689,7 +689,10 @@ function solve_monin_obukhov(
         root_function,
         RS.BrentsMethod(ζ_min, ζ_max),
         RS.CompactSolution(),
-        RS.SolutionTolerance(options.forced_fixed_iters ? FT(0) : options.tol),
+        RS.RelativeOrAbsoluteSolutionTolerance(
+            options.forced_fixed_iters ? FT(0) : options.rtol,
+            options.forced_fixed_iters ? FT(0) : options.tol,
+        ),
         options.maxiter,
     )
     ζ_final = sol.root

@@ -121,11 +121,13 @@ Options for the Monin-Obukhov similarity theory solver.
 
 # Fields
 - `tol`: Absolute tolerance on the change in the stability parameter for determining convergence.
+- `rtol`: Relative tolerance on the change in the stability parameter for determining convergence.
 - `maxiter`: Maximum number of iterations.
 - `forced_fixed_iters`: If true, disables the tolerance check and forces the solver to run for exactly `maxiter` iterations (or until machine precision is reached/bypassed). Default is `true`.
 """
 Base.@kwdef struct SolverOptions{FT}
     tol::FT = FT(1e-2)
+    rtol::FT = FT(1e-2)
     maxiter::Int = 20
     forced_fixed_iters::Bool = true
 end

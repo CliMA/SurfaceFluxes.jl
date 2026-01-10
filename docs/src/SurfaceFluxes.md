@@ -80,7 +80,7 @@ The function `surface_fluxes` uses **Brent's Method** (via [RootSolvers.jl](http
  Ri_b(\text{state}) - Ri_b(\zeta) = 0.
 ```
 
-The solver operates within physical limits $\zeta \in [-100, 100]$, ensuring robust convergence. Unbracketed roots outside this range default to the closest limit, consistent with physical constraints.
+The solver operates within physical limits $\zeta \in [-100, 100]$, ensuring robust convergence. Unbracketed roots outside this range default to the closest limit, consistent with physical constraints. Convergence is determined when the change in $\zeta$ is within either the absolute (`tol`) or relative (`rtol`) tolerance.
 
 Once $\zeta$ is found, the scaling parameters ($u_*, \theta_*, q_*$) and thus the fluxes of sensible heat, latent heat, and momentum (SHF, LHF, $\tau$) are computed directly.
 
@@ -139,7 +139,7 @@ The following figure demonstrates profile recovery using the universal functions
 
 *Profile recovery for wind speed (left) and potential temperature (right) under different stability conditions. The figure shows profiles for unstable conditions (LMO = -10, -50, -1000) and stable conditions (LMO = 30, 50, 1000), demonstrating how the universal functions capture the stability dependence of the boundary layer structure.*
 
-![](Bonan_Fig6-4.svg)
+![Bonan Figure 6.4](Bonan_Fig6-4.svg)
 
 ## References
 
