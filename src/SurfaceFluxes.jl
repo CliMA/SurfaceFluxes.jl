@@ -686,8 +686,8 @@ function solve_monin_obukhov(
         thermo_params,
     )
 
-    # Use SecantMethod with initial guesses spanning neutral stability.
-    # (it has faster convergence than Brent's method with wide brackets
+    # Use SecantMethod with initial guesses spanning neutral stability
+    # (it has faster convergence than Brent's method with wide brackets)
     ζ_init_unstable = FT(-1)
     ζ_init_stable = FT(1)
 
