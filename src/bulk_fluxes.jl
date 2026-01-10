@@ -484,7 +484,7 @@ Returns the bulk Richardson number.
     # Assume condensate concentration is the same at the surface and in the interior
     q_tot_sfc = q_vap_sfc + q_liq_int + q_ice_int
     theta_v_sfc =
-        TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot_sfc, q_liq_int, q_ice_int)
+        TD.virtual_pottemp(thermo_params, T_sfc, inputs.ρ_int, q_tot_sfc, q_liq_int, q_ice_int)
     theta_v_int = TD.virtual_pottemp(
         thermo_params,
         inputs.T_int,
@@ -494,10 +494,19 @@ Returns the bulk Richardson number.
         q_ice_int,
     )
 
+    state_sfc = TD.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc, q_tot_sfc)
+    state_int = TD.PhaseEquil_ρTq(thermo_params, inputs.ρ_int, inputs.T_int, q_tot_int)
+    dse_v_sfc = TD.virtual_dry_static_energy(thermo_params, state_sfc, FT(0))
+    dse_v_int = TD.virtual_dry_static_energy(thermo_params, state_int, FT(300))
+
     Δtheta_v = theta_v_int - theta_v_sfc
+    Δdse_v = dse_v_int - dse_v_sfc
+    cp_d = SFP.cp_d(param_set)
+    dse_v_ref = cp_d * inputs.T_int
     theta_v_ref = theta_v_int
     Δz_eff = effective_height(inputs)
 
-    Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
+    #Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
+    Rib_state = (grav * Δz_eff * Δdse_v) / (dse_v_ref * non_zero(ΔU)^2)
     return Rib_state
 end

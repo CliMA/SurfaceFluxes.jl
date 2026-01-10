@@ -630,6 +630,10 @@ function (rf::ResidualFunction)(ζ)
     Δz_eff = effective_height(inputs)
     Rib_theory = UF.bulk_richardson_number(uf_params, Δz_eff, ζ, z0m, z0h, scheme)
 
+    @info ζ
+    # @info Rib_theory
+    # @info Rib_state
+
     return Rib_theory - Rib_state
 end
 
