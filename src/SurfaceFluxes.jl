@@ -136,9 +136,12 @@ Can operate in four modes depending on inputs:
 - `d`: Displacement height [m]. Aerodynamic calculations (MOST) use effective height `Δz - d`.
 - `u_int`: Tuple of interior wind components `(u, v)` [m/s].
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
-- `roughness_inputs`: Optional roughness parameters for specific schemes (e.g., LAI, h for Raupach).
+- `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
+  directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
-    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`). Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the roughness length for scalars (`z0s`).
+    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
+      Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the 
+      roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
@@ -279,7 +282,11 @@ function compute_fluxes_given_coefficients(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Coefficients (caller must ensure both are provided)
@@ -355,7 +362,11 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed flux values directly
@@ -438,7 +449,11 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed values
@@ -604,7 +619,11 @@ function (rf::ResidualFunction)(ζ)
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_new,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_new,
     )
 
     # 4. Compute gustiness and ΔU
@@ -724,7 +743,11 @@ function solve_monin_obukhov(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_val,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_val,
     )
 
     # Consistent gustiness/fluxes
