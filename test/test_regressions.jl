@@ -79,21 +79,21 @@ end
                     @test expected_value > FT(1 / eps(FT))
                 else
                     # Field-specific tolerances:
-                    # - Energy fluxes (shf, lhf): 5% rtol or 1 W/m² atol
-                    # - ustar: 5% rtol or 0.1 m/s atol
-                    # - Coefficients (Cd, Ch): 5% rtol or 1e-6 atol
-                    # - evaporation: 5% rtol or 1e-9 kg/m²/s atol
-                    rtol = FT(0.05)
+                    # - Energy fluxes (shf, lhf): 2.5% rtol or 0.5 W/m² atol
+                    # - ustar: 2.5% rtol or 0.05 m/s atol
+                    # - Coefficients (Cd, Ch): 2.5% rtol or 5e-7 atol
+                    # - evaporation: 2.5% rtol or 5e-10 kg/m²/s atol
+                    rtol = FT(0.025)
                     atol = if field in (:shf, :lhf)
-                        FT(1.0)  # 1 W/m²
+                        FT(0.5)  # 0.5 W/m²
                     elseif field == :ustar
-                        FT(0.1)  # 0.1 m/s
+                        FT(0.05)  # 0.05 m/s
                     elseif field in (:Cd, :Ch)
-                        FT(1e-6)
+                        FT(5e-7)
                     elseif field == :evaporation
-                        FT(1e-9)  # kg/m²/s
+                        FT(5e-10)  # kg/m²/s
                     else
-                        FT(0.1)
+                        FT(0.05)
                     end
 
                     is_approx = isapprox(actual_value, expected_value; rtol, atol)
