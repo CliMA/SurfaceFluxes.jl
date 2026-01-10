@@ -36,7 +36,9 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     )
 
     @test base_result isa SF.SurfaceFluxConditions{FT}
-    @test base_result.Cd > zero(FT)
+    @test base_result.Cd > 0
+    @test base_result.T_sfc == T_sfc_guess
+    @test base_result.q_vap_sfc == q_vap_sfc_guess
 
     Ts_calls = Ref(0)
     qs_calls = Ref(0)

@@ -64,6 +64,8 @@ export SurfaceFluxConditions,
     MoistModel,
     DryModel
 
+# From utilities.jl
+export surface_density
 
 include("types.jl")
 include("roughness_lengths.jl")
@@ -157,9 +159,11 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `evaporation`: Evaporation rate [kg/m^2/s].
 - `ustar`: Friction velocity [m/s].
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
-- `L_MO`: Monin-Obukhov length [m].
 - `ζ`: Stability parameter (`(z-d)/L`).
 - `Cd`, `Ch`: Drag and heat exchange coefficients.
+- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg].
+- `L_MO`: Monin-Obukhov length [m].
+- `converged`: Convergence status.
 """
 function surface_fluxes(
     param_set::APS,
@@ -334,6 +338,7 @@ function compute_fluxes_given_coefficients(
         shf, lhf, E,
         ρτxz, ρτyz,
         ustar, ζ, Cd, Ch,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -421,6 +426,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
         shf, lhf, E,
         ρτxz, ρτyz,
         ustar, ζ, Cd, Ch,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -511,6 +517,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         shf, lhf, E,
         ρτxz, ρτyz,
         ustar, ζ, Cd, Ch,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -532,8 +539,6 @@ given the exchange coefficients and surface state.
     ρ_sfc,
     b_flux,
 )
-    thermo_params = SFP.thermodynamics_params(param_set)
-
     g_h = Ch * windspeed(inputs, param_set, b_flux)
 
     model = inputs.moisture_model
@@ -772,6 +777,7 @@ function solve_monin_obukhov(
         shf, lhf, E,
         ρτxz, ρτyz,
         u_star_curr, ζ_final, Cd, Ch,
+        T_sfc_val, q_vap_sfc_val,
         L_MO,
         converged,
     )
