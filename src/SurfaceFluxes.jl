@@ -84,7 +84,7 @@ end
 @inline normalize_solver_options(param_set::APS{FT}, ::Nothing) where {FT} =
     default_solver_options(param_set)
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts::Int) where {FT} =
-    SolverOptions{FT}(FT(1e-2), solver_opts, true)
+    SolverOptions{FT}(tol = FT(1e-2), maxiter = solver_opts)
 @inline normalize_solver_options(
     param_set::APS{FT},
     solver_opts::SolverOptions{FT},
@@ -93,7 +93,12 @@ end
     param_set::APS{FT},
     solver_opts::SolverOptions,
 ) where {FT} =
-    SolverOptions{FT}(solver_opts.tol, solver_opts.maxiter, solver_opts.forced_fixed_iters)
+    SolverOptions{FT}(
+        tol = solver_opts.tol,
+        rtol = solver_opts.rtol,
+        maxiter = solver_opts.maxiter,
+        forced_fixed_iters = solver_opts.forced_fixed_iters,
+    )
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts) where {FT} =
     default_solver_options(param_set)  # Fallback: use defaults for unsupported types
 
