@@ -686,13 +686,14 @@ function solve_monin_obukhov(
         thermo_params,
     )
 
-    # Define physical limits for the stability parameter ζ
-    ζ_min = FT(-100)
-    ζ_max = FT(100)
+    # Use SecantMethod with initial guesses spanning neutral stability
+    # (it has faster convergence than Brent's method with wide brackets)
+    ζ_init_unstable = FT(-1)
+    ζ_init_stable = FT(1)
 
     sol = RS.find_zero(
         root_function,
-        RS.BrentsMethod(ζ_min, ζ_max),
+        RS.SecantMethod(ζ_init_unstable, ζ_init_stable),
         RS.CompactSolution(),
         RS.RelativeOrAbsoluteSolutionTolerance(
             options.forced_fixed_iters ? FT(0) : options.rtol,
@@ -700,7 +701,13 @@ function solve_monin_obukhov(
         ),
         options.maxiter,
     )
-    ζ_final = sol.root
+
+    # Clamp ζ to physical limits.
+    # For supercritical Ri_b (e.g., very stable stratification), the solver
+    # may not converge since no finite solution exists (e.g., for Businger profiles). 
+    ζ_min = FT(-100)
+    ζ_max = FT(100)
+    ζ_final = clamp(sol.root, ζ_min, ζ_max)
     converged = sol.converged
 
     # Finalize state 

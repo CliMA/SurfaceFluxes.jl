@@ -57,7 +57,6 @@ end
                 inputs.moisture_model,
             )
 
-            #options = SF.SolverOptions{FT}(maxiter = 10, tol = FT(1e-2))
             options = SF.SolverOptions{FT}() # use default options
 
             result = SF.surface_fluxes(
@@ -79,13 +78,25 @@ end
                 if isinf(actual_value)
                     @test expected_value > FT(1 / eps(FT))
                 else
-                    # Use physically reasonable tolerances (10% rtol, 0.1 atol, which is mostly relevant for ustar)
-                    is_approx = isapprox(
-                        actual_value,
-                        expected_value;
-                        rtol = FT(0.1),
-                        atol = FT(1e-1),
-                    )
+                    # Field-specific tolerances:
+                    # - Energy fluxes (shf, lhf): 2.5% rtol or 0.5 W/m² atol
+                    # - ustar: 2.5% rtol or 0.05 m/s atol
+                    # - Coefficients (Cd, Ch): 2.5% rtol or 5e-7 atol
+                    # - evaporation: 2.5% rtol or 5e-10 kg/m²/s atol
+                    rtol = FT(0.025)
+                    atol = if field in (:shf, :lhf)
+                        FT(0.5)  # 0.5 W/m²
+                    elseif field == :ustar
+                        FT(0.05)  # 0.05 m/s
+                    elseif field in (:Cd, :Ch)
+                        FT(5e-7)
+                    elseif field == :evaporation
+                        FT(5e-10)  # kg/m²/s
+                    else
+                        FT(0.05)
+                    end
+
+                    is_approx = isapprox(actual_value, expected_value; rtol, atol)
                     if !is_approx
                         println(
                             "Field: $field, Expected: $expected_value, Actual: $actual_value",

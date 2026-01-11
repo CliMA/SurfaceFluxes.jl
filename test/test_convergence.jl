@@ -167,12 +167,18 @@ end
 @testset "SurfaceFluxes Convergence Matrix" begin
     schemes = (SF.PointValueScheme(), SF.LayerAverageScheme())
 
-    # Counter for convergence statistics
-    converged_count = 0
-    total_count = 0
+    # Counter for convergence statistics (per UF type)
+    converged_count = Dict{Type, Int}()
+    total_count = Dict{Type, Int}()
 
-    # Storage for Ri_b of failed cases
-    failed_Rib = Float64[]
+    # Storage for Ri_b of failed cases (per UF type)
+    failed_Rib = Dict{Type, Vector{Float64}}()
+
+    for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
+        converged_count[uf_params] = 0
+        total_count[uf_params] = 0
+        failed_Rib[uf_params] = Float64[]
+    end
 
     for FT in (Float32, Float64)
         # Define roughness configs as functions of (z0m, z0h)
@@ -216,9 +222,9 @@ end
                     solver_opts,
                 )
 
-                total_count += 1
+                total_count[uf_params] += 1
                 if result.converged
-                    converged_count += 1
+                    converged_count[uf_params] += 1
                 else
                     # Compute expected Ri_b for failed case
                     ΔU = SF.windspeed(inputs, FT(0))
@@ -237,7 +243,7 @@ end
                         ΔU,
                         inputs.q_vap_sfc_guess,
                     )
-                    push!(failed_Rib, Float64(Rib))
+                    push!(failed_Rib[uf_params], Float64(Rib))
                 end
 
                 assert_flux_expectations(result, case, FT, param_set, inputs)
@@ -246,14 +252,28 @@ end
     end
 
     @info "Convergence matrix exercised Businger/Gryanik/Grachev UFs, Float32/Float64, synthetic dry/moist gradients, Scalar/Charnock roughness"
-    @info "Convergence Statistics" Total = total_count Converged = converged_count Failed =
-        (total_count - converged_count) FailurePercentage =
-        (1 - converged_count / total_count) * 100
 
-    if !isempty(failed_Rib)
-        import Statistics
-        @info "Failed Cases Ri_b Statistics" Min = minimum(failed_Rib) Max =
-            maximum(failed_Rib) Median =
-            Statistics.median(failed_Rib) Count = length(failed_Rib)
+    # Report statistics for each UF type
+    total_all = sum(values(total_count))
+    converged_all = sum(values(converged_count))
+    @info "Overall Convergence Statistics" Total = total_all Converged = converged_all Failed =
+        (total_all - converged_all) FailurePercentage =
+        round((1 - converged_all / total_all) * 100; digits = 2)
+
+    import Statistics
+    for uf_params in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
+        uf_name = string(nameof(uf_params))
+        tc = total_count[uf_params]
+        cc = converged_count[uf_params]
+        fc = tc - cc
+        fp = tc > 0 ? round((1 - cc / tc) * 100; digits = 2) : 0.0
+        @info "Convergence: $uf_name" Total = tc Converged = cc Failed = fc FailurePercentage =
+            fp
+
+        rib_vec = failed_Rib[uf_params]
+        if !isempty(rib_vec)
+            @info "  Failed Ri_b ($uf_name)" Min = minimum(rib_vec) Max =
+                maximum(rib_vec) Median = Statistics.median(rib_vec) Count = length(rib_vec)
+        end
     end
 end
