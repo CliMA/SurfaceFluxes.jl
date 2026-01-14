@@ -161,7 +161,7 @@ function assert_flux_expectations(result, case, FT, param_set, inputs)
     end
     @test result.ustar >= FT(0)
     @test result.Cd > FT(0)
-    @test result.Ch > FT(0)
+    @test result.g_h > FT(0)
 end
 
 @testset "SurfaceFluxes Convergence Matrix" begin

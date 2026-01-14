@@ -82,7 +82,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         # Pass Cd, Ch via FluxSpecs
         specs = SF.FluxSpecs{FT}(
             Cd = base_result.Cd,
-            Ch = base_result.Ch,
+            Ch = base_result.g_h / sqrt(FT(10.0)^2),
         )
 
         result = SF.surface_fluxes(
@@ -99,7 +99,7 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         )
 
         @test result.Cd == base_result.Cd
-        @test result.Ch == base_result.Ch
+        @test result.g_h == base_result.g_h
         # Check derived fluxes
         @test isapprox(result.shf, base_result.shf; rtol = 1e-4)
         @test isapprox(result.lhf, base_result.lhf; rtol = 1e-4)

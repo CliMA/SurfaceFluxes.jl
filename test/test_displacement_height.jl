@@ -86,7 +86,7 @@ import ClimaParams as CP
 
     # 2. Drag/Exchange coefficients should be identical
     @test sf_1.Cd ≈ sf_2.Cd atol = 1e-10
-    @test sf_1.Ch ≈ sf_2.Ch atol = 1e-10
+    @test sf_1.g_h ≈ sf_2.g_h atol = 1e-10
 
     # 3. L_MO should be identical
     @test sf_1.L_MO ≈ sf_2.L_MO atol = 1e-10
