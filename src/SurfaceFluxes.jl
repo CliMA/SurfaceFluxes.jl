@@ -54,7 +54,6 @@ export compute_physical_scale_coeff,
 export SurfaceFluxConditions,
     SurfaceFluxConfig,
     FluxSpecs,
-    SurfaceFluxInputs,
     SolverOptions,
     ConstantRoughnessParams,
     COARE3RoughnessParams,
@@ -228,7 +227,7 @@ Dispatch to the appropriate solver mode based on the availability of inputs (coe
 """
 function surface_fluxes(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
@@ -271,19 +270,16 @@ Computes fluxes when Cd and Ch are already known.
 """
 function compute_fluxes_given_coefficients(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
 
     # Surface state from guesses (callbacks not used for prescribed coefficients)
-    # Use type of T_int to allow for ForwardDiff.Dual
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc::T_sfc_type =
+    # Don't use type annotations here to allow for Dual numbers during AD
+    T_sfc =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc::q_vap_sfc_type =
+    q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
     ρ_sfc = surface_density(
@@ -354,17 +350,13 @@ end
 
 Computes diagnostics when ustar, shf, lhf are all prescribed.
 """
-function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInputs, scheme)
+function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
-    # Use type of T_int to allow for ForwardDiff.Dual
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc::T_sfc_type =
+    T_sfc =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc::q_vap_sfc_type =
+    q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
     ρ_sfc = surface_density(
@@ -445,7 +437,7 @@ Returns a [`SurfaceFluxConditions`](@ref) struct.
 """
 function compute_fluxes_with_prescribed_heat_and_drag(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
 )
     FT = eltype(param_set)
@@ -536,7 +528,7 @@ given the exchange coefficients and surface state.
 """
 @inline function compute_flux_components(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     Ch,
     Cd,
     Ts,
@@ -586,13 +578,9 @@ function (rf::ResidualFunction)(ζ)
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
     # If guess is nothing, use interior values as safe dummy defaults
-    # Use type of T_int to allow for Dual numbers during AD
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc_guess_safe::T_sfc_type =
+    T_sfc_guess_safe =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe::q_vap_sfc_type =
+    q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
 
@@ -668,7 +656,7 @@ ignores tolerance and iterates for exactly `maxiter`.
 """
 function solve_monin_obukhov(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
     options::SolverOptions,
 )
@@ -721,13 +709,9 @@ function solve_monin_obukhov(
     )
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
-    # Use type of T_int to allow for Dual numbers during AD
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc_guess_safe::T_sfc_type =
+    T_sfc_guess_safe =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe::q_vap_sfc_type =
+    q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
 

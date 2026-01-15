@@ -16,11 +16,11 @@ Compute the geopotential at the interior (atmospheric) reference level.
 
 # Arguments
 - `param_set`: Parameter set containing gravitational constant.
-- `inputs`: `SurfaceFluxInputs` struct with `Φ_sfc` and `Δz`.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 
 Returns `Φ_sfc + g * Δz` [m²/s²].
 """
-@inline function interior_geopotential(param_set::APS, inputs::SurfaceFluxInputs)
+@inline function interior_geopotential(param_set::APS, inputs)
     return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz
 end
 
@@ -30,11 +30,11 @@ end
 Return the surface geopotential from the inputs.
 
 # Arguments
-- `inputs`: `SurfaceFluxInputs` struct.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 
 Returns `inputs.Φ_sfc` [m²/s²].
 """
-@inline surface_geopotential(inputs::SurfaceFluxInputs) = inputs.Φ_sfc
+@inline surface_geopotential(inputs) = inputs.Φ_sfc
 
 """
     surface_density(param_set, T_int, ρ_int, T_sfc, Δz, q_tot_int=0, q_liq_int=0, q_ice_int=0, q_vap_sfc=nothing)
@@ -99,11 +99,11 @@ end
 Compute the effective aerodynamic height `z_eff = Δz - d`.
 
 # Arguments
-- `inputs`: `SurfaceFluxInputs` struct with `Δz` and `d`.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 
 Returns `Δz - d` [m].
 """
-@inline function effective_height(inputs::SurfaceFluxInputs)
+@inline function effective_height(inputs)
     FT = typeof(inputs.Δz)
     return max(inputs.Δz - inputs.d, eps(FT))
 end
