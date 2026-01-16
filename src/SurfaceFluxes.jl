@@ -164,7 +164,8 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `ustar`: Friction velocity [m/s].
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
 - `ζ`: Stability parameter (`(z-d)/L`).
-- `Cd`, `Ch`: Drag and heat exchange coefficients.
+- `Cd`: Drag coefficient
+- `g_h`: Heat conductance [m/s]
 - `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg] (final iterated values).
 - `L_MO`: Monin-Obukhov length [m].
 - `converged`: Convergence status.
@@ -330,6 +331,9 @@ function compute_fluxes_given_coefficients(
     ΔU_safe = max(ΔU, eps(FT))
     ustar = sqrt(Cd) * ΔU_safe
 
+    # Compute g_h
+    g_h = Ch * ΔU_safe
+
     # Derived L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
     Δz_eff = effective_height(inputs)
@@ -338,7 +342,7 @@ function compute_fluxes_given_coefficients(
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
         L_MO,
         true,
@@ -412,8 +416,8 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
         inputs.roughness_inputs,
     )
 
-    # Compute Ch
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    # Compute g_h
+    g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -422,7 +426,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
         L_MO,
         true,
@@ -503,8 +507,8 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.roughness_inputs,
     )
 
-    # Compute Ch
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    # Compute g_h
+    g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -513,7 +517,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
         L_MO,
         true,
@@ -759,8 +763,11 @@ function solve_monin_obukhov(
 
     # Use input coefficients if available, otherwise use MOST-derived ones
     Δz_eff = effective_height(inputs)
+    ΔU = windspeed(inputs, param_set, b_flux)
+    ΔU_safe = max(ΔU, eps(FT))
     Cd =
         inputs.Cd !== nothing ? inputs.Cd :
+        inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 :
         drag_coefficient(param_set, ζ_final, z0m, Δz_eff, scheme)
     Ch =
         inputs.Ch !== nothing ? inputs.Ch :
@@ -770,12 +777,13 @@ function solve_monin_obukhov(
         param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux,
     )
 
+    g_h = Ch * ΔU_safe
     L_MO = obukhov_length(param_set, u_star_curr, b_flux)
 
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        u_star_curr, ζ_final, Cd, Ch,
+        u_star_curr, ζ_final, Cd, g_h,
         T_sfc_val, q_vap_sfc_val,
         L_MO,
         converged,

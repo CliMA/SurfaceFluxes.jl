@@ -78,7 +78,7 @@ function generate_cases()
                             lhf = result.lhf,
                             ustar = result.ustar,
                             Cd = result.Cd,
-                            Ch = result.Ch,
+                            g_h = result.g_h,
                             evaporation = result.evaporation,
                         ),
                     )
@@ -127,7 +127,7 @@ function print_cases(cases)
         println("            lhf = FT($(c.expected.lhf)),")
         println("            ustar = FT($(c.expected.ustar)),")
         println("            Cd = FT($(c.expected.Cd)),")
-        println("            Ch = FT($(c.expected.Ch)),")
+        println("            g_h = FT($(c.expected.g_h)),")
         println("            evaporation = FT($(c.expected.evaporation)),")
         println("        ),")
         println("    ),")

@@ -16,7 +16,7 @@ const CASE_NUMERIC_FIELDS = (
     :lhf,
     :ustar,
     :Cd,
-    :Ch,
+    :g_h,
     :evaporation,
 )
 
@@ -41,7 +41,7 @@ end
 function assert_coefficient_reasonableness(result, ::Type{FT}) where {FT}
     @test result.ustar >= FT(0)
     @test result.Cd >= FT(0)
-    @test result.Ch >= FT(0)
+    @test result.g_h >= FT(0)
 end
 
 @testset "Numerical regression cases" begin
@@ -81,17 +81,20 @@ end
                     # Field-specific tolerances:
                     # - Energy fluxes (shf, lhf): 2.5% rtol or 0.5 W/m² atol
                     # - ustar: 2.5% rtol or 0.05 m/s atol
-                    # - Coefficients (Cd, Ch): 2.5% rtol or 5e-7 atol
+                    # - Coefficient: 2.5% rtol or 5e-7 atol
+                    # - Conductance: 2.5% rtol or 5e-6 m/s atol
                     # - evaporation: 2.5% rtol or 5e-10 kg/m²/s atol
                     rtol = FT(0.025)
                     atol = if field in (:shf, :lhf)
                         FT(0.5)  # 0.5 W/m²
                     elseif field == :ustar
                         FT(0.05)  # 0.05 m/s
-                    elseif field in (:Cd, :Ch)
+                    elseif field == :Cd
                         FT(5e-7)
+                    elseif field == :g_h
+                        FT(5e-6)  # 5e-6 m/s
                     elseif field == :evaporation
-                        FT(5e-10)  # kg/m²/s
+                        FT(5e-10)  # 5e-10kg/m²/s
                     else
                         FT(0.05)
                     end
