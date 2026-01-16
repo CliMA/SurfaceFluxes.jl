@@ -15,11 +15,11 @@ second term, `VSE_sfc * E`, accounts for the vapor static energy
 or sensible heat, plus potential energy Φ_sfc) carried by evaporating water.
 
 If `inputs.shf` is provided (not `nothing`), the function returns that value directly,
-allowing for prescribed sensible heat flux conditions. See [`SurfaceFluxInputs`](@ref).
+allowing for prescribed sensible heat flux conditions. See the inputs container.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `g_h`: Heat/moisture conductance [m/s].
 - `T_int`: Interior temperature [K].
 - `T_sfc`: Surface temperature [K].
@@ -28,7 +28,7 @@ allowing for prescribed sensible heat flux conditions. See [`SurfaceFluxInputs`]
 """
 @inline function sensible_heat_flux(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     g_h,
     T_int,
     T_sfc,
@@ -60,7 +60,7 @@ Useful for computing fluxes from variables available inside the solver loop.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `T_sfc`: Surface temperature [K].
@@ -72,7 +72,7 @@ Useful for computing fluxes from variables available inside the solver loop.
     param_set::APS,
     ζ,
     ustar,
-    inputs::SurfaceFluxInputs,
+    inputs,
     z0m,
     z0h,
     T_sfc,
@@ -128,7 +128,7 @@ rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 
 Arguments:
 - `param_set`: Parameter set.
-- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `g_h`: Heat conductance [m/s].
 - `q_vap_int`: Interior vapor specific humidity [kg/kg].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -137,7 +137,7 @@ Arguments:
 """
 @inline function evaporation(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     g_h,
     q_vap_int,
     q_vap_sfc,
@@ -156,7 +156,7 @@ end
 
 @inline function evaporation(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     g_h,
     q_vap_int,
     q_vap_sfc,
@@ -178,7 +178,7 @@ friction velocity `ustar`, roughness lengths, and surface state.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -189,7 +189,7 @@ friction velocity `ustar`, roughness lengths, and surface state.
     param_set::APS,
     ζ,
     ustar,
-    inputs::SurfaceFluxInputs,
+    inputs,
     z0m,
     z0h,
     q_vap_sfc,
@@ -228,13 +228,13 @@ allowing for prescribed latent heat flux conditions.
 
 Arguments:
 - `param_set`: Parameter set.
-- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `E`: Evaporation rate [kg/m^2/s].
 - `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
 @inline function latent_heat_flux(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     E,
     model::AbstractMoistureModel = MoistModel(),
 )
@@ -249,7 +249,7 @@ end
 
 @inline function latent_heat_flux(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     E,
     model::DryModel,
 )
@@ -269,7 +269,7 @@ Calculates conductance and evaporation internally.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -280,7 +280,7 @@ Calculates conductance and evaporation internally.
     param_set::APS,
     ζ,
     ustar,
-    inputs::SurfaceFluxInputs,
+    inputs,
     z0m,
     z0h,
     q_vap_sfc,
@@ -386,7 +386,7 @@ end
     buoyancy_flux(param_set, ζ, ustar, inputs)
 
 Computes the buoyancy flux given the Monin-Obukhov stability parameter `ζ`,
-friction velocity `ustar`, and geometric inputs via [`SurfaceFluxInputs`](@ref).
+friction velocity `ustar`, and geometric inputs via the inputs container.
 
 The relationship is derived from the definition of the Obukhov length:
 
@@ -398,13 +398,13 @@ The relationship is derived from the definition of the Obukhov length:
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 """
 @inline function buoyancy_flux(
     param_set::APS,
     ζ,
     ustar,
-    inputs::SurfaceFluxInputs,
+    inputs,
 )
     κ = SFP.von_karman_const(param_set)
     Δz_eff = effective_height(inputs)
@@ -429,17 +429,17 @@ where:
 
 Returns a tuple `(ρτxz, ρτyz)`.
 
-See [`SurfaceFluxInputs`](@ref).
+See the inputs container.
 
 # Arguments
 - `Cd`: Drag coefficient.
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `ρ_sfc`: Surface air density [kg/m^3].
 - `gustiness`: Gustiness velocity scale [m/s].
 """
 @inline function momentum_fluxes(
     Cd,
-    inputs::SurfaceFluxInputs,
+    inputs,
     ρ_sfc,
     gustiness,
 )
@@ -457,7 +457,7 @@ Computes the bulk Richardson number from the given state.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: [`SurfaceFluxInputs`](@ref) struct.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `T_sfc`: Surface temperature [K].
 - `ρ_sfc`: Surface air density [kg/m³].
 - `ΔU`: Wind speed difference [m/s].
@@ -467,7 +467,7 @@ Returns the bulk Richardson number.
 """
 @inline function state_bulk_richardson_number(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     T_sfc,
     ρ_sfc,
     ΔU,

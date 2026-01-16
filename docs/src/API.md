@@ -7,7 +7,6 @@ SurfaceFluxes.surface_fluxes
 SurfaceFluxes.SurfaceFluxConditions
 SurfaceFluxes.SurfaceFluxConfig
 SurfaceFluxes.FluxSpecs
-SurfaceFluxes.SurfaceFluxInputs
 SurfaceFluxes.SolverOptions
 SurfaceFluxes.SolverScheme
 SurfaceFluxes.PointValueScheme
