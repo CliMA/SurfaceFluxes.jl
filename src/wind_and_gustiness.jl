@@ -49,13 +49,13 @@ eddies in unstable conditions, particularly important in low-wind regimes
 end
 
 """
-    Δu_components(inputs::SurfaceFluxInputs)
+    Δu_components(inputs)
 
 Computes the vector difference between the interior and surface wind components.
 
 Returns a tuple `(Δu_x, Δu_y)`.
 """
-@inline function Δu_components(inputs::SurfaceFluxInputs)
+@inline function Δu_components(inputs)
     return (
         inputs.u_int[1] - inputs.u_sfc[1],
         inputs.u_int[2] - inputs.u_sfc[2],
@@ -80,14 +80,14 @@ important in low-wind regimes in the free convection limit.
 
 # Arguments
 - `Δu`: Tuple of wind component differences `(Δu_x, Δu_y)`.
-- `inputs`: [`SurfaceFluxInputs`](@ref) struct (convenience wrapper).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `gustiness`: Gustiness velocity scale [m/s].
 """
 @inline function windspeed(Δu::NTuple{2}, gustiness)
     return max(hypot(Δu[1], Δu[2]), gustiness)
 end
 
-@inline function windspeed(inputs::SurfaceFluxInputs, gustiness)
+@inline function windspeed(inputs, gustiness)
     return windspeed(Δu_components(inputs), gustiness)
 end
 
@@ -96,7 +96,7 @@ end
 
 Computes the effective wind speed magnitude [m/s], including any gustiness factor.
 """
-@inline function windspeed(inputs::SurfaceFluxInputs, param_set, buoyancy_flux)
+@inline function windspeed(inputs, param_set, buoyancy_flux)
     gustiness = gustiness_value(inputs.gustiness_model, param_set, buoyancy_flux)
     return windspeed(inputs, gustiness)
 end
@@ -107,7 +107,7 @@ end
 Computes the effective wind speed magnitude [m/s] from solver variables.
 Calculates buoyancy flux and gustiness internally from Monin-Obukhov variables.
 """
-@inline function windspeed(param_set::APS, ζ, ustar, inputs::SurfaceFluxInputs)
+@inline function windspeed(param_set::APS, ζ, ustar, inputs)
     b_flux = buoyancy_flux(param_set, ζ, ustar, inputs)
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
     return windspeed(inputs, gustiness)

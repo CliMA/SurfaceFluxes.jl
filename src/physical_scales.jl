@@ -46,14 +46,14 @@ end
 
 Return the friction velocity implied by the Monin-Obukhov solution.
 
-If a friction velocity is prescribed via `inputs.ustar` (in [`SurfaceFluxInputs`](@ref)),
+If a friction velocity is prescribed via `inputs.ustar` (in the inputs container),
 it is returned directly; otherwise it is recomputed from the similarity coefficients.
 
 # Arguments
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0`: Momentum roughness length [m].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `scheme`: Discretization scheme.
 - `gustiness`: Gustiness velocity scale [m/s].
 """
@@ -61,7 +61,7 @@ function compute_ustar(
     param_set::APS,
     ζ,
     z0,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme::SolverScheme,
     gustiness,
 )
@@ -89,13 +89,12 @@ end
 Return the potential temperature scale implied by the Monin-Obukhov solution, 
 where `z0h` is the roughness length for heat.
 
-See [`SurfaceFluxInputs`](@ref).
 
 # Arguments
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0h`: Thermal roughness length [m].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `scheme`: Discretization scheme.
 - `T_sfc`: Surface temperature [K]. Optional, defaults to `inputs.T_sfc_guess`.
 """
@@ -103,7 +102,7 @@ function compute_theta_star(
     param_set::APS,
     ζ,
     z0h,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme::SolverScheme,
     T_sfc = inputs.T_sfc_guess,
 )
@@ -136,13 +135,12 @@ end
 Return the specific humidity scale implied by the current Monin-Obukhov solution, 
 where `z0h` is the roughness length for scalars (assumed equal to heat).
 
-See [`SurfaceFluxInputs`](@ref).
 
 # Arguments
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0h`: Thermal/scalar roughness length [m].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `scheme`: Discretization scheme.
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg]. Optional, defaults to `inputs.q_vap_sfc_guess`.
 """
@@ -150,7 +148,7 @@ function compute_q_star(
     param_set::APS,
     ζ,
     z0h,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme::SolverScheme,
     q_vap_sfc = inputs.q_vap_sfc_guess,
 )
@@ -235,7 +233,7 @@ Calculates `θ_* = -shf / (ρ * c_p * u_*)` and calls `scalar_variance`.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `shf`: Sensible heat flux [W/m^2].
 - `ustar`: Friction velocity [m/s].
 - `ζ`: Monin-Obukhov stability parameter.

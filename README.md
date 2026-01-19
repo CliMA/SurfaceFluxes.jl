@@ -81,4 +81,8 @@ result.ρτxz     # Momentum flux, x-component [N/m²]
 result.ρτyz     # Momentum flux, y-component [N/m²]
 result.Cd       # Drag coefficient
 result.Ch       # Heat exchange coefficient
+result.T_sfc    # Surface temperature [K] (final)
+result.q_vap_sfc # Surface vapor specific humidity [kg/kg] (final)
+result.L_MO     # Monin-Obukhov length [m]
+result.converged # Solver convergence status
 ```

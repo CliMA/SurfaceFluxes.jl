@@ -117,7 +117,7 @@ const FT = Float64
 
     # 5. Drag Coefficient from Speed (Inputs/Speed signature)
     @testset "Drag Coefficient (Inputs/Speed)" begin
-        # Test signature: drag_coefficient(inputs::SurfaceFluxInputs, speed)
+        # Test signature: drag_coefficient(inputs, speed)
         # Cd = (ustar / speed)^2
         ustar = FT(0.5)
         speed = FT(10.0)

@@ -34,18 +34,18 @@ function drag_coefficient(
 end
 
 """
-    drag_coefficient(inputs::SurfaceFluxInputs, speed)
+    drag_coefficient(inputs, speed)
 
 Compute the drag coefficient `Cd` from friction velocity (presumed to be in `inputs.ustar`) 
 and effective wind speed (including any gustiness factors).
 
-See [`SurfaceFluxInputs`](@ref).
+See the inputs container.
 
 # Arguments
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `speed`: Effective wind speed [m/s].
 """
-function drag_coefficient(inputs::SurfaceFluxInputs, speed)
+function drag_coefficient(inputs, speed)
     ustar = inputs.ustar
     return (ustar / speed)^2
 end
@@ -97,13 +97,12 @@ end
 Compute the heat conductance `g_h` (speed * Ch), including any gustiness factor in the wind speed.
 Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables.
 
-See [`SurfaceFluxInputs`](@ref).
 
 # Arguments
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: [`SurfaceFluxInputs`](@ref) container.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `scheme`: Discretization scheme.
@@ -112,7 +111,7 @@ function heat_conductance(
     param_set::APS,
     ζ,
     ustar,
-    inputs::SurfaceFluxInputs,
+    inputs,
     z0m,
     z0h,
     scheme = UF.PointValueScheme(),

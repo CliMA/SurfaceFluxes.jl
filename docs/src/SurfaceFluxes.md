@@ -72,15 +72,17 @@ Theoretical analysis shows that $Ri_b$ is universally related to $\zeta$:
 
 Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and heat (derived from $\phi_m$ and $\phi_h$). The bulk Richardson number $Ri_b(\zeta)$ is a monotonic function of $\zeta$, enabling a robust and efficient root-finding algorithm.
 
-### Iterative Solver (Brent's Method)
+### Iterative Solver (Secant Method)
 
-The function `surface_fluxes` uses **Brent's Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
+The function `surface_fluxes` uses the **Secant Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
 
 ```math
  Ri_b(\text{state}) - Ri_b(\zeta) = 0.
 ```
 
-The solver operates within physical limits $\zeta \in [-100, 100]$, ensuring robust convergence. Unbracketed roots outside this range default to the closest limit, consistent with physical constraints.
+The solver is initialized with guesses at $\zeta = -1$ and $\zeta = 1$, spanning neutral stability. By default, the solver runs for a fixed number of iterations (`maxiter=7`, `forced_fixed_iters=true`) to ensure predictable, branch-free execution on GPUs.
+
+For the Businger-Dyer similarity functions, a critical bulk Richardson number $Ri_{b,\text{crit}} \approx 0.21$ exists, above which no finite $\zeta$ satisfies the stability relations due to the asymptotic behavior of the integrated profile functions. In such **supercritical** stable conditions, the solver cannot converge to a finite root. To ensure bounded output, the solution is clamped to physical limits $\zeta \in [-100, 100]$ after iteration. While the clamped solution does not satisfy the stability equations exactly, it provides physically reasonable fluxes that smoothly approach zero as stratification increases.
 
 Once $\zeta$ is found, the scaling parameters ($u_*, \theta_*, q_*$) and thus the fluxes of sensible heat, latent heat, and momentum (SHF, LHF, $\tau$) are computed directly.
 
@@ -139,7 +141,7 @@ The following figure demonstrates profile recovery using the universal functions
 
 *Profile recovery for wind speed (left) and potential temperature (right) under different stability conditions. The figure shows profiles for unstable conditions (LMO = -10, -50, -1000) and stable conditions (LMO = 30, 50, 1000), demonstrating how the universal functions capture the stability dependence of the boundary layer structure.*
 
-![](Bonan_Fig6-4.svg)
+![Bonan Figure 6.4](Bonan_Fig6-4.svg)
 
 ## References
 

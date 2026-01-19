@@ -238,6 +238,42 @@ end
         )
         @test Ri_implicit ≈ Ri_explicit
     end
+    @testset "Hydrostatic Density Extrapolation" begin
+        # Test to ensure ρ_sfc is calculated hydrostatically, allowing Δtheta_v != 0
+        FT = Float64
+        param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+        thermo_params = SFP.thermodynamics_params(param_set)
+
+        T_int = FT(300)
+        ρ_int = FT(1.0)
+        T_sfc = FT(310) # Extreme case: 10 K difference
+        Δz = FT(50)
+
+        # Dry case
+        q_tot = FT(0)
+
+        # Calculate surface density using hydrostatic extrapolation
+        ρ_sfc = SF.surface_density(param_set, T_int, ρ_int, T_sfc, Δz, q_tot)
+
+        # Calculate theta_v
+        theta_v_int = TD.virtual_pottemp(thermo_params, T_int, ρ_int, q_tot)
+        theta_v_sfc = TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot)
+
+        Δtheta_v = theta_v_int - theta_v_sfc
+
+        # Verify against linearized (dry static energy) approximation: Δθ ≈ ΔT + (g/cp)Δz
+        grav = SFP.grav(param_set)
+        cp_d = TDP.cp_d(thermo_params)
+        expected_Δtheta = (T_int - T_sfc) + (grav / cp_d) * Δz
+        @test Δtheta_v ≈ expected_Δtheta atol = 0.5
+
+        # Check against manual hydrostatic calculation
+        # ρ_sfc / ρ_int = (T_int / T_sfc) * exp(gΔz / RT_avg)
+        R_d = TDP.R_d(thermo_params)
+        T_avg = (T_int + T_sfc) / 2
+        expected_rho_ratio = (T_int / T_sfc) * exp(grav * Δz / (R_d * T_avg))
+        @test ρ_sfc / ρ_int ≈ expected_rho_ratio atol = 1e-4
+    end
 end
 
 end # module

@@ -121,75 +121,17 @@ Options for the Monin-Obukhov similarity theory solver.
 
 # Fields
 - `tol`: Absolute tolerance on the change in the stability parameter for determining convergence.
+- `rtol`: Relative tolerance on the change in the stability parameter for determining convergence.
 - `maxiter`: Maximum number of iterations.
 - `forced_fixed_iters`: If true, disables the tolerance check and forces the solver to run for exactly `maxiter` iterations (or until machine precision is reached/bypassed). Default is `true`.
 """
 Base.@kwdef struct SolverOptions{FT}
     tol::FT = FT(1e-2)
-    maxiter::Int = 10
+    rtol::FT = FT(1e-2)
+    maxiter::Int = 7
     forced_fixed_iters::Bool = true
 end
 
-"""
-    SurfaceFluxInputs
-
-Immutable container describing the atmospheric and surface state using primitive
-quantities plus module-defined parameterizations. Instances of this type are
-passed to the functional surface flux solver.
-
-# Fields
-- `T_int`, `q_tot_int`, `ρ_int`: Interior air temperature [K], specific humidity [kg/kg], and density [kg/m^3].
-- `q_liq_int`, `q_ice_int`: Interior liquid and ice specific humidity [kg/kg].
-- `T_sfc_guess`, `q_vap_sfc_guess`: Initial guesses for surface temperature [K] and vapor specific humidity [kg/kg]. Optional, can be `nothing` for default fallback.
-- `Φ_sfc`: Surface geopotential [m^2/s^2].
-- `Δz`: Height difference between interior and surface reference levels [m].
-- `d`: Displacement height [m].
-- `u_int`, `u_sfc`: Horizontal wind components (u, v) at interior and surface levels [m/s].
-- `roughness_model`: Roughness parameterization (e.g., [`ConstantRoughnessParams`](@ref)).
-- `gustiness_model`: Gustiness parameterization (e.g., [`ConstantGustinessSpec`](@ref)).
-- `moisture_model`: Moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
-- `roughness_inputs`: Optional inputs for roughness models.
-- `update_T_sfc`, `update_q_vap_sfc`: Optional callbacks to update surface state during iteration.
-- `shf`, `lhf`, `ustar`, `Cd`, `Ch`: Optional prescribed flux/scale quantities supplied via [`FluxSpecs`](@ref).
-"""
-struct SurfaceFluxInputs{
-    FT,
-    RM <: AbstractRoughnessParams,
-    GM <: AbstractGustinessSpec,
-    MM <: AbstractMoistureModel,
-    R,
-    F1,
-    F2,
-    SHF,
-    LHF,
-    UST,
-    CD,
-    CH,
-}
-    T_int::FT
-    q_tot_int::FT
-    q_liq_int::FT
-    q_ice_int::FT
-    ρ_int::FT
-    T_sfc_guess::Union{FT, Nothing}
-    q_vap_sfc_guess::Union{FT, Nothing}
-    Φ_sfc::FT
-    Δz::FT
-    d::FT
-    u_int::Tuple{FT, FT}
-    u_sfc::Tuple{FT, FT}
-    roughness_model::RM
-    gustiness_model::GM
-    moisture_model::MM
-    roughness_inputs::R
-    update_T_sfc::Union{F1, Nothing}
-    update_q_vap_sfc::Union{F2, Nothing}
-    shf::SHF
-    lhf::LHF
-    ustar::UST
-    Cd::CD
-    Ch::CH
-end
 
 """
     SurfaceFluxConditions
@@ -204,7 +146,9 @@ Surface flux conditions, returned from `surface_fluxes`.
 - `ustar::FT`: Friction velocity [m/s]
 - `ζ::FT`: Monin-Obukhov stability parameter (z/L)
 - `Cd::FT`: Momentum exchange coefficient
-- `Ch::FT`: Heat exchange coefficient
+- `g_h::FT`: Heat conductance [m/s]
+- `T_sfc::FT`: Surface temperature [K]
+- `q_vap_sfc::FT`: Surface air vapor specific humidity [kg/kg]
 - `L_MO::FT`: Monin-Obukhov lengthscale [m]
 - `converged::Bool`: Solver convergence status
 """
@@ -217,28 +161,46 @@ struct SurfaceFluxConditions{FT <: Real}
     ustar::FT
     ζ::FT
     Cd::FT
-    Ch::FT
+    g_h::FT
+    T_sfc::FT
+    q_vap_sfc::FT
     L_MO::FT
     converged::Bool
 end
 
-SurfaceFluxConditions(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO, converged) =
-    let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, Ch, L_MO)
+SurfaceFluxConditions(
+    shf,
+    lhf,
+    E,
+    ρτxz,
+    ρτyz,
+    ustar,
+    ζ,
+    Cd,
+    g_h,
+    T_sfc,
+    q_vap_sfc,
+    L_MO,
+    converged,
+) =
+    let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, g_h, T_sfc, q_vap_sfc, L_MO)
         SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
-    println(io, "Sensible Heat Flux     = ", sfc.shf)
-    println(io, "Latent Heat Flux       = ", sfc.lhf)
-    println(io, "Evaporation rate       = ", sfc.evaporation)
-    println(io, "Momentum Flux (x)      = ", sfc.ρτxz)
-    println(io, "Momentum Flux (y)      = ", sfc.ρτyz)
-    println(io, "Friction velocity u⋆   = ", sfc.ustar)
-    println(io, "Obukhov stability ζ    = ", sfc.ζ)
-    println(io, "C_drag                 = ", sfc.Cd)
-    println(io, "C_heat                 = ", sfc.Ch)
-    println(io, "Monin-Obukhov length   = ", sfc.L_MO)
-    println(io, "Converged              = ", sfc.converged)
+    println(io, "Sensible Heat Flux                  = ", sfc.shf)
+    println(io, "Latent Heat Flux                    = ", sfc.lhf)
+    println(io, "Evaporation rate                    = ", sfc.evaporation)
+    println(io, "Momentum Flux (x)                   = ", sfc.ρτxz)
+    println(io, "Momentum Flux (y)                   = ", sfc.ρτyz)
+    println(io, "Friction velocity u⋆                = ", sfc.ustar)
+    println(io, "Obukhov stability ζ                 = ", sfc.ζ)
+    println(io, "C_drag                              = ", sfc.Cd)
+    println(io, "Heat conductance                    = ", sfc.g_h)
+    println(io, "Surface temperature                 = ", sfc.T_sfc)
+    println(io, "Surface air vapor specific humidity = ", sfc.q_vap_sfc)
+    println(io, "Monin-Obukhov length                = ", sfc.L_MO)
+    println(io, "Converged                           = ", sfc.converged)
     println(io, "-----------------------")
 end

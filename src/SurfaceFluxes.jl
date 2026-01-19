@@ -54,7 +54,6 @@ export compute_physical_scale_coeff,
 export SurfaceFluxConditions,
     SurfaceFluxConfig,
     FluxSpecs,
-    SurfaceFluxInputs,
     SolverOptions,
     ConstantRoughnessParams,
     COARE3RoughnessParams,
@@ -64,6 +63,8 @@ export SurfaceFluxConditions,
     MoistModel,
     DryModel
 
+# From utilities.jl
+export surface_density
 
 include("types.jl")
 include("roughness_lengths.jl")
@@ -82,7 +83,7 @@ end
 @inline normalize_solver_options(param_set::APS{FT}, ::Nothing) where {FT} =
     default_solver_options(param_set)
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts::Int) where {FT} =
-    SolverOptions{FT}(FT(1e-2), solver_opts, true)
+    SolverOptions{FT}(tol = FT(1e-2), maxiter = solver_opts)
 @inline normalize_solver_options(
     param_set::APS{FT},
     solver_opts::SolverOptions{FT},
@@ -91,7 +92,12 @@ end
     param_set::APS{FT},
     solver_opts::SolverOptions,
 ) where {FT} =
-    SolverOptions{FT}(solver_opts.tol, solver_opts.maxiter, solver_opts.forced_fixed_iters)
+    SolverOptions{FT}(
+        tol = solver_opts.tol,
+        rtol = solver_opts.rtol,
+        maxiter = solver_opts.maxiter,
+        forced_fixed_iters = solver_opts.forced_fixed_iters,
+    )
 @inline normalize_solver_options(param_set::APS{FT}, solver_opts) where {FT} =
     default_solver_options(param_set)  # Fallback: use defaults for unsupported types
 
@@ -136,13 +142,16 @@ Can operate in four modes depending on inputs:
 - `d`: Displacement height [m]. Aerodynamic calculations (MOST) use effective height `Δz - d`.
 - `u_int`: Tuple of interior wind components `(u, v)` [m/s].
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
-- `roughness_inputs`: Optional roughness parameters for specific schemes (e.g., LAI, h for Raupach).
+- `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
+  directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
-    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`). Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the roughness length for scalars (`z0s`).
+    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
+      Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the 
+      roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
-- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `forced_fixed_iters`).
+- `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
 - `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
 - `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
@@ -154,9 +163,12 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `evaporation`: Evaporation rate [kg/m^2/s].
 - `ustar`: Friction velocity [m/s].
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
-- `L_MO`: Monin-Obukhov length [m].
 - `ζ`: Stability parameter (`(z-d)/L`).
-- `Cd`, `Ch`: Drag and heat exchange coefficients.
+- `Cd`: Drag coefficient
+- `g_h`: Heat conductance [m/s]
+- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg] (final iterated values).
+- `L_MO`: Monin-Obukhov length [m].
+- `converged`: Convergence status.
 """
 function surface_fluxes(
     param_set::APS,
@@ -216,7 +228,7 @@ Dispatch to the appropriate solver mode based on the availability of inputs (coe
 """
 function surface_fluxes(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
@@ -259,19 +271,16 @@ Computes fluxes when Cd and Ch are already known.
 """
 function compute_fluxes_given_coefficients(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
 )
     thermo_params = SFP.thermodynamics_params(param_set)
 
     # Surface state from guesses (callbacks not used for prescribed coefficients)
-    # Use type of T_int to allow for ForwardDiff.Dual
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc::T_sfc_type =
+    # Don't use type annotations here to allow for Dual numbers during AD
+    T_sfc =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc::q_vap_sfc_type =
+    q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
     ρ_sfc = surface_density(
@@ -279,7 +288,11 @@ function compute_fluxes_given_coefficients(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Coefficients (caller must ensure both are provided)
@@ -318,6 +331,9 @@ function compute_fluxes_given_coefficients(
     ΔU_safe = max(ΔU, eps(FT))
     ustar = sqrt(Cd) * ΔU_safe
 
+    # Compute g_h
+    g_h = Ch * ΔU_safe
+
     # Derived L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
     Δz_eff = effective_height(inputs)
@@ -326,7 +342,8 @@ function compute_fluxes_given_coefficients(
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -337,17 +354,13 @@ end
 
 Computes diagnostics when ustar, shf, lhf are all prescribed.
 """
-function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInputs, scheme)
+function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
-    # Use type of T_int to allow for ForwardDiff.Dual
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc::T_sfc_type =
+    T_sfc =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc::q_vap_sfc_type =
+    q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
     ρ_sfc = surface_density(
@@ -355,7 +368,11 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed flux values directly
@@ -399,8 +416,8 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
         inputs.roughness_inputs,
     )
 
-    # Compute Ch
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    # Compute g_h
+    g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -409,7 +426,8 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs::SurfaceFluxInput
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -423,7 +441,7 @@ Returns a [`SurfaceFluxConditions`](@ref) struct.
 """
 function compute_fluxes_with_prescribed_heat_and_drag(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
 )
     FT = eltype(param_set)
@@ -438,7 +456,11 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
     )
 
     # Use prescribed values
@@ -485,8 +507,8 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.roughness_inputs,
     )
 
-    # Compute Ch
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    # Compute g_h
+    g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -495,7 +517,8 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        ustar, ζ, Cd, Ch,
+        ustar, ζ, Cd, g_h,
+        T_sfc, q_vap_sfc,
         L_MO,
         true,
     )
@@ -509,7 +532,7 @@ given the exchange coefficients and surface state.
 """
 @inline function compute_flux_components(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     Ch,
     Cd,
     Ts,
@@ -517,8 +540,6 @@ given the exchange coefficients and surface state.
     ρ_sfc,
     b_flux,
 )
-    thermo_params = SFP.thermodynamics_params(param_set)
-
     g_h = Ch * windspeed(inputs, param_set, b_flux)
 
     model = inputs.moisture_model
@@ -561,13 +582,9 @@ function (rf::ResidualFunction)(ζ)
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
     # If guess is nothing, use interior values as safe dummy defaults
-    # Use type of T_int to allow for Dual numbers during AD
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc_guess_safe::T_sfc_type =
+    T_sfc_guess_safe =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe::q_vap_sfc_type =
+    q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
 
@@ -604,7 +621,11 @@ function (rf::ResidualFunction)(ζ)
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_new,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_new,
     )
 
     # 4. Compute gustiness and ΔU
@@ -639,7 +660,7 @@ ignores tolerance and iterates for exactly `maxiter`.
 """
 function solve_monin_obukhov(
     param_set::APS,
-    inputs::SurfaceFluxInputs,
+    inputs,
     scheme,
     options::SolverOptions,
 )
@@ -657,18 +678,28 @@ function solve_monin_obukhov(
         thermo_params,
     )
 
-    # Define physical limits for the stability parameter ζ
-    ζ_min = FT(-100)
-    ζ_max = FT(100)
+    # Use SecantMethod with initial guesses spanning neutral stability
+    # (it has faster convergence than Brent's method with wide brackets)
+    ζ_init_unstable = FT(-1)
+    ζ_init_stable = FT(1)
 
     sol = RS.find_zero(
         root_function,
-        RS.BrentsMethod(ζ_min, ζ_max),
+        RS.SecantMethod(ζ_init_unstable, ζ_init_stable),
         RS.CompactSolution(),
-        RS.SolutionTolerance(options.forced_fixed_iters ? FT(0) : options.tol),
+        RS.RelativeOrAbsoluteSolutionTolerance(
+            options.forced_fixed_iters ? FT(0) : options.rtol,
+            options.forced_fixed_iters ? FT(0) : options.tol,
+        ),
         options.maxiter,
     )
-    ζ_final = sol.root
+
+    # Clamp ζ to physical limits.
+    # For supercritical Ri_b (e.g., very stable stratification), the solver
+    # may not converge since no finite solution exists (e.g., for Businger profiles). 
+    ζ_min = FT(-100)
+    ζ_max = FT(100)
+    ζ_final = clamp(sol.root, ζ_min, ζ_max)
     converged = sol.converged
 
     # Finalize state 
@@ -682,13 +713,9 @@ function solve_monin_obukhov(
     )
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
-    # Use type of T_int to allow for Dual numbers during AD
-    T_sfc_type = typeof(inputs.T_int)
-    q_vap_sfc_type = typeof(inputs.q_tot_int)
-
-    T_sfc_guess_safe::T_sfc_type =
+    T_sfc_guess_safe =
         inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe::q_vap_sfc_type =
+    q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
 
@@ -724,7 +751,11 @@ function solve_monin_obukhov(
         inputs.T_int,
         inputs.ρ_int,
         T_sfc_val,
+        inputs.Δz,
         inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc_val,
     )
 
     # Consistent gustiness/fluxes
@@ -732,8 +763,11 @@ function solve_monin_obukhov(
 
     # Use input coefficients if available, otherwise use MOST-derived ones
     Δz_eff = effective_height(inputs)
+    ΔU = windspeed(inputs, param_set, b_flux)
+    ΔU_safe = max(ΔU, eps(FT))
     Cd =
         inputs.Cd !== nothing ? inputs.Cd :
+        inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 :
         drag_coefficient(param_set, ζ_final, z0m, Δz_eff, scheme)
     Ch =
         inputs.Ch !== nothing ? inputs.Ch :
@@ -743,12 +777,14 @@ function solve_monin_obukhov(
         param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux,
     )
 
+    g_h = Ch * ΔU_safe
     L_MO = obukhov_length(param_set, u_star_curr, b_flux)
 
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        u_star_curr, ζ_final, Cd, Ch,
+        u_star_curr, ζ_final, Cd, g_h,
+        T_sfc_val, q_vap_sfc_val,
         L_MO,
         converged,
     )

@@ -99,7 +99,7 @@ else
                     Φ_sfc_array, z, d_array, u_int_array, u_sfc_array,
                     Ref(nothing), gpu_configs,
                     Ref(SF.PointValueScheme()),
-                    Ref(SF.SolverOptions{FT}(FT(1e-2), 15, true)),
+                    Ref(SF.SolverOptions{FT}(tol = FT(1e-2), maxiter = 15)),
                     Ref(SF.FluxSpecs{FT}()),
                 )
 

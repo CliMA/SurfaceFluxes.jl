@@ -36,7 +36,10 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     )
 
     @test base_result isa SF.SurfaceFluxConditions{FT}
-    @test base_result.Cd > zero(FT)
+    @test base_result.Cd > 0
+    @test base_result.g_h > 0
+    @test base_result.T_sfc == T_sfc_guess
+    @test base_result.q_vap_sfc == q_vap_sfc_guess
 
     Ts_calls = Ref(0)
     qs_calls = Ref(0)
@@ -197,7 +200,7 @@ end
     )
 
     @test sf.Cd == Cd_pre
-    @test sf.Ch == Ch_pre
+    @test sf.g_h ≈ Ch_pre * sqrt(10.0^2) rtol = 1e-4
     @test sf.shf != 0.0 # calculated
 end
 
@@ -226,7 +229,7 @@ end
     )
 
     @test sf.ustar == ustar_pre
-    @test sf.Cd ≈ (ustar_pre / sqrt(10.0^2 + 1.0^2)) atol = 0.1 # Approx check, gustiness is 1.0
+    @test sf.Cd ≈ (ustar_pre / sqrt(10.0^2))^2 rtol = 1e-4 # Approx check, gustiness is 1.0
     @test sf.shf != 0
 
     # Test sensible_heat_flux default E

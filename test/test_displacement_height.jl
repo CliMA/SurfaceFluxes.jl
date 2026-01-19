@@ -16,7 +16,7 @@ import ClimaParams as CP
 
     # Define common atmospheric state
     T_int = FT(300)
-    P_int = FT(100000)
+    p_int = FT(100000)
     q_tot = FT(0.01)
     u_int = (FT(10), FT(0))
     u_sfc = (FT(0), FT(0))
@@ -43,7 +43,7 @@ import ClimaParams as CP
     # Case 1: Reference case (d=0, Δz=8)
     Δz_1 = FT(8)
     d_1 = FT(0)
-    ρ_int_1 = TD.air_density(thermo_params, T_int, P_int)
+    ρ_int_1 = TD.air_density(thermo_params, T_int, p_int)
 
     inputs_1 = SF.build_surface_flux_inputs(
         T_int, q_tot, 0, 0, ρ_int_1,
@@ -57,7 +57,19 @@ import ClimaParams as CP
     # Case 2: Displaced case (d=2, Δz=10) -> Effective height should be 8
     Δz_2 = FT(10)
     d_2 = FT(2)
-    ρ_int_2 = TD.air_density(thermo_params, T_int, P_int) # Same density for simplicity
+    # Adjust interior density/pressure to ensure surface density matches Case 1
+    # This isolates the aerodynamic effect of d from the hydrostatic effect of Δz
+    grav = SFP.grav(param_set)
+    # Replicate the R_m_T_avg logic from surface_density
+    R_m_int = TD.gas_constant_air(thermo_params, q_tot, FT(0), FT(0))
+    R_m_sfc = TD.gas_constant_air(thermo_params, q_sfc, FT(0), FT(0))
+    R_m_T_avg = (R_m_int * T_int + R_m_sfc * T_sfc) / 2
+
+    # p_sfc = p_int * exp(Δz / H) -> p_int = p_sfc * exp(-Δz / H) where H = R_m_T_avg / g
+    # p_int_2 = p_int * exp( (Δz_1 - Δz_2) * g / R_m_T_avg )
+    p_int_2 = p_int * exp((Δz_1 - Δz_2) * grav / R_m_T_avg)
+    # Use dry density to match Case 1 logic (which used dry air_density)
+    ρ_int_2 = TD.air_density(thermo_params, T_int, p_int_2)
 
     inputs_2 = SF.build_surface_flux_inputs(
         T_int, q_tot, 0, 0, ρ_int_2,
@@ -74,7 +86,7 @@ import ClimaParams as CP
 
     # 2. Drag/Exchange coefficients should be identical
     @test sf_1.Cd ≈ sf_2.Cd atol = 1e-10
-    @test sf_1.Ch ≈ sf_2.Ch atol = 1e-10
+    @test sf_1.g_h ≈ sf_2.g_h atol = 1e-10
 
     # 3. L_MO should be identical
     @test sf_1.L_MO ≈ sf_2.L_MO atol = 1e-10
