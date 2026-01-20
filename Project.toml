@@ -16,5 +16,5 @@ CreateParametersExt = "ClimaParams"
 [compat]
 ClimaParams = "1.0"
 RootSolvers = "0.4, 1.0"
-Thermodynamics = "0.14.2, 0.15"
+Thermodynamics = "0.15.2"
 julia = "1.9"
