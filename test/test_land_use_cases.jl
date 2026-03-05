@@ -28,7 +28,7 @@ u_sfc = (FT(0), FT(0))
 @testset "Beta Model for Evaporation" begin
     d = FT(0)
     T_sfc_guess = T_int
-    q_vap_sfc_guess = TD.q_vap_saturation_generic(
+    q_vap_sfc_guess = TD.q_vap_saturation(
         thermo_params,
         T_sfc_guess,
         ρ_int,
@@ -179,7 +179,7 @@ end
     leaf_Cd = FT(0.03)
     roughness_inputs = SurfaceFluxes.ConstantRoughnessParams{FT}(z_0m, z_0b)
     T_canopy = T_int + FT(2)
-    q_canopy = TD.q_vap_saturation_generic(
+    q_canopy = TD.q_vap_saturation(
         thermo_params,
         T_canopy,
         ρ_int,
