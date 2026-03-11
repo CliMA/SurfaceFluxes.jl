@@ -116,7 +116,28 @@ Evaluate a surface state callback, returning `default` if callback is nothing or
 end
 
 """
-    surface_fluxes(param_set, T_int, q_tot_int, q_liq_int, q_ice_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc, Δz, d, u_int, u_sfc, roughness_inputs=nothing, config=default, scheme=PointValueScheme, solver_opts=nothing, flux_specs=nothing)
+    surface_fluxes(
+        param_set::APS,
+        T_int,
+        q_tot_int,
+        q_liq_int,
+        q_ice_int,
+        ρ_int,
+        T_sfc_guess,
+        q_vap_sfc_guess,
+        Φ_sfc,
+        Δz,
+        d,
+        u_int = (0, 0),
+        u_sfc = (0, 0),
+        roughness_inputs = nothing,
+        config = default_surface_flux_config(eltype(param_set)),
+        scheme::SolverScheme = PointValueScheme(),
+        solver_opts = nothing,
+        flux_specs = nothing,
+        update_T_sfc = nothing,
+        update_q_vap_sfc = nothing,
+    )
 
 Core entry point for calculating surface fluxes using Monin-Obukhov Similarity Theory (MOST).
 
@@ -146,7 +167,7 @@ Can operate in four modes depending on inputs:
   directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
     - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
-      Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the 
+      Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the
       roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `WetModel`.
@@ -194,7 +215,7 @@ function surface_fluxes(
 )
     FT = eltype(param_set)
 
-    # Build inputs: Use explicit positional constructor for 
+    # Build inputs: Use explicit positional constructor for
     # GPU compatibility (avoids kwargs)
     flux_specs_val = flux_specs === nothing ? FluxSpecs{FT}() : flux_specs
 
@@ -306,8 +327,8 @@ function compute_fluxes_given_coefficients(
         param_set, inputs, Ch, Cd, T_sfc, q_vap_sfc, ρ_sfc, b_flux_init,
     )
 
-    # Now compute actual buoyancy flux from the fluxes. (This and the following 
-    # second pass computation could be skipped if gustiness does not depend on 
+    # Now compute actual buoyancy flux from the fluxes. (This and the following
+    # second pass computation could be skipped if gustiness does not depend on
     # buoyancy flux.)
     b_flux = buoyancy_flux(
         param_set,
@@ -655,7 +676,7 @@ end
 Solves the Monin-Obukhov Similarity Theory (MOST) equations for the surface fluxes.
 Iterates to find the stability parameter `ζ` that satisfies the
 surface layer profiles and surface balance equations. Convergence is controlled
-by `options.maxiter` and `options.tol`. If `options.forced_fixed_iters` is true, 
+by `options.maxiter` and `options.tol`. If `options.forced_fixed_iters` is true,
 ignores tolerance and iterates for exactly `maxiter`.
 """
 function solve_monin_obukhov(
@@ -696,13 +717,13 @@ function solve_monin_obukhov(
 
     # Clamp ζ to physical limits.
     # For supercritical Ri_b (e.g., very stable stratification), the solver
-    # may not converge since no finite solution exists (e.g., for Businger profiles). 
+    # may not converge since no finite solution exists (e.g., for Businger profiles).
     ζ_min = FT(-100)
     ζ_max = FT(100)
     ζ_final = clamp(sol.root, ζ_min, ζ_max)
     converged = sol.converged
 
-    # Finalize state 
+    # Finalize state
     # 1. Compute u_star and roughness
     # Consistent with ζ_final
     u_star_curr, z0m, z0h = compute_ustar_and_roughness(
