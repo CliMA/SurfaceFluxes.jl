@@ -119,7 +119,7 @@ g_h = C_h U_{\text{eff}}
 
 ## Roughness Length Models
 
-The surface roughness lengths ($z_{0m}, z_{0h}$) parameterize the effect of surface irregularities on the wind and scalar profiles. SurfaceFluxes.jl supports several models via `SurfaceFluxFluxConfig`.
+The surface roughness lengths ($z_{0m}, z_{0h}$) parameterize the effect of surface irregularities on the wind and scalar profiles. SurfaceFluxes.jl supports several models via [`SurfaceFluxConfig`](@ref).
 
 ### Constant Roughness
 
@@ -198,4 +198,4 @@ Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and 
 
 - Raupach, M. R. (1994). Simplified expressions for vegetation roughness length and zero-plane displacement as functions of canopy height and area index. *Boundary-Layer Meteorology*, 71, 211-216. [DOI: 10.1007/BF00709229](https://doi.org/10.1007/BF00709229)
 
-- Yatunin, D., Byrne, S., Kawczynski, C., Kandala, S., Bozzola, G., Sridhar, A., Shen, Z., Jaruga, A., Sloan, J., He, J., Huang, D.Z., Barra, V., Knoth, O., Ullrich, P., Schneider, T., 2026: The CliMA atmosphere dynamical core: Concepts, numerics, and scaling. *Journal of Advances in Modeling Earth Systems*, in press. [DOI:10.1029/2025MS005014](https://doi.org/10.1029/2025MS005014)
+- Yatunin, D., Byrne, S., Kawczynski, C., Kandala, S., Bozzola, G., Sridhar, A., Shen, Z., Jaruga, A., Sloan, J., He, J., Huang, D.Z., Barra, V., Knoth, O., Ullrich, P., Schneider, T., 2026: The CliMA atmosphere dynamical core: Concepts, numerics, and scaling. *Journal of Advances in Modeling Earth Systems*, 18, e2025MS005014. [DOI:10.1029/2025MS005014](https://doi.org/10.1029/2025MS005014)

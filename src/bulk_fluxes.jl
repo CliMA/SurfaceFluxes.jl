@@ -320,6 +320,10 @@ Where:
     air is lighter than dry air.
 
 Arguments:
+ - `param_set`: Parameter set.
+ - `shf`: Sensible heat flux [W/m²].
+ - `lhf`: Latent heat flux [W/m²].
+ - `T_sfc`: Surface temperature [K].
  - `ρ_sfc`: Surface air density [kg/m³].
  - `q_vap_sfc`: Specific humidity of water vapor at the surface (default: 0).
  - `q_liq_sfc`: Specific humidity of liquid water at the surface (default: 0).

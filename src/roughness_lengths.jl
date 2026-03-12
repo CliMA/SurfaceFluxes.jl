@@ -405,8 +405,11 @@ function compute_ustar_and_roughness(
 
     ustar_min = FT(1e-4) # Sufficient for very calm conditions
     ustar_max = FT(4.0)  # Sufficient for hurricane-force winds
-    maxiter = 4          # Relatively small maxiter for performance
-    rtol = FT(0.02) # Relative tolerance on successive iterates of ustar
+    maxiter = 3          # Relatively small maxiter for performance
+
+    # Set tolerance to 0 to force the solver to use exactly `maxiter` iterations.
+    # This avoids branch divergence on GPUs, improving performance.
+    rtol = FT(0)
 
     sol = RS.find_zero(
         rf,

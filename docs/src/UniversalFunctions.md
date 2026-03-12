@@ -243,7 +243,7 @@ The **[Gryanik et al. (2020)](https://doi.org/10.1175/JAS-D-19-0255.1)** paramet
 
 The `GryanikParams` struct contains:
 
-* `Pr_0`: Neutral Prandtl number (Grayanik et al. recommend $\text{Pr}_0 \approx 0.98$)
+* `Pr_0`: Neutral Prandtl number (Gryanik et al. recommend $\text{Pr}_0 \approx 0.98$)
 * `a_m`, `b_m`: Coefficients for momentum stability function
 * `a_h`, `b_h`: Coefficients for heat stability function
 * `b_m_unstable`, `b_h_unstable`: Parameters for unstable branch (automatically set to Businger values)

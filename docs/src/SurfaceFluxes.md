@@ -16,7 +16,7 @@ with
 - the von Kármán constant ($\kappa \approx 0.4$), and
 - the surface buoyancy flux $B$.
 
-The Obukhov length $L$ is a dimensionless quantity that characterizes the stability of the surface layer:
+The Obukhov length $L$ is a length scale [m] that characterizes the stability of the surface layer:
 
 - **Neutral ($L \to \infty$):** Shear production of turbulence dominates ($B \to 0$).
 - **Stable ($L > 0$):** Surface cooling, turbulence is suppressed by negative buoyancy ($B < 0$).
