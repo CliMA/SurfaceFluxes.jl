@@ -1,3 +1,5 @@
+[PR 230] Updates docs; minor bug fix; additional tests. Release of v1.0
+
 [PR 212] Refactor of SurfaceFluxes.jl: Consistently use stability parameter in all solvers and as inputs to many functions. Added functionality for wind speed dependent roughness lengths (Charnock, COARE3) and option to use functions to compute surface temperature/humidity. 
 
 [PR 211] Fixes a bug in sensible heat flux
