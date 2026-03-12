@@ -11,7 +11,6 @@ SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent su
 |                           |                                                                          |
 |--------------------------:|:-------------------------------------------------------------------------|
 | **Stable Release**        | [![stable][stable-img]][stable-url] [![docs-stable][docs-stable-img]][docs-stable-url] |
-| **Latest Documentation**  | [![dev][docs-dev-img]][docs-dev-url]                                     |
 | **Unit Tests**            | [![unit tests][gha-ci-img]][gha-ci-url] [![codecov][codecov-img]][codecov-url] |
 | **Downloads**             | [![Downloads][dlt-img]][dlt-url]                                         |
 
@@ -20,9 +19,6 @@ SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent su
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-green.svg
 [docs-stable-url]: https://CliMA.github.io/SurfaceFluxes.jl/stable/
-
-[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://CliMA.github.io/SurfaceFluxes.jl/dev/
 
 [gha-ci-img]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml/badge.svg
 [gha-ci-url]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml
@@ -49,7 +45,7 @@ SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent su
 using SurfaceFluxes
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
-import ClimaParams 
+import ClimaParams
 
 # Create parameters
 FT = Float64
