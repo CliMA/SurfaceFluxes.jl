@@ -82,18 +82,31 @@ conditions = surface_fluxes(param_set, ..., flux_specs=specs)
 
 In coupled systems, the surface state (e.g., skin temperature $T_s$) may respond rapidly to the surface fluxes. To ensure consistency without external fixed-point iteration, [`surface_fluxes`](@ref) accepts callback functions that update the surface state *within* the MOST iteration loop.
 
+The callback signatures are:
+
 ```julia
-# Update Ts based on current flux guess
-function update_Ts(T_sfc, local_geometry, surface_fluxes_conditions)
+# Temperature callback: called each iteration with current solver state
+function my_update_T_sfc(ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0h)
     # ... physics to update skin temperature ...
     return new_T_sfc
 end
 
-conditions = surface_fluxes(..., update_T_sfc=update_Ts)
+# Humidity callback: receives the updated T_sfc as an additional argument
+function my_update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h)
+    # ... physics to update surface humidity ...
+    return new_q_vap_sfc
+end
+
+conditions = surface_fluxes(...,
+    update_T_sfc=my_update_T_sfc,
+    update_q_vap_sfc=my_update_q_vap_sfc,
+)
 ```
 
 Available callbacks:
-- `update_T_sfc`: Updates surface temperature.
-- `update_q_vap_sfc`: Updates surface specific humidity.
+- `update_T_sfc(ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0h)`: Returns updated surface temperature [K].
+- `update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h)`: Returns updated surface vapor specific humidity [kg/kg]. Receives the (possibly updated) `T_sfc` so that humidity can be computed consistently.
+
+If a callback returns a non-`Real` value (or is `nothing`), the initial guess from the inputs is used instead.
 
 This mechanism ensures that the final fluxes and surface state are in equilibrium with respect to the surface energy/moisture balance.

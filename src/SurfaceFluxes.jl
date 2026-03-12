@@ -66,6 +66,9 @@ export SurfaceFluxConditions,
 # From utilities.jl
 export surface_density
 
+# From UniversalFunctions.jl (solver schemes)
+export PointValueScheme, LayerAverageScheme
+
 include("types.jl")
 include("roughness_lengths.jl")
 include("input_builders.jl")
@@ -166,11 +169,11 @@ Can operate in four modes depending on inputs:
 - `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
   directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
-    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessSpec`).
+    - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessParams`).
       Note: This package currently assumes the roughness length for heat (`z0h`) is equal to the
       roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
-    - `moisture_model`: `DryModel` or `WetModel`.
+    - `moisture_model`: `DryModel` or `MoistModel`.
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
@@ -564,7 +567,8 @@ given the exchange coefficients and surface state.
     g_h = Ch * windspeed(inputs, param_set, b_flux)
 
     model = inputs.moisture_model
-    E = evaporation(param_set, inputs, g_h, inputs.q_tot_int, qs, ρ_sfc, model)
+    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    E = evaporation(param_set, inputs, g_h, q_vap_int, qs, ρ_sfc, model)
     lhf = latent_heat_flux(param_set, inputs, E, model)
     shf = sensible_heat_flux(param_set, inputs, g_h, inputs.T_int, Ts, ρ_sfc, E)
 

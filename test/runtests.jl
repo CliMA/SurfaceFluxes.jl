@@ -30,12 +30,15 @@ include("test_surface_fluxes_api.jl")                 # Primitive API regression
 include("test_displacement_height.jl")                # Displacement height verification
 include("test_coare3.jl")                             # COARE 3.0 roughness tests
 include("test_gustiness.jl")                          # Gustiness parameterization tests
+include("test_deardorff_gustiness_integration.jl")    # Deardorff gustiness through full solver
+include("test_coare3_literature.jl")                  # COARE3 validation against Fairall et al. (2003)
 include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
 
 @testset "Regression Tests" begin
     # Regression tests with predefined (mostly stable) test cases.
     include("test_regressions.jl")
+    include("test_gryanik_regressions.jl")
     include("test_broadcasting.jl")
     include("test_prescribed_conditions.jl")
 end
@@ -52,6 +55,9 @@ end
     include("test_variance.jl")
     include("test_exchange_coefficients.jl")
     include("test_ad_compatibility.jl")
+    include("test_energy_budget_closure.jl")
+    include("test_profile_recovery_roundtrip.jl")
+    include("test_supercritical_stability.jl")
 end
 
 @testset "Land Use Cases" begin

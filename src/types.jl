@@ -24,7 +24,8 @@ end
 
 A gustiness model based on Deardorff (1970) scaling with convective velocity scale ``w_*``.
 The gustiness velocity is computed as:
-``U_{gust} = \\beta w_*^{1/3}``
+``U_{gust} = \\beta w_*``
+where ``w_* = (B z_i)^{1/3}``.
 """
 struct DeardorffGustinessSpec <: AbstractGustinessSpec end
 

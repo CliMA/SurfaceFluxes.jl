@@ -39,6 +39,9 @@ abstract type SolverScheme end
     LayerAverageScheme <: SolverScheme
 
 Finite volume approximation scheme following Nishizawa & Kitamura (2018).
+
+Supported with `BusingerParams` and `GryanikParams`. Not supported with
+`GrachevParams` (use `PointValueScheme` instead).
 """
 struct LayerAverageScheme <: SolverScheme end
 
@@ -141,9 +144,6 @@ a_h(p::AUFP) = p.a_h
 b_m(p::AUFP) = p.b_m
 b_h(p::AUFP) = p.b_h
 c_h(p::AUFP) = p.c_h
-c_m(p::AUFP) = p.c_m
-d_h(p::AUFP) = p.d_h
-d_m(p::AUFP) = p.d_m
 ζ_a(p::AUFP) = p.ζ_a
 γ(p::AUFP) = p.γ
 
@@ -721,9 +721,15 @@ based on SHEBA data.
 
  - `a_h`, `b_h`, `c_h`: Coefficients for heat/scalar stability function (Eq. 9b).
    Note: `c_h` is the coefficient for the linear ζ term in the denominator.
- - `Pr_0`: Neutral Prandtl number. In the original Grachev et al. (2007) derivation, 
-    this is 1.0. It is included here for structural consistency with other 
+ - `Pr_0`: Neutral Prandtl number. In the original Grachev et al. (2007) derivation,
+    this is 1.0. It is included here for structural consistency with other
     parameterizations.
+
+!!! note "LayerAverageScheme not supported"
+    The volume-averaged stability corrections `Ψ` are not implemented for `GrachevParams`
+    because the analytical integrals of Eqs. 12–13 in Grachev et al. (2007) do not admit
+    closed-form expressions suitable for efficient evaluation. Use `PointValueScheme`, or
+    use `BusingerParams`/`GryanikParams` if layer averaging is required.
 
 Reference: Grachev et al. (2007).
 """

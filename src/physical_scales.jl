@@ -190,9 +190,7 @@ function u_variance(param_set::APS, Δz_eff, ustar, ζ)
 
     κ = SFP.von_karman_const(param_set)
 
-    # Check for unstable conditions using ζ directly
     FT = eltype(ustar)
-    w_star = FT(0)
 
     # Calculate convective velocity scale w_* for unstable conditions.
     # w_* = (B * zi)^(1/3)
@@ -261,7 +259,7 @@ Returns zero if `ustar` is zero.
 # Arguments
 - `param_set`: Parameter set.
 - `ustar`: Friction velocity [m/s].
-- `buoy_flux`: Surace buoyancy flux [m^2/s^3].
+- `buoy_flux`: Surface buoyancy flux [m^2/s^3].
 """
 @inline function obukhov_length(param_set::APS, ustar, buoy_flux)
     FT = eltype(param_set)
@@ -282,7 +280,7 @@ Returns zero if `ustar` and hence `L_MO` are zero.
 - `param_set`: Parameter set.
 - `Δz_eff`: Effective aerodynamic height [m].
 - `ustar`: Friction velocity [m/s].
-- `buoy_flux`: Surace buoyancy flux [m^2/s^3].
+- `buoy_flux`: Surface buoyancy flux [m^2/s^3].
 """
 @inline function obukhov_stability_parameter(param_set::APS, Δz_eff, ustar, buoy_flux)
     FT = eltype(param_set)

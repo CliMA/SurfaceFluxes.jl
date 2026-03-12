@@ -53,6 +53,12 @@ SurfaceFluxes.obukhov_length
 SurfaceFluxes.obukhov_stability_parameter
 ```
 
+## Utilities
+
+```@docs
+SurfaceFluxes.surface_density
+```
+
 ## Roughness & Gustiness
 
 ```@docs

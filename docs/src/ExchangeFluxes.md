@@ -119,7 +119,7 @@ g_h = C_h U_{\text{eff}}
 
 ## Roughness Length Models
 
-The surface roughness lengths ($z_{0m}, z_{0h}$) parameterize the effect of surface irregularities on the wind and scalar profiles. SurfaceFluxes.jl supports several models via `SurfaceFluxFluxConfig`.
+The surface roughness lengths ($z_{0m}, z_{0h}$) parameterize the effect of surface irregularities on the wind and scalar profiles. SurfaceFluxes.jl supports several models via [`SurfaceFluxConfig`](@ref).
 
 ### Constant Roughness
 
