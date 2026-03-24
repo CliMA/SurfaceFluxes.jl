@@ -1,0 +1,37 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ocean-gradient" x1="150" y1="160" x2="150" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4063D8" /> <stop offset="100%" stop-color="#6E91E9" />
+    </linearGradient>
+    
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#CB3C33" />
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#9558B2" />
+    </marker>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4063D8" />
+    </marker>
+  </defs>
+
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#e0e0e0" stroke-width="2" />
+
+  <path d="M 100 130 C 115 125, 130 135, 145 130 C 160 125, 175 135, 190 130 L 190 165 C 175 170, 160 160, 145 165 C 130 170, 115 160, 100 165 Z" fill="url(#ocean-gradient)" />
+  <path d="M 100 135 C 115 130, 130 140, 145 135 C 160 130, 175 140, 190 135" stroke="white" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <path d="M 100 145 C 115 140, 130 150, 145 145 C 160 140, 175 150, 190 145" stroke="white" stroke-width="1.5" fill="none" opacity="0.6"/>
+
+  <path d="M 10 165 L 100 165 L 100 130 C 85 128, 70 128, 55 130 C 40 132, 25 128, 10 130 Z" fill="#389826" /> <rect x="25" y="130" width="6" height="35" fill="#795548" />
+  <rect x="55" y="135" width="6" height="30" fill="#795548" />
+  <rect x="85" y="130" width="6" height="35" fill="#795548" />
+  <circle cx="28" cy="125" r="15" fill="#389826" />
+  <circle cx="58" cy="130" r="12" fill="#389826" />
+  <circle cx="88" cy="125" r="15" fill="#389826" />
+
+  <path d="M 40 115 Q 50 105, 40 95 T 40 55" stroke="#CB3C33" stroke-width="3" fill="none" marker-end="url(#arrow-red)" stroke-linecap="round"/>
+  
+  <path d="M 100 120 Q 110 110, 100 100 T 100 40" stroke="#9558B2" stroke-width="3" fill="none" marker-end="url(#arrow-purple)" stroke-linecap="round"/>
+
+  <path d="M 160 115 Q 150 105, 160 95 T 160 55" stroke="#4063D8" stroke-width="3" fill="none" marker-end="url(#arrow-blue)" stroke-linecap="round"/>
+
+</svg>
