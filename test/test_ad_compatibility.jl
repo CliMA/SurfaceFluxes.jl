@@ -1,12 +1,16 @@
 using Test
 using SurfaceFluxes
+import DifferentiationInterface as DI
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import ClimaParams as CP
-using ForwardDiff
+using ForwardDiff: ForwardDiff
+using Enzyme: Enzyme
 
-@testset "AD Compatibility - Finite Difference Validation" begin
+Enzyme.API.looseTypeAnalysis!(true)
+
+@testset verbose = true "AD Compatibility - Finite Difference Validation" begin
     FT = Float64
     param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
@@ -36,24 +40,44 @@ using ForwardDiff
     # 3. Test across different stability regimes
     # T_int = 300 K.
     # T_sfc = 295 K => Stable (Ri > 0)
-    # T_sfc = 300.1 K => Near Neutral / Slightly Unstable 
+    # T_sfc = 300.1 K => Near Neutral / Slightly Unstable
     # T_sfc = 305 K => Unstable (Ri < 0)
     T_sfc_range = FT[295, 300.1, 305]
 
-    for T_sfc_base in T_sfc_range
-        # 4. AD Derivative
-        dSHF_dT_ad = ForwardDiff.derivative(compute_shf, T_sfc_base)
+    # Backends under test
+    backends = [
+        ("ForwardDiff", DI.AutoForwardDiff()),
+        (
+            "Enzyme (Forward)",
+            DI.AutoEnzyme(
+                mode = Enzyme.set_runtime_activity(Enzyme.set_strong_zero(Enzyme.Forward)),
+            ),
+        ),
+        (
+            "Enzyme (Reverse)",
+            DI.AutoEnzyme(
+                mode = Enzyme.set_runtime_activity(Enzyme.set_strong_zero(Enzyme.Reverse)),
+            ),
+        ),
+    ]
+    for (backend_name, backend) in backends
+        @testset "AD backend: $backend_name" begin
+            for T_sfc_base in T_sfc_range
+                # 4. AD Derivative
+                dSHF_dT_ad = DI.derivative(compute_shf, backend, T_sfc_base)
 
-        # 5. Finite Difference Approximation (Central Difference)
-        ϵ = FT(1e-4)
-        shf_plus = compute_shf(T_sfc_base + ϵ)
-        shf_minus = compute_shf(T_sfc_base - ϵ)
-        dSHF_dT_fd = (shf_plus - shf_minus) / (2ϵ)
+                # 5. Finite Difference Approximation (Central Difference)
+                ϵ = FT(1e-4)
+                shf_plus = compute_shf(T_sfc_base + ϵ)
+                shf_minus = compute_shf(T_sfc_base - ϵ)
+                dSHF_dT_fd = (shf_plus - shf_minus) / (2ϵ)
 
-        # 6. Comparison
-        @info "Comparing AD and FD derivatives" T_sfc = T_sfc_base dSHF_dT_ad dSHF_dT_fd
+                # 6. Comparison
+                @info "Comparing AD and FD derivatives" T_sfc = T_sfc_base dSHF_dT_ad dSHF_dT_fd
 
-        # Use relatively generous O(ϵ) tolerance
-        @test isapprox(dSHF_dT_ad, dSHF_dT_fd, rtol = ϵ)
+                # Use relatively generous O(ϵ) tolerance
+                @test isapprox(dSHF_dT_ad, dSHF_dT_fd, rtol = ϵ)
+            end
+        end
     end
 end
