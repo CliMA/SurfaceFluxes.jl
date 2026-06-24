@@ -122,6 +122,24 @@ Evaluate a surface state callback, returning `default` if callback is nothing or
 end
 
 """
+    with_sfc_guesses(inputs, T_sfc_guess, q_vap_sfc_guess)
+
+Return a copy of `inputs` with updated surface temperature and humidity guesses.
+Used to advance Newton iterates during the MOST solve without mutating the original inputs.
+"""
+@inline with_sfc_guesses(inputs, T_sfc_guess, q_vap_sfc_guess) =
+    (; inputs..., T_sfc_guess, q_vap_sfc_guess)
+
+@inline safe_T_sfc_guess(inputs) =
+    inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+
+@inline safe_q_vap_sfc_guess(inputs) =
+    inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess
+
+@inline has_sfc_callbacks(inputs) =
+    inputs.update_T_sfc !== nothing || inputs.update_q_vap_sfc !== nothing
+
+"""
     surface_fluxes(
         param_set::APS,
         T_int,
@@ -586,24 +604,16 @@ given the exchange coefficients and surface state.
     return (shf, lhf, E, ρτxz, ρτyz)
 end
 
-struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
-    param_set::PS
-    inputs::I
-    scheme::SCH
-    uf_params::UF
-    thermo_params::TP
-end
-
-function (rf::ResidualFunction)(ζ)
-    FT = eltype(rf.param_set)
-
-    # Unpack parameters that do not change over iterations
-    param_set = rf.param_set
-    inputs = rf.inputs
-    scheme = rf.scheme
-    uf_params = rf.uf_params
-    thermo_params = rf.thermo_params
-
+function evaluate_most_residual(
+    param_set,
+    inputs,
+    scheme,
+    uf_params,
+    thermo_params,
+    ζ,
+    T_sfc_guess_safe,
+    q_vap_sfc_guess_safe,
+)
     # 1. Compute u_star and roughness lengths, iteratively if they are mutually dependent
     u_star, z0m, z0h = compute_ustar_and_roughness(
         param_set,
@@ -612,15 +622,8 @@ function (rf::ResidualFunction)(ζ)
         scheme,
     )
 
+    # 2. Update T_sfc and q_vap_sfc via callbacks or use current guesses
     # Ensure type stability for default values (strip Union{Nothing, FT})
-    # If guess is nothing, use interior values as safe dummy defaults
-    T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe =
-        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
-
-    # 2. Update T_sfc and q_vap_sfc via callbacks or use inputs
     T_sfc_new = eval_callback(
         inputs.update_T_sfc,
         T_sfc_guess_safe,
@@ -661,7 +664,6 @@ function (rf::ResidualFunction)(ζ)
     )
 
     # 4. Compute gustiness and ΔU
-    # Use the buoyancy flux derived from the current ζ and ustar to calculate gustiness
     current_ΔU = windspeed(param_set, ζ, u_star, inputs)
 
     # 5. Calculate state bulk Richardson number
@@ -678,7 +680,30 @@ function (rf::ResidualFunction)(ζ)
     Δz_eff = effective_height(inputs)
     Rib_theory = UF.bulk_richardson_number(uf_params, Δz_eff, ζ, z0m, z0h, scheme)
 
-    return Rib_theory - Rib_state
+    return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
+end
+
+struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
+    param_set::PS
+    inputs::I
+    scheme::SCH
+    uf_params::UF
+    thermo_params::TP
+end
+
+function (rf::ResidualFunction)(ζ)
+    inputs = rf.inputs
+    residual, _, _ = evaluate_most_residual(
+        rf.param_set,
+        inputs,
+        rf.scheme,
+        rf.uf_params,
+        rf.thermo_params,
+        ζ,
+        safe_T_sfc_guess(inputs),
+        safe_q_vap_sfc_guess(inputs),
+    )
+    return residual
 end
 
 """
@@ -837,6 +862,126 @@ function solve_stability_param(
 end
 
 """
+    solve_stability_param_cb(
+        param_set, inputs, scheme, uf_params, thermo_params,
+        ζ_max, options, T_sfc_init, q_vap_init,
+    )
+
+Variant of [`solve_stability_param`](@ref) for the surface-state-callback
+path. Performs identical bracketing and Illinois regula falsi refinement, but carries
+`T_sfc_iter` and `q_vap_iter` as stack-allocated locals between residual
+evaluations, so all values remain `isbits` and the function compiles inside GPU kernels.
+
+Returns `(ζ, converged, T_sfc_final, q_vap_final)`. The returned surface-state
+values are from the last residual evaluation and are used to finalize the surface
+fluxes after the solve.
+"""
+function solve_stability_param_cb(
+    param_set,
+    inputs,
+    scheme,
+    uf_params,
+    thermo_params,
+    ζ_max::FT,
+    options::SolverOptions,
+    T_sfc_init,
+    q_vap_init,
+) where {FT}
+    # Evaluate residual at ζ, advancing the surface-state guess as a plain local
+    function eval_cb(ζ, T_sfc, q_vap)
+        evaluate_most_residual(
+            param_set,
+            with_sfc_guesses(inputs, T_sfc, q_vap),
+            scheme, uf_params, thermo_params,
+            ζ, T_sfc, q_vap,
+        )
+    end
+
+    # Stage 1: branch detection and bracketing — same 5 probes as solve_stability_param,
+    # with the surface state threaded sequentially through each evaluation
+    r0, T_curr, q_curr = eval_cb(zero(FT), T_sfc_init, q_vap_init)
+    sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
+
+    p1 = sgn;
+    m1 = -sgn
+    p2 = FT(10) * sgn;
+    p3 = ζ_max * sgn
+
+    r1, T_curr, q_curr = eval_cb(p1, T_curr, q_curr)
+    rm1, T_curr, q_curr = eval_cb(m1, T_curr, q_curr)
+    r2, T_curr, q_curr = eval_cb(p2, T_curr, q_curr)
+    r3, T_curr, q_curr = eval_cb(p3, T_curr, q_curr)
+
+    # Save the surface state after the last bracketing probe. In the no-root
+    # (supercritical) case the refinement loop runs on a same-sign interval and
+    # its state advances are discarded; we return this saved state instead.
+    T_p3 = T_curr
+    q_p3 = q_curr
+
+    c1 = r0 * r1 <= 0
+    cm = r0 * rm1 <= 0
+    c2 = r1 * r2 <= 0
+    c3 = r2 * r3 <= 0
+    bracketed = c1 | cm | c2 | c3
+
+    a = ifelse(c1 | cm, zero(r0), ifelse(c2, p1, p2))
+    fa = ifelse(c1 | cm, r0, ifelse(c2, r1, r2))
+    b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
+    fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
+
+    # Stage 2: Illinois regula falsi, inlined so T_curr/q_curr thread as plain locals.
+    # Matches RootSolvers' _find_zero_bracketed/_regula_falsi_y_update exactly:
+    # conditional halving (only when the same endpoint was retained on the previous step)
+    # and a bisection fallback when the bracket is nearly flat.
+    c = a
+    lastside = 0  # +1 = b moved last, -1 = a moved last
+    for _ in 1:options.maxiter
+        # Regula falsi interpolant with bisection fallback for flat brackets
+        c = ifelse(
+            abs(fb - fa) < 100 * eps(fb),
+            a + (b - a) / 2,
+            (a * fb - b * fa) / (fb - fa),
+        )
+        fc, T_curr, q_curr = eval_cb(c, T_curr, q_curr)
+
+        # is_neg: root is between a and c → b moves to c
+        is_neg = fc * fa < zero(fc)  # strict, matching RootSolvers
+
+        # Illinois y-update: halve only when same endpoint retained twice in a row
+        fa_next = ifelse(is_neg, ifelse(lastside == +1, fa / 2, fa), fc)
+        fb_next = ifelse(is_neg, fc, ifelse(lastside == -1, fb / 2, fb))
+        a = ifelse(is_neg, a, c)
+        b = ifelse(is_neg, c, b)
+        fa = fa_next
+        fb = fb_next
+        lastside = ifelse(is_neg, +1, -1)
+
+        if !options.forced_fixed_iters
+            width = abs(b - a)
+            (width < options.tol || width < options.rtol * abs(c)) && break
+        end
+    end
+
+    # Final regula falsi interpolant of the last bracket: free improvement over last c
+    x_last = (a * fb - b * fa) / (fb - fa)
+    lo = min(a, b)
+    hi = max(a, b)
+    use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
+    x = ifelse(use_last, x_last, c)
+
+    width = abs(b - a)
+    converged =
+        bracketed &&
+        (width < options.tol || width < options.rtol * abs(x))
+    ζ = ifelse(bracketed, x, p3)
+    # In the no-root case, discard the refinement loop's state (computed on a
+    # same-sign interval) and return the state from the saturated probe at p3.
+    T_final = ifelse(bracketed, T_curr, T_p3)
+    q_final = ifelse(bracketed, q_curr, q_p3)
+    return ζ, converged, T_final, q_final
+end
+
+"""
     solve_monin_obukhov(param_set, inputs, scheme, options)
 
 Solves the Monin-Obukhov Similarity Theory (MOST) equations for the surface fluxes.
@@ -865,38 +1010,48 @@ function solve_monin_obukhov(
     uf_params = SFP.uf_params(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
 
-    root_function = ResidualFunction(
-        param_set,
-        inputs,
-        scheme,
-        uf_params,
-        thermo_params,
-    )
-
     # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
     # stratification), no solution exists within this limit (e.g., for
     # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
     # solve saturates at the limit of the appropriate stability branch.
     ζ_max = FT(100)
 
-    ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
+    if has_sfc_callbacks(inputs)
+        # Callback path: inline Illinois loop carries T_sfc/q_vap as stack locals
+        # so all values remain isbits and the solve compiles inside GPU kernels.
+        ζ_final, converged, T_sfc_guess_safe, q_vap_sfc_guess_safe =
+            solve_stability_param_cb(
+                param_set,
+                inputs,
+                scheme,
+                uf_params,
+                thermo_params,
+                ζ_max,
+                options,
+                safe_T_sfc_guess(inputs),
+                safe_q_vap_sfc_guess(inputs),
+            )
+        inputs = with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe)
+    else
+        root_function = ResidualFunction(
+            param_set,
+            inputs,
+            scheme,
+            uf_params,
+            thermo_params,
+        )
+        ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
+        T_sfc_guess_safe = safe_T_sfc_guess(inputs)
+        q_vap_sfc_guess_safe = safe_q_vap_sfc_guess(inputs)
+    end
 
-    # Finalize state
-    # 1. Compute u_star and roughness
-    # Consistent with ζ_final
+    # 1. Compute u_star and roughness consistent with ζ_final
     u_star_curr, z0m, z0h = compute_ustar_and_roughness(
         param_set,
         ζ_final,
         inputs,
         scheme,
     )
-
-    # Ensure type stability for default values (strip Union{Nothing, FT})
-    T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe =
-        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
 
     T_sfc_val = eval_callback(
         inputs.update_T_sfc,
