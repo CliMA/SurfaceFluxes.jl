@@ -104,7 +104,7 @@ function compute_theta_star(
     z0h,
     inputs,
     scheme::SolverScheme,
-    T_sfc = inputs.T_sfc_guess,
+    T_sfc = inputs.T_sfc_guess[1],
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     Φ_int = interior_geopotential(param_set, inputs)
@@ -150,7 +150,7 @@ function compute_q_star(
     z0h,
     inputs,
     scheme::SolverScheme,
-    q_vap_sfc = inputs.q_vap_sfc_guess,
+    q_vap_sfc = inputs.q_vap_sfc_guess[1],
 )
     # Δq = q_vap_int - q_vap_sfc
     q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int

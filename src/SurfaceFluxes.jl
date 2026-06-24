@@ -303,10 +303,10 @@ function compute_fluxes_given_coefficients(
     # Surface state from guesses (callbacks not used for prescribed coefficients)
     # Don't use type annotations here to allow for Dual numbers during AD
     T_sfc =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess[1]
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
+        inputs.q_vap_sfc_guess[1]
     ρ_sfc = surface_density(
         param_set,
         inputs.T_int,
@@ -383,10 +383,10 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
     T_sfc =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess[1]
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
+        inputs.q_vap_sfc_guess[1]
     ρ_sfc = surface_density(
         param_set,
         inputs.T_int,
@@ -472,9 +472,9 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
 
-    T_sfc = inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+    T_sfc = inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess[1]
     q_vap_sfc =
-        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess
+        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess[1]
     ρ_sfc = surface_density(
         param_set,
         inputs.T_int,
@@ -608,10 +608,10 @@ function (rf::ResidualFunction)(ζ)
     # Ensure type stability for default values (strip Union{Nothing, FT})
     # If guess is nothing, use interior values as safe dummy defaults
     T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess[1]
     q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
+        inputs.q_vap_sfc_guess[1]
 
     # 2. Update T_sfc and q_vap_sfc via callbacks or use inputs
     T_sfc_new = eval_callback(
@@ -739,10 +739,10 @@ function solve_monin_obukhov(
 
     # Ensure type stability for default values (strip Union{Nothing, FT})
     T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess[1]
     q_vap_sfc_guess_safe =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
+        inputs.q_vap_sfc_guess[1]
 
     T_sfc_val = eval_callback(
         inputs.update_T_sfc,
