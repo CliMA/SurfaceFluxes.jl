@@ -292,8 +292,6 @@ end
         ρ_atmos = inputs.ρ_int
         q_atmos = inputs.q_tot_int
         Δz = inputs.Δz
-        P_atmos =
-            TD.air_pressure(thermo_params, T_atmos, ρ_atmos, q_atmos)
         q = TD.q_vap_saturation(
             thermo_params,
             T_sfc,
@@ -301,11 +299,12 @@ end
             FT(0),
             FT(0),
         )
-        ∂q∂T = TD.∂q_vap_sat_∂T_from_L(
+        ∂q∂T = TD.∂q_vap_sat_∂T(
             thermo_params,
-            q,
-            TD.latent_heat_vapor(thermo_params, T_sfc),
             T_sfc,
+            ρ_atmos,
+            FT(0),
+            FT(0),
         )
 
         g_h = SurfaceFluxes.heat_conductance(
@@ -347,12 +346,14 @@ end
         ∂L∂T = ρ_sfc * g_h * _LH_v0 * ∂q∂T
         ∂H∂T = ρ_sfc * g_h * cp_d
         LW_n = ϵ * (LW_d - σ * T_sfc^4)
+        F_rad = -(LW_n+SW_n)
         ∂LW_n∂T = -4 * ϵ * σ * T_sfc^3
-        # f(T) = L + H - R_n + κ(T_sfc - T̄)/d = 0
+        ∂F_rad∂T = -∂LW_n∂T
+        F_int = -κ * (T_sfc - T̄)/d
+        # f(T) = L+ H +F_rad = F_int
         ΔT =
-            -(d * (-SW_n - LW_n + L + H) + κ * (T_sfc - T̄)) /
-            (d * (-∂LW_n∂T + ∂L∂T + ∂H∂T) + κ)
-        @show T_sfc + ΔT
+            -(F_rad + L + H -F_int) /
+            (∂F_rad∂T + ∂L∂T + ∂H∂T + κ)
         @show ΔT
         inputs.T_sfc_guess .= [T_sfc + ΔT]
         return T_sfc + ΔT
@@ -381,11 +382,11 @@ end
     positional_default_args = (
         conf = SurfaceFluxes.default_surface_flux_config(eltype(param_set)),
         scheme = SurfaceFluxes.PointValueScheme(),
-        solver_opts = nothing,
+        solver_opts = SurfaceFluxes.SolverOptions{FT}(;maxiter = 20),
         flux_specs = nothing,
     )
-    d = FT(0.08)
-    T̄ = T_int - FT(3)
+    d = FT(0.01)
+    T̄ = T_int - FT(1)
     T_sfc = T_int
     q_sfc = TD.q_vap_saturation(
         thermo_params,
@@ -398,7 +399,7 @@ end
     ϵ = FT(0.99)
     κ = FT(0.1)
     SW_n = FT(500)
-    LW_d = FT(200)
+    LW_d = FT(400)
     displ = FT(0.0)
     z_0m = FT(0.13)
     z_0b = FT(0.1) * z_0m
@@ -427,6 +428,7 @@ end
     H = output.shf
     L = output.lhf
     LW_n = ϵ * (LW_d - _σ * output.T_sfc^4)
+    F_rad = -(LW_n+SW_n)
     F_int = -κ * (output.T_sfc - T̄) / d
-    @show (H + L - LW_n - SW_n - F_int) / (H + L - LW_n - SW_n)
+    @show (H + L +F_rad - F_int)
 end
