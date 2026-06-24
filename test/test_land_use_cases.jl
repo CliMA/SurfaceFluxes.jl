@@ -3,6 +3,7 @@
 # Tests specific coupled surface schemes:
 # 1. Beta Model: Parameterizes moisture availability factor (β)
 # 2. Canopy Model: Solves coupled energy/moisture balance with stomatal resistance
+# 3. Solving for snow surface temperature that satisfies a flux balance
 using SurfaceFluxes
 using SurfaceFluxes.UniversalFunctions: BusingerParams
 using SurfaceFluxes: Parameters
@@ -48,7 +49,7 @@ u_sfc = (FT(0), FT(0))
     # q_sfc = β * q_sat + (1 - β) * q_air
     function land_update_q_vap_sfc(ζ, param_set, thermo_params, inputs, β)
         q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
-        q = β * inputs.q_vap_sfc_guess + (1 - β) * q_vap_int # q_vap_sfc_guess is already the saturated value
+        q = β * inputs.q_vap_sfc_guess[1] + (1 - β) * q_vap_int # q_vap_sfc_guess is already the saturated value
         return q
     end
 
@@ -265,4 +266,167 @@ end
     #    r_ae = 1/output_no_resistance.Ch/max(1, sqrt(u_int[1]^2 + u_int[2]^2))
     #    pred_shf = output_no_resistance.shf *r_ae/(r_h+r_ae)
     #    pred_e = output_no_resistance.evaporation *r_ae/(r_e+r_ae)
+end
+
+
+@testset "Flux balance updates" begin
+    function update_T_scheme(
+        ζ,
+        param_set,
+        thermo_params,
+        inputs,
+        scheme,
+        u_star,
+        z_0m,
+        z_0h,
+        T̄,
+        κ,
+        d,
+        σ,
+        ϵ,
+        SW_n,
+        LW_d,
+    )
+        T_sfc = inputs.T_sfc_guess[1]
+        T_atmos = inputs.T_int
+        ρ_atmos = inputs.ρ_int
+        q_atmos = inputs.q_tot_int
+        Δz = inputs.Δz
+        P_atmos =
+            TD.air_pressure(thermo_params, T_atmos, ρ_atmos, q_atmos)
+        q = TD.q_vap_saturation(
+            thermo_params,
+            T_sfc,
+            ρ_atmos,
+            FT(0),
+            FT(0),
+        )
+        ∂q∂T = TD.∂q_vap_sat_∂T_from_L(
+            thermo_params,
+            q,
+            TD.latent_heat_vapor(thermo_params, T_sfc),
+            T_sfc,
+        )
+
+        g_h = SurfaceFluxes.heat_conductance(
+            param_set,
+            ζ,
+            u_star,
+            inputs,
+            z_0m,
+            z_0b,
+            scheme,
+        )
+        b_flux = SurfaceFluxes.buoyancy_flux(param_set, ζ, u_star, inputs)
+        E = SurfaceFluxes.evaporation(
+            param_set,
+            inputs,
+            g_h,
+            q_atmos,
+            q_sfc,
+            ρ_sfc,
+            inputs.moisture_model,
+        )
+        L = SurfaceFluxes.latent_heat_flux(
+            param_set,
+            inputs,
+            E,
+            inputs.moisture_model,
+        )
+        H = SurfaceFluxes.sensible_heat_flux(
+            param_set,
+            inputs,
+            g_h,
+            T_atmos,
+            T_sfc,
+            ρ_sfc,
+            E,
+        )
+        _LH_v0 = TD.Parameters.LH_v0(thermo_params)
+        cp_d = TD.Parameters.cp_d(thermo_params)
+        ∂L∂T = ρ_sfc * g_h * _LH_v0 * ∂q∂T
+        ∂H∂T = ρ_sfc * g_h * cp_d
+        LW_n = ϵ * (LW_d - σ * T_sfc^4)
+        ∂LW_n∂T = -4 * ϵ * σ * T_sfc^3
+        # f(T) = L + H - R_n + κ(T_sfc - T̄)/d = 0
+        ΔT =
+            -(d * (-SW_n - LW_n + L + H) + κ * (T_sfc - T̄)) /
+            (d * (-∂LW_n∂T + ∂L∂T + ∂H∂T) + κ)
+        @show T_sfc + ΔT
+        @show ΔT
+        inputs.T_sfc_guess .= [T_sfc + ΔT]
+        return T_sfc + ΔT
+    end
+
+    function update_q_scheme(
+        ζ,
+        param_set,
+        thermo_params,
+        inputs,
+        scheme,
+        T_sfc,
+        u_star,
+        z_0m,
+        z_0h,
+    )
+        q = TD.q_vap_saturation(
+            thermo_params,
+            inputs.T_sfc_guess[1], # this is the updated value after evaluated the update_T fn
+            inputs.ρ_int,
+            FT(0),
+            FT(0),
+        )
+        return q
+    end
+    positional_default_args = (
+        conf = SurfaceFluxes.default_surface_flux_config(eltype(param_set)),
+        scheme = SurfaceFluxes.PointValueScheme(),
+        solver_opts = nothing,
+        flux_specs = nothing,
+    )
+    d = FT(0.08)
+    T̄ = T_int - FT(3)
+    T_sfc = T_int
+    q_sfc = TD.q_vap_saturation(
+        thermo_params,
+        T_sfc,
+        ρ_int,
+        FT(0),
+        FT(0),
+    )
+    _σ = FT(5.67e-8)# Stefan Boltzmann
+    ϵ = FT(0.99)
+    κ = FT(0.1)
+    SW_n = FT(500)
+    LW_d = FT(200)
+    displ = FT(0.0)
+    z_0m = FT(0.13)
+    z_0b = FT(0.1) * z_0m
+    roughness_inputs = SurfaceFluxes.ConstantRoughnessParams{FT}(z_0m, z_0b)
+    update_T(args...) =
+        update_T_scheme(args..., T̄, κ, d, _σ, ϵ, SW_n, LW_d)
+    output = SurfaceFluxes.surface_fluxes(
+        param_set,
+        T_int,
+        q_tot_int,
+        FT(0),
+        FT(0),
+        ρ_int,
+        T_sfc,
+        q_sfc,
+        Φ_sfc,
+        Δz,
+        displ,
+        u_int,
+        u_sfc,
+        roughness_inputs,
+        positional_default_args...,
+        update_T,
+        update_q_scheme,
+    )
+    H = output.shf
+    L = output.lhf
+    LW_n = ϵ * (LW_d - _σ * output.T_sfc^4)
+    F_int = -κ * (output.T_sfc - T̄) / d
+    @show (H + L - LW_n - SW_n - F_int) / (H + L - LW_n - SW_n)
 end
