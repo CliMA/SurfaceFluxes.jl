@@ -19,7 +19,7 @@ allowing for prescribed sensible heat flux conditions. See the inputs container.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `g_h`: Heat/moisture conductance [m/s].
 - `T_int`: Interior temperature [K].
 - `T_sfc`: Surface temperature [K].
@@ -60,7 +60,7 @@ Useful for computing fluxes from variables available inside the solver loop.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `T_sfc`: Surface temperature [K].
@@ -126,9 +126,9 @@ If `inputs.lhf` is provided (not `nothing`), the function returns the evaporatio
 rate computed from the prescribed latent heat flux: `E = LHF / LH_v0`, where
 `LH_v0` is the latent heat of vaporization at the reference temperature.
 
-Arguments:
+# Arguments
 - `param_set`: Parameter set.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `g_h`: Heat conductance [m/s].
 - `q_vap_int`: Interior vapor specific humidity [kg/kg].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -178,7 +178,7 @@ friction velocity `ustar`, roughness lengths, and surface state.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -226,9 +226,9 @@ and `E` is the evaporation rate.
 If `inputs.lhf` is provided (not `nothing`), the function returns that value directly,
 allowing for prescribed latent heat flux conditions.
 
-Arguments:
+# Arguments
 - `param_set`: Parameter set.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `E`: Evaporation rate [kg/m^2/s].
 - `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
@@ -269,7 +269,7 @@ Calculates conductance and evaporation internally.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `q_vap_sfc`: Surface vapor specific humidity [kg/kg].
@@ -319,16 +319,16 @@ Where:
     (the virtual temperature correction factor), ensuring the buoyancy flux accounts for the fact that moist 
     air is lighter than dry air.
 
-Arguments:
- - `param_set`: Parameter set.
- - `shf`: Sensible heat flux [W/m²].
- - `lhf`: Latent heat flux [W/m²].
- - `T_sfc`: Surface temperature [K].
- - `ρ_sfc`: Surface air density [kg/m³].
- - `q_vap_sfc`: Specific humidity of water vapor at the surface (default: 0).
- - `q_liq_sfc`: Specific humidity of liquid water at the surface (default: 0).
- - `q_ice_sfc`: Specific humidity of ice at the surface (default: 0).
- - `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
+# Arguments
+- `param_set`: Parameter set.
+- `shf`: Sensible heat flux [W/m²].
+- `lhf`: Latent heat flux [W/m²].
+- `T_sfc`: Surface temperature [K].
+- `ρ_sfc`: Surface air density [kg/m³].
+- `q_vap_sfc`: Surface water vapor specific humidity; default 0 [kg/kg].
+- `q_liq_sfc`: Surface liquid water specific humidity; default 0 [kg/kg].
+- `q_ice_sfc`: Surface ice specific humidity; default 0 [kg/kg].
+- `model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref)).
 """
 @inline function buoyancy_flux(
     param_set::APS,
@@ -402,7 +402,7 @@ The relationship is derived from the definition of the Obukhov length:
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 """
 @inline function buoyancy_flux(
     param_set::APS,
@@ -437,7 +437,7 @@ See the inputs container.
 
 # Arguments
 - `Cd`: Drag coefficient.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `ρ_sfc`: Surface air density [kg/m^3].
 - `gustiness`: Gustiness velocity scale [m/s].
 """
@@ -461,7 +461,7 @@ Computes the bulk Richardson number from the given state.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `T_sfc`: Surface temperature [K].
 - `ρ_sfc`: Surface air density [kg/m³].
 - `ΔU`: Wind speed difference [m/s].

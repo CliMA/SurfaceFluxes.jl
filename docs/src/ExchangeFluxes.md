@@ -141,7 +141,8 @@ z_{0m} = 0.11 \frac{\nu}{u_*} + \alpha \frac{u_*^2}{g}
 
 `RaupachRoughnessParams` implements the [Raupach (1994)](https://doi.org/10.1007/BF00709229) model for vegetation canopies.
 
-- Calculates $z_{0m}$ and displacement height $d$ based on canopy height ($h$) and Leaf Area Index (LAI).
+- Estimates $z_{0m}$ from canopy height ($h$) and Leaf Area Index (LAI). The displacement-height ratio $d/h$ enters the $z_{0m}$ formula internally, but $d$ itself is supplied to [`surface_fluxes`](@ref) as a separate argument.
+- The scalar roughness $z_{0s}$ is obtained from $z_{0m}$ via a fixed Stanton number.
 - Useful for dynamic vegetation models.
 
 ## Gustiness

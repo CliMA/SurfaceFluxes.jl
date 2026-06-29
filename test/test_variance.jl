@@ -150,4 +150,31 @@ end
     @test phi_h_unstable ≈ expected_h
 end
 
+@testset "u_variance uses the TKE form for all parameterizations" begin
+    # Regression guard for the variance generalization to AUFP. `u_variance` must use the
+    # 5-arg TKE similarity (Tan et al. 2018) for *every* parameterization. Before the
+    # generalization, Gryanik/Grachev fell through to the 3-arg Panofsky form, silently
+    # discarding `w_star` and returning a different value.
+    for FT in (Float32, Float64)
+        Δz_eff = FT(10)
+        ustar = FT(0.3)
+        unstable_vals = FT[]
+        for P in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
+            ps = SFP.SurfaceFluxesParameters(FT, P)
+            uf = SFP.uf_params(ps)
+            κ = SFP.von_karman_const(ps)
+            zi = SFP.gustiness_zi(ps)
+            for ζ in (FT(-1), FT(0.5))  # unstable and stable
+                w_star = ζ < 0 ? ustar * cbrt(-(zi * ζ) / (κ * Δz_eff)) : zero(FT)
+                ϕ_tke = UF.phi(uf, ζ, ustar, w_star, UF.MomentumVariance())
+                @test SF.u_variance(ps, Δz_eff, ustar, ζ) ≈ (ustar * ϕ_tke)^2
+            end
+            push!(unstable_vals, SF.u_variance(ps, Δz_eff, ustar, FT(-1)))
+        end
+        # The TKE similarity constants do not depend on the parameterization, so all three
+        # must now agree (they did not before the generalization).
+        @test all(≈(unstable_vals[1]), unstable_vals)
+    end
+end
+
 end # module

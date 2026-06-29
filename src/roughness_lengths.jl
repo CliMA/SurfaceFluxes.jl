@@ -9,11 +9,13 @@
 Roughness lengths fixed to constant values.
 
 # Fields
-- `z0m`: Momentum roughness length [m]
+- `z0m`: Momentum roughness length [m].
 - `z0s`: Scalar roughness length [m]. Used for both heat (`z0h`) and humidity (`z0q`).
 
-The default values specified here are used when constructing the struct manually. When loading
-via `ClimaParams`, these values are overwritten by the parameters in the `ClimaParams` TOML file.
+The keyword defaults shown here (`z0m = 2e-4` m, `z0s = 2e-5` m) are also the roughness
+lengths used by [`surface_fluxes`](@ref) when `config` is omitted, via
+`default_surface_flux_config`. When loading via `ClimaParams`, the values are read from the
+TOML file. Most applications pass `z0m`/`z0s` explicitly or load them from `ClimaParams`.
 """
 Base.@kwdef struct ConstantRoughnessParams{FT} <: AbstractRoughnessParams
     z0m::FT = 2e-4

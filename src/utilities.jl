@@ -16,7 +16,7 @@ Compute the geopotential at the interior (atmospheric) reference level.
 
 # Arguments
 - `param_set`: Parameter set containing gravitational constant.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
 Returns `Φ_sfc + g * Δz` [m²/s²].
 """
@@ -30,7 +30,7 @@ end
 Return the surface geopotential from the inputs.
 
 # Arguments
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
 Returns `inputs.Φ_sfc` [m²/s²].
 """
@@ -99,7 +99,7 @@ end
 Compute the effective aerodynamic height `z_eff = Δz - d`.
 
 # Arguments
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
 Returns `Δz - d` [m].
 """

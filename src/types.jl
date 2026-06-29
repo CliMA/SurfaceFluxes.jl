@@ -1,7 +1,6 @@
-
-"""
-    Surface flux configuration specs
-"""
+# Surface flux configuration types: roughness, gustiness, moisture, and the
+# containers (`SurfaceFluxConfig`, `FluxSpecs`, `SolverOptions`) that bundle the
+# user-facing specifications consumed by `surface_fluxes`.
 
 abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
@@ -135,23 +134,28 @@ end
 
 
 """
-    SurfaceFluxConditions
+    SurfaceFluxConditions{FT}
 
-Surface flux conditions, returned from `surface_fluxes`.
+Surface flux conditions returned by [`surface_fluxes`](@ref).
 
-- `shf::FT`: Sensible heat flux [W/m²]
-- `lhf::FT`: Latent heat flux [W/m²]
-- `evaporation::FT`: Evaporation rate [kg/(m²·s)]
-- `ρτxz::FT`: Momentum flux, eastward component [kg/(m·s²)]
-- `ρτyz::FT`: Momentum flux, northward component [kg/(m·s²)]
-- `ustar::FT`: Friction velocity [m/s]
-- `ζ::FT`: Monin-Obukhov stability parameter (z/L)
-- `Cd::FT`: Momentum exchange coefficient
-- `g_h::FT`: Heat conductance [m/s]
-- `T_sfc::FT`: Surface temperature [K]
-- `q_vap_sfc::FT`: Surface air vapor specific humidity [kg/kg]
-- `L_MO::FT`: Monin-Obukhov lengthscale [m]
-- `converged::Bool`: Solver convergence status
+All floating-point fields share the type `FT`, obtained by promoting the inputs.
+Momentum-flux components are the kinematic stress times density, i.e. `ρτ = ρ u_* u_*`,
+with units `[kg/(m·s²)] = [N/m²]`.
+
+# Fields
+- `shf`: Sensible heat flux [W/m²].
+- `lhf`: Latent heat flux [W/m²].
+- `evaporation`: Evaporation rate [kg/(m²·s)].
+- `ρτxz`: Momentum flux, eastward component [kg/(m·s²)].
+- `ρτyz`: Momentum flux, northward component [kg/(m·s²)].
+- `ustar`: Friction velocity [m/s].
+- `ζ`: Monin-Obukhov stability parameter `(z - d)/L` [-].
+- `Cd`: Momentum exchange (drag) coefficient [-].
+- `g_h`: Heat conductance `Ch * U_eff` [m/s].
+- `T_sfc`: Surface temperature [K].
+- `q_vap_sfc`: Surface air vapor specific humidity [kg/kg].
+- `L_MO`: Monin-Obukhov length [m].
+- `converged`: Solver convergence status.
 """
 struct SurfaceFluxConditions{FT <: Real}
     shf::FT

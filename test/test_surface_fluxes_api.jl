@@ -334,4 +334,18 @@ end
     @test !isnan(lhf_helper)
 end
 
+@testset "Default config roughness lengths" begin
+    # Guard the roughness lengths used by `surface_fluxes` when `config` is omitted. These are
+    # unified to the `ConstantRoughnessParams` keyword defaults (single source of truth); see
+    # NEWS for the behavior change from the previous 1e-3/1e-3.
+    for FT in (Float32, Float64)
+        cfg = SF.default_surface_flux_config(FT)
+        @test cfg.roughness isa SF.ConstantRoughnessParams{FT}
+        @test cfg.roughness.z0m == FT(2e-4)
+        @test cfg.roughness.z0s == FT(2e-5)
+        @test cfg.roughness.z0m == SF.ConstantRoughnessParams{FT}().z0m
+        @test cfg.roughness.z0s == SF.ConstantRoughnessParams{FT}().z0s
+    end
+end
+
 end # module

@@ -8,16 +8,24 @@
         scheme::SolverScheme,
     )
 
-Computes the coefficient for the physical scale of a variable.
-Returns `ϕ` such that `scale = Δvalue * ϕ`. For example, `u★ = ΔU * ϕ_m`.
+Compute the coefficient relating a bulk difference to its similarity scale.
+
+Returns `ϕ` such that `scale = Δvalue * ϕ`; for example, `u★ = ΔU * ϕ_m`. It is given by
+
+```math
+ϕ = \\frac{κ}{F(Δz_{eff}, ζ, z_0)}
+```
+
+where `κ` is the von Kármán constant and `F` is the dimensionless profile function
+from [`UniversalFunctions`](@ref) for the requested `transport` and `scheme`.
 
 # Arguments
-- `Δz_eff`: Effective aerodynamic height `Δz - d` [m]
-This is computed as:
-```math
-ϕ = \\frac{κ}{F(Δz_eff, ζ, z_0)}
-```
-where `F` is the dimensionless profile function from `UniversalFunctions`.
+- `param_set`: Parameter set.
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m].
+- `ζ`: Monin-Obukhov stability parameter [-].
+- `z0`: Roughness length for the transported variable [m].
+- `transport`: Transport type (`MomentumTransport` or `HeatTransport`).
+- `scheme`: Discretization scheme ([`PointValueScheme`](@ref) or [`LayerAverageScheme`](@ref)).
 """
 function compute_physical_scale_coeff(
     param_set::APS,
@@ -53,7 +61,7 @@ it is returned directly; otherwise it is recomputed from the similarity coeffici
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0`: Momentum roughness length [m].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `scheme`: Discretization scheme.
 - `gustiness`: Gustiness velocity scale [m/s].
 """
@@ -94,9 +102,10 @@ where `z0h` is the roughness length for heat.
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0h`: Thermal roughness length [m].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `scheme`: Discretization scheme.
-- `T_sfc`: Surface temperature [K]. Optional, defaults to `inputs.T_sfc_guess`.
+- `T_sfc`: Surface temperature [K]. Optional; defaults to `inputs.T_sfc_guess`, falling back
+  to the interior temperature `inputs.T_int` when the guess is `nothing`.
 """
 function compute_theta_star(
     param_set::APS,
@@ -104,7 +113,7 @@ function compute_theta_star(
     z0h,
     inputs,
     scheme::SolverScheme,
-    T_sfc = inputs.T_sfc_guess,
+    T_sfc = something(inputs.T_sfc_guess, inputs.T_int),
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     Φ_int = interior_geopotential(param_set, inputs)
@@ -140,9 +149,11 @@ where `z0h` is the roughness length for scalars (assumed equal to heat).
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `z0h`: Thermal/scalar roughness length [m].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `scheme`: Discretization scheme.
-- `q_vap_sfc`: Surface vapor specific humidity [kg/kg]. Optional, defaults to `inputs.q_vap_sfc_guess`.
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg]. Optional; defaults to
+  `inputs.q_vap_sfc_guess`, falling back to the interior total specific humidity
+  `inputs.q_tot_int` when the guess is `nothing`.
 """
 function compute_q_star(
     param_set::APS,
@@ -150,7 +161,7 @@ function compute_q_star(
     z0h,
     inputs,
     scheme::SolverScheme,
-    q_vap_sfc = inputs.q_vap_sfc_guess,
+    q_vap_sfc = something(inputs.q_vap_sfc_guess, inputs.q_tot_int),
 )
     # Δq = q_vap_int - q_vap_sfc
     q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
@@ -172,17 +183,31 @@ end
 """
     u_variance(param_set, Δz_eff, ustar, ζ)
 
-Compute the velocity variance `σ_u^2 = (u_star * ϕ_σu)^2`.
+Compute the turbulent kinetic energy (TKE) `(u_* ϕ)^2` following Tan et al. (2018).
 
-For unstable conditions, the convective (Deardorff) velocity scale `w_*` 
-is calculated using the mixed-layer height `zi` from parameters, and 
-passed to the universal function. `Δz_eff` is the effective aerodynamic height.
+Returns `(u_* ϕ)^2` [m²/s²], where `ϕ = sqrt(TKE)/u_*` is the TKE-based velocity
+similarity function. In unstable conditions this is
+`TKE = 3.75 u_*^2 + 0.2 w_*^2 + u_*^2 (-ζ)^{2/3}`, and in stable/neutral conditions
+it reduces to `3.75 u_*^2`. The convective (Deardorff) velocity scale `w_*` is computed
+from the mixed-layer height `zi` (a fixed parameter) and the buoyancy flux implied by `ζ`.
+
+!!! note
+    This returns the full TKE rather than the streamwise velocity variance `σ_u^2`. 
+    The streamwise `ϕ_σu` (Panofsky et al. 1977) is available via 
+    `phi(uf, ζ, MomentumVariance())`.
+
+!!! warning "Range of validity"
+    This closure is **independent of the flux-profile parameterization** in `param_set`
+    (`Businger`/`Gryanik`/`Grachev` give the same result): Grachev et al. (2007) and Gryanik
+    et al. (2020) define no variance functions. It is a convective surface-layer / surface-BC
+    form; on the stable side it returns the constant `3.75 u_*^2`, which is not a validated
+    stable-boundary-layer result. Use with care in stably stratified conditions.
 
 # Arguments
 - `param_set`: Parameter set.
-- `Δz_eff`: Effective aerodynamic height [m].
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m].
 - `ustar`: Friction velocity [m/s].
-- `ζ`: Monin-Obukhov stability parameter.
+- `ζ`: Monin-Obukhov stability parameter [-].
 """
 function u_variance(param_set::APS, Δz_eff, ustar, ζ)
     uf = SFP.uf_params(param_set)
@@ -208,7 +233,14 @@ end
 """
     scalar_variance(param_set, scale, ζ)
 
-Compute the scalar variance `σ_s^2 = (c_s * ϕ_σs)^2`.
+Compute the scalar variance `σ_s^2 = (scale * ϕ_σs)^2`, using the temperature-variance
+similarity `ϕ_σs = ϕ_σθ` (Wyngaard et al. 1971; Tan et al. 2018).
+
+!!! warning "Range of validity"
+    As for [`u_variance`](@ref), this closure is **independent of the flux-profile
+    parameterization** (Grachev/Gryanik define no variance functions) and returns the constant
+    `2.0` on the stable side. The constant has some support in the very stable (z-less) limit
+    but is not calibrated to stable-boundary-layer data.
 
 # Arguments
 - `param_set`: Parameter set.
@@ -231,7 +263,7 @@ Calculates `θ_* = -shf / (ρ * c_p * u_*)` and calls `scalar_variance`.
 
 # Arguments
 - `param_set`: Parameter set.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `shf`: Sensible heat flux [W/m^2].
 - `ustar`: Friction velocity [m/s].
 - `ζ`: Monin-Obukhov stability parameter.

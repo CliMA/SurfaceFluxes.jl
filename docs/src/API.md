@@ -14,6 +14,16 @@ SurfaceFluxes.LayerAverageScheme
 SurfaceFluxes.compute_profile_value
 ```
 
+## Inputs Container
+
+Many internal functions operate on a normalized "inputs container" (a `NamedTuple`)
+built from the user-facing arguments by
+[`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+
+```@docs
+SurfaceFluxes.build_surface_flux_inputs
+```
+
 ## Flux Calculations
 
 Functions for computing specific fluxes.

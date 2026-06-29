@@ -66,6 +66,9 @@ export SurfaceFluxConditions,
 # From utilities.jl
 export surface_density
 
+# From profile_recovery.jl
+export compute_profile_value
+
 # From UniversalFunctions.jl (solver schemes)
 export PointValueScheme, LayerAverageScheme
 
@@ -187,10 +190,10 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `evaporation`: Evaporation rate [kg/m^2/s].
 - `ustar`: Friction velocity [m/s].
 - `ρτxz`, `ρτyz`: Momentum flux components (stress) [N/m^2].
-- `ζ`: Stability parameter (`(z-d)/L`).
-- `Cd`: Drag coefficient
-- `g_h`: Heat conductance [m/s]
-- `T_sfc`, `q_vap_sfc`: Surface temperature [K] and vapor specific humidity [kg/kg] (final iterated values).
+- `ζ`: Stability parameter `(z-d)/L` [-].
+- `Cd`: Drag coefficient [-].
+- `g_h`: Heat conductance [m/s].
+- `T_sfc`, `q_vap_sfc`: Final iterated surface temperature [K] and vapor specific humidity [kg/kg].
 - `L_MO`: Monin-Obukhov length [m].
 - `converged`: Convergence status.
 """
@@ -278,8 +281,12 @@ function surface_fluxes(
 end
 
 function default_surface_flux_config(::Type{FT}) where {FT}
+    # Generic fallback used when the caller omits `config`. The roughness lengths come from
+    # the `ConstantRoughnessParams` keyword defaults (z0m = 2e-4 m, z0s = 2e-5 m), which is
+    # the single source of truth for the default roughness. Real applications pass an explicit
+    # `config` or load roughness lengths from ClimaParams.
     return SurfaceFluxConfig(
-        ConstantRoughnessParams(FT(1e-3), FT(1e-3)),
+        ConstantRoughnessParams{FT}(),
         ConstantGustinessSpec(FT(1)),
     )
 end
