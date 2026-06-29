@@ -42,7 +42,7 @@ and effective wind speed (including any gustiness factors).
 See the inputs container.
 
 # Arguments
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `speed`: Effective wind speed [m/s].
 """
 function drag_coefficient(inputs, speed)
@@ -102,7 +102,7 @@ Calculates windspeed and exchange coefficient internally from Monin-Obukhov vari
 - `param_set`: Parameter set.
 - `ζ`: Monin-Obukhov stability parameter.
 - `ustar`: Friction velocity [m/s].
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `z0m`: Momentum roughness length [m].
 - `z0h`: Thermal roughness length [m].
 - `scheme`: Discretization scheme.

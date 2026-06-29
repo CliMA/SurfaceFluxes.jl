@@ -1,23 +1,50 @@
 """
     UniversalFunctions
 
-Universal stability and stability correction functions for `SurfaceFluxes` module. 
-Supports the following universal functions:
+Universal stability and stability correction functions for the `SurfaceFluxes` module.
+
+Supports the following flux-profile (`ϕ`, `ψ`, `Ψ`) parameterizations:
  - `Businger`: Businger et al. (1971), Dyer (1974)
  - `Gryanik`: Gryanik et al. (2020)
  - `Grachev`: Grachev et al. (2007)
 
- It supports standard finite-difference (point-value) and finite-volume
- (layer-averaged) schemes. The finite-volume scheme is based on the Nishizawa & Kitamura (2018) formulation.
- 
- References:
- - Businger et al. (1971): [https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2)
- - Dyer (1974): [https://doi.org/10.1007/BF00240838](https://doi.org/10.1007/BF00240838)
- - Gryanik et al. (2020): [https://doi.org/10.1175/JAS-D-19-0255.1](https://doi.org/10.1175/JAS-D-19-0255.1)
- - Grachev et al. (2007): [https://doi.org/10.1007/s10546-007-9177-6](https://doi.org/10.1007/s10546-007-9177-6)
- - Nishizawa & Kitamura (2018): [https://doi.org/10.1029/2018MS001534](https://doi.org/10.1029/2018MS001534)
- - Panofsky et al. (1977): [https://doi.org/10.1007/BF02186086](https://doi.org/10.1007/BF02186086)
- - Wyngaard et al. (1971): [https://doi.org/10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2)
+Both standard finite-difference (point-value) and finite-volume (layer-averaged) schemes are
+supported; the finite-volume scheme follows Nishizawa & Kitamura (2018).
+
+The module also provides variance/TKE similarity functions (`MomentumVariance`, `HeatVariance`)
+from Panofsky et al. (1977), Wyngaard et al. (1971), and Tan et al. (2018). These are empirical
+surface-layer closures that are **independent of the flux-profile parameterization** above (see
+the `phi(..., MomentumVariance())` / `phi(..., HeatVariance())` docstrings for their range of
+validity).
+
+# References
+ - Businger, J. A., Wyngaard, J. C., Izumi, Y., & Bradley, E. F. (1971). Flux-profile
+   relationships in the atmospheric surface layer. Journal of the Atmospheric Sciences, 28,
+   181–189. [DOI: 10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2)
+ - Dyer, A. J. (1974). A review of flux-profile relationships. Boundary-Layer Meteorology, 7,
+   363–372. [DOI: 10.1007/BF00240838](https://doi.org/10.1007/BF00240838)
+ - Gryanik, V. M., Lüpkes, C., Grachev, A., & Sidorenko, D. (2020). New modified and extended
+   stability functions for the stable boundary layer based on SHEBA and parametrizations of
+   bulk transfer coefficients for climate models. Journal of the Atmospheric Sciences, 77,
+   2687–2716. [DOI: 10.1175/JAS-D-19-0255.1](https://doi.org/10.1175/JAS-D-19-0255.1)
+ - Grachev, A. A., Andreas, E. L., Fairall, C. W., Guest, P. S., & Persson, P. O. G. (2007).
+   SHEBA flux–profile relationships in the stable atmospheric boundary layer. Boundary-Layer
+   Meteorology, 124, 315–333. [DOI: 10.1007/s10546-007-9177-6](https://doi.org/10.1007/s10546-007-9177-6)
+ - Nishizawa, S., & Kitamura, Y. (2018). A surface flux scheme based on the Monin-Obukhov
+   similarity for finite volume models. Journal of Advances in Modeling Earth Systems, 10,
+   3159–3175. [DOI: 10.1029/2018MS001534](https://doi.org/10.1029/2018MS001534)
+ - Panofsky, H. A., Tennekes, H., Lenschow, D. H., & Wyngaard, J. C. (1977). The characteristics
+   of turbulent velocity components in the surface layer under convective conditions.
+   Boundary-Layer Meteorology, 11, 355–361. [DOI: 10.1007/BF02186086](https://doi.org/10.1007/BF02186086)
+ - Wyngaard, J. C., Coté, O. R., & Izumi, Y. (1971). Local free convection, similarity, and the
+   budgets of shear stress and heat flux. Journal of the Atmospheric Sciences, 28, 1171–1182.
+   [DOI: 10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2](https://doi.org/10.1175/1520-0469(1971)028<1171:LFCSAT>2.0.CO;2)
+ - Panofsky, H. A., & Dutton, J. A. (1984). Atmospheric Turbulence: Models and Methods for
+   Engineering Applications. Wiley, New York, 397 pp.
+ - Tan, Z., Kaul, C. M., Pressel, K. G., Cohen, Y., Schneider, T., & Teixeira, J. (2018). An
+   extended eddy-diffusivity mass-flux scheme for unified representation of subgrid-scale
+   turbulence and convection. Journal of Advances in Modeling Earth Systems, 10, 770–800.
+   [DOI: 10.1002/2017MS001162](https://doi.org/10.1002/2017MS001162)
 """
 module UniversalFunctions
 
@@ -91,10 +118,14 @@ Base.broadcastable(tt::AbstractTransportType) = tuple(tt)
 Base.broadcastable(p::AbstractUniversalFunctionParameters) = tuple(p)
 
 """
-    phi
+    phi(p, ζ, transport)
 
-Universal stability function for wind shear (`ϕ_m`) and 
-temperature gradient (`ϕ_h`)
+Universal (similarity) function: the non-dimensional vertical gradient of wind
+shear (`ϕ_m`, [`MomentumTransport`](@ref)) or of temperature/scalars (`ϕ_h`,
+[`HeatTransport`](@ref)) at stability parameter `ζ`.
+
+Dispatches on the parameterization type of `p` ([`BusingerParams`](@ref),
+[`GryanikParams`](@ref), [`GrachevParams`](@ref)) and on `transport`.
 """
 function phi end
 
@@ -411,19 +442,39 @@ Volume-averaged Businger heat/scalar stability correction `Ψ_h`.
     )
 end
 
-# --- Variance Functions (Businger / Default) ---
+# --- Variance Functions (parameterization-independent) ---
+#
+# The variance/TKE similarity functions use empirical constants from the literature
+# (Panofsky et al. 1977, Wyngaard et al. 1971, Tan et al. 2018) that do not depend on
+# the stability-function parameterization. They are therefore defined once on the abstract
+# parameter type `AUFP` and shared by Businger, Gryanik, and Grachev.
+#
+# IMPORTANT (range of validity): these are *convective* surface-layer closures with constant
+# neutral values on the stable side. Neither Grachev et al. (2007) nor Gryanik et al. (2020)
+# defines variance functions, so selecting those parameterizations does NOT change the
+# variances returned here. In the stable boundary layer the constant values are a crude
+# approximation: observed σ_u/u_* increases with stability rather than staying constant, and
+# Monin-Obukhov scaling of the horizontal-velocity variances breaks down. Treat the stable-side
+# variances as rough estimates, not validated stable-boundary-layer similarity.
 
 """
-    phi(p::BusingerParams, ζ, ::MomentumVariance)
+    phi(p::AUFP, ζ, ::MomentumVariance)
 
-Momentum variance similarity `ϕ_σu = σ_u / u_*`.
+Streamwise velocity variance similarity `ϕ_σu = σ_u / u_*`.
+
+This is a parameterization-independent convective closure; see the note below. The exported
+[`surface_tke`](@ref SurfaceFluxes.surface_tke) uses the TKE form (the 5-argument method) instead.
 
 # References
- - Unstable (ζ < 0): Panofsky et al. (1977), with `ζ = zi / L` where `zi` 
-    is the mixed-layer height.
- - Stable (ζ >= 0): Neutral limit constant (2.3), Panofsky & Dutton (1984)
+ - Unstable (ζ < 0): Panofsky et al. (1977). In the original, the argument is the mixed-layer
+   stability `z_i / L` (the horizontal variances scale with boundary-layer depth, not local
+   height); this method is evaluated at the local `ζ` passed by the caller.
+ - Stable (ζ >= 0): neutral-limit constant (2.3; Panofsky & Dutton 1984). Observations show
+   `σ_u/u_*` actually *increases* with stability, so this constant is only a rough estimate.
+
+See the module docstring for full references.
 """
-@inline function phi(p::BusingerParams, ζ, ::MomentumVariance)
+@inline function phi(p::AUFP, ζ, ::MomentumVariance)
     FT = eltype(ζ)
     # Panofsky et al. (1977) for unstable: (12 - 0.5 * ζ)^(1/3)
     # Neutral limit for stable: 2.3
@@ -436,12 +487,19 @@ Momentum variance similarity `ϕ_σu = σ_u / u_*`.
 end
 
 """
-    phi(p::BusingerParams, ζ, u_star, w_star, ::MomentumVariance)
+    phi(p::AUFP, ζ, u_star, w_star, ::MomentumVariance)
 
-Momentum variance (TKE) similarity based on Tan et al. (2018).
-Returns `sqrt(TKE) / u_*`.
+Turbulent-kinetic-energy similarity `sqrt(TKE) / u_*`, the EDMF surface-layer TKE closure of
+Tan et al. (2018), Eq. 22: `TKE = 3.75 u_*^2 + 0.2 w_*^2 + u_*^2 (-ζ)^{2/3}` for `ζ < 0`,
+reducing to `3.75 u_*^2` for `ζ >= 0`. This is the form used by [`surface_tke`](@ref SurfaceFluxes.surface_tke).
+
+Parameterization-independent (see the variance-section note above): it is a surface boundary
+condition, not a stable-boundary-layer variance similarity. The stable-side value is a constant.
+
+# References
+ - Tan et al. (2018). See the module docstring for the full reference.
 """
-@inline function phi(p::BusingerParams, ζ, u_star, w_star, ::MomentumVariance)
+@inline function phi(p::AUFP, ζ, u_star, w_star, ::MomentumVariance)
     FT = eltype(ζ)
     # Tan et al. (2018) Eq. 22 for unstable
     # TKE = 3.75 u_*^2 + 0.2 w_*^2 + u_*^2 * (-ζ)^(2/3)
@@ -456,15 +514,21 @@ Returns `sqrt(TKE) / u_*`.
 end
 
 """
-    phi(p::BusingerParams, ζ, ::HeatVariance)
+    phi(p::AUFP, ζ, ::HeatVariance)
 
-Heat variance similarity `ϕ_σθ = σ_θ / |θ_*|`.
+Temperature variance similarity `ϕ_σθ = σ_θ / |θ_*|`.
+
+Parameterization-independent (see the variance-section note above).
 
 # References
- - Unstable (ζ < 0): Wyngaard et al. (1971), with parameters from Tan et al. (2018)
- - Stable (ζ >= 0): Constant (2.0)
+ - Unstable (ζ < 0): free-convection form of Wyngaard et al. (1971), with constants from
+   Tan et al. (2018): `2 (1 - 8.3 ζ)^{-1/3}`.
+ - Stable (ζ >= 0): constant (2.0). Of the variance functions this is the best supported on the
+   stable side: the non-dimensional temperature standard deviation approaches a constant in the
+   very stable (z-less) limit, though the value here is not calibrated to stable-boundary-layer
+   data. See the module docstring for full references.
 """
-@inline function phi(p::BusingerParams, ζ, ::HeatVariance)
+@inline function phi(p::AUFP, ζ, ::HeatVariance)
     FT = eltype(ζ)
     # Tan et al. (2018) for unstable: 2 * (1 - 8.3ζ)^(-1/3)
     # Stable: 2.0
@@ -697,18 +761,6 @@ Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
     )
 end
 
-# Placeholder mappings for Gryanik (using Businger/standard variances for now)
-@inline phi(p::GryanikParams, ζ, tt::MomentumVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
-    ζ,
-    tt,
-)
-@inline phi(p::GryanikParams, ζ, tt::HeatVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
-    ζ,
-    tt,
-)
-
 #####
 ##### Grachev
 #####
@@ -920,18 +972,6 @@ Grachev heat/scalar stability correction `ψ_h`.
         _Pr_0 * _psi_h_unstable(min(ζ, FT(0)), FT(b_h_unstable(p))),
     )
 end
-
-# Placeholder mappings for Grachev (using Businger/standard variances for now)
-@inline phi(p::GrachevParams, ζ, tt::MomentumVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
-    ζ,
-    tt,
-)
-@inline phi(p::GrachevParams, ζ, tt::HeatVariance) = phi(
-    BusingerParams(Pr_0(p), a_m(p), a_h(p), b_m(p), b_h(p), ζ_a(p), γ(p)),
-    ζ,
-    tt,
-)
 
 """
     bulk_richardson_number(uf_params, Δz_eff, ζ, z0m, z0h)

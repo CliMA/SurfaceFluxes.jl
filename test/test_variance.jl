@@ -59,9 +59,9 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     # Expected phi^2
     expected_phi_u_sq = 3.75 + 0.2 * (w_star / ustar)^2 + cbrt(-ζ)^2
 
-    var_u = SF.u_variance(param_set, Δz_eff, ustar, ζ)
-    # var_u returns (u_* * phi)^2 = u_*^2 * phi^2
-    @test isapprox(var_u, ustar^2 * expected_phi_u_sq; rtol = 1e-4)
+    tke = SF.surface_tke(param_set, Δz_eff, ustar, ζ)
+    # tke returns (u_* * phi)^2 = u_*^2 * phi^2
+    @test isapprox(tke, ustar^2 * expected_phi_u_sq; rtol = 1e-4)
 
     # Heat: Tan et al: 2 * (1 - 8.3ζ)^(-1/3)
     expected_phi_theta = 2.0 * cbrt(1 / (1 - 8.3 * ζ))
@@ -76,8 +76,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
 
     # Momentum: Constant 3.75 (Tan et al. stable)
     ζ_stable = Δz_eff / L_MO_stable
-    var_u_stable = SF.u_variance(param_set, Δz_eff, ustar, ζ_stable)
-    @test isapprox(var_u_stable, (ustar * sqrt(3.75))^2; rtol = 1e-4)
+    tke_stable = SF.surface_tke(param_set, Δz_eff, ustar, ζ_stable)
+    @test isapprox(tke_stable, (ustar * sqrt(3.75))^2; rtol = 1e-4)
 
     # Heat: Constant 2.0
     var_theta_stable = SF.scalar_variance(param_set, theta_star, ζ_stable)
@@ -86,8 +86,8 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     # 3. Neutral (L_MO -> Inf, falls into stable branch ζ >= 0)
     L_MO_neutral = FT(1e10)
 
-    var_u_neutral = SF.u_variance(param_set, Δz_eff, ustar, Δz_eff / L_MO_neutral)
-    @test isapprox(sqrt(var_u_neutral), ustar * sqrt(3.75); rtol = 1e-4)
+    tke_neutral = SF.surface_tke(param_set, Δz_eff, ustar, Δz_eff / L_MO_neutral)
+    @test isapprox(sqrt(tke_neutral), ustar * sqrt(3.75); rtol = 1e-4)
 
     # 4. Theta Variance Wrapper (SHF input)
     shf = FT(100.0) # W/m2 
@@ -148,6 +148,33 @@ end
     #         = 2 * (9.3)^(-1/3)
     expected_h = FT(2.0) * cbrt(1 / (1 - 8.3 * ζ_unstable))
     @test phi_h_unstable ≈ expected_h
+end
+
+@testset "surface_tke uses the TKE form for all parameterizations" begin
+    # Regression guard for the variance generalization to AUFP. `surface_tke` must use the
+    # 5-arg TKE similarity (Tan et al. 2018) for *every* parameterization. Before the
+    # generalization, Gryanik/Grachev fell through to the 3-arg Panofsky form, silently
+    # discarding `w_star` and returning a different value.
+    for FT in (Float32, Float64)
+        Δz_eff = FT(10)
+        ustar = FT(0.3)
+        unstable_vals = FT[]
+        for P in (UF.BusingerParams, UF.GryanikParams, UF.GrachevParams)
+            ps = SFP.SurfaceFluxesParameters(FT, P)
+            uf = SFP.uf_params(ps)
+            κ = SFP.von_karman_const(ps)
+            zi = SFP.gustiness_zi(ps)
+            for ζ in (FT(-1), FT(0.5))  # unstable and stable
+                w_star = ζ < 0 ? ustar * cbrt(-(zi * ζ) / (κ * Δz_eff)) : zero(FT)
+                ϕ_tke = UF.phi(uf, ζ, ustar, w_star, UF.MomentumVariance())
+                @test SF.surface_tke(ps, Δz_eff, ustar, ζ) ≈ (ustar * ϕ_tke)^2
+            end
+            push!(unstable_vals, SF.surface_tke(ps, Δz_eff, ustar, FT(-1)))
+        end
+        # The TKE similarity constants do not depend on the parameterization, so all three
+        # must now agree (they did not before the generalization).
+        @test all(≈(unstable_vals[1]), unstable_vals)
+    end
 end
 
 end # module

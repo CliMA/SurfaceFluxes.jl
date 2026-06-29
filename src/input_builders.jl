@@ -24,23 +24,23 @@ A `NamedTuple` with the following fields:
 - `d`: Displacement height [m]
 
 ## Wind
-- `u_int`: Horizontal wind components (u, v) at interior level [m/s] (tuple)
-- `u_sfc`: Horizontal wind components (u, v) at surface level [m/s] (tuple)
+- `u_int`: Horizontal wind components `(u, v)` at the interior level, as a tuple [m/s].
+- `u_sfc`: Horizontal wind components `(u, v)` at the surface level, as a tuple [m/s].
 
 ## Parameterizations
-- `roughness_model`: Roughness parameterization (e.g., [`ConstantRoughnessParams`](@ref))
-- `gustiness_model`: Gustiness parameterization (e.g., [`ConstantGustinessSpec`](@ref))
-- `moisture_model`: Moisture model ([`MoistModel`](@ref) or [`DryModel`](@ref))
-- `roughness_inputs`: Optional inputs for roughness models
+- `roughness_model`: Roughness parameterization, e.g. [`ConstantRoughnessParams`](@ref).
+- `gustiness_model`: Gustiness parameterization, e.g. [`ConstantGustinessSpec`](@ref).
+- `moisture_model`: Moisture model, [`MoistModel`](@ref) or [`DryModel`](@ref).
+- `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values
-- `update_T_sfc`: Optional callback to update surface temperature during iteration
-- `update_q_vap_sfc`: Optional callback to update surface vapor specific humidity during iteration
-- `shf`: Prescribed sensible heat flux [W/m²] (from [`FluxSpecs`](@ref), can be `nothing`)
-- `lhf`: Prescribed latent heat flux [W/m²] (from [`FluxSpecs`](@ref), can be `nothing`)
-- `ustar`: Prescribed friction velocity [m/s] (from [`FluxSpecs`](@ref), can be `nothing`)
-- `Cd`: Prescribed momentum exchange coefficient (from [`FluxSpecs`](@ref), can be `nothing`)
-- `Ch`: Prescribed heat exchange coefficient (from [`FluxSpecs`](@ref), can be `nothing`)
+- `update_T_sfc`: Optional callback to update surface temperature during iteration.
+- `update_q_vap_sfc`: Optional callback to update surface vapor specific humidity during iteration.
+- `shf`: Prescribed sensible heat flux from [`FluxSpecs`](@ref); may be `nothing` [W/m²].
+- `lhf`: Prescribed latent heat flux from [`FluxSpecs`](@ref); may be `nothing` [W/m²].
+- `ustar`: Prescribed friction velocity from [`FluxSpecs`](@ref); may be `nothing` [m/s].
+- `Cd`: Prescribed momentum exchange coefficient from [`FluxSpecs`](@ref); may be `nothing`.
+- `Ch`: Prescribed heat exchange coefficient from [`FluxSpecs`](@ref); may be `nothing`.
 """
 function build_surface_flux_inputs(
     T_int,

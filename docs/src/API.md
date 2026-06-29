@@ -14,6 +14,16 @@ SurfaceFluxes.LayerAverageScheme
 SurfaceFluxes.compute_profile_value
 ```
 
+## Inputs Container
+
+Many internal functions operate on a normalized "inputs container" (a `NamedTuple`)
+built from the user-facing arguments by
+[`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+
+```@docs
+SurfaceFluxes.build_surface_flux_inputs
+```
+
 ## Flux Calculations
 
 Functions for computing specific fluxes.
@@ -46,7 +56,7 @@ SurfaceFluxes.compute_physical_scale_coeff
 SurfaceFluxes.compute_ustar
 SurfaceFluxes.compute_theta_star
 SurfaceFluxes.compute_q_star
-SurfaceFluxes.u_variance
+SurfaceFluxes.surface_tke
 SurfaceFluxes.scalar_variance
 SurfaceFluxes.theta_variance
 SurfaceFluxes.obukhov_length

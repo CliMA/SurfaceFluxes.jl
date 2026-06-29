@@ -75,10 +75,25 @@ result.evaporation  # Evaporation rate [kg/(m²·s)]
 result.ustar    # Friction velocity [m/s]
 result.ρτxz     # Momentum flux, x-component [N/m²]
 result.ρτyz     # Momentum flux, y-component [N/m²]
-result.Cd       # Drag coefficient
-result.Ch       # Heat exchange coefficient
+result.Cd       # Drag coefficient [-]
+result.g_h      # Heat conductance Ch * U_eff [m/s]
 result.T_sfc    # Surface temperature [K] (final)
 result.q_vap_sfc # Surface vapor specific humidity [kg/kg] (final)
 result.L_MO     # Monin-Obukhov length [m]
 result.converged # Solver convergence status
 ```
+
+## Documentation
+
+The full documentation, including the mathematical formulation of MOST, the universal
+function parameterizations, and the API reference, is available at the
+[stable docs](https://CliMA.github.io/SurfaceFluxes.jl/stable/).
+
+## Contributing
+
+Contributors should follow the shared CliMA engineering standards in
+[`docs/dev-guides/`](docs/dev-guides/), which cover architecture, performance, code quality,
+documentation, and workflows. These are vendored from
+[CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides) and synced automatically
+each month. The repo's [`AGENTS.md`](AGENTS.md) is a starting point for AI agents with
+repo-specific guidance.

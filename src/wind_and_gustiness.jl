@@ -72,7 +72,7 @@ Computes the effective wind speed magnitude [m/s], accounting for gustiness.
 The effective wind speed is calculated as the maximum of the mean wind speed difference
 and the gustiness scale:
 ```math
-U_{\text{eff}} = \\max(\\sqrt{\\Delta u_x^2 + \\Delta u_y^2}, U_{gust})
+U_{\\text{eff}} = \\max(\\sqrt{\\Delta u_x^2 + \\Delta u_y^2}, U_{gust})
 ```
 This formulation ensures that surface fluxes remain non-zero even in the absence of mean wind,
 driven by convective eddies or other sub-grid variability represented by ``U_{gust}``. This is 
@@ -80,7 +80,7 @@ important in low-wind regimes in the free convection limit.
 
 # Arguments
 - `Δu`: Tuple of wind component differences `(Δu_x, Δu_y)`.
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref).
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `gustiness`: Gustiness velocity scale [m/s].
 """
 @inline function windspeed(Δu::NTuple{2}, gustiness)
