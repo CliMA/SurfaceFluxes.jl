@@ -181,9 +181,9 @@ function compute_q_star(
 end
 
 """
-    u_variance(param_set, Δz_eff, ustar, ζ)
+    surface_tke(param_set, Δz_eff, ustar, ζ)
 
-Compute the turbulent kinetic energy (TKE) `(u_* ϕ)^2` following Tan et al. (2018).
+Compute the surface-layer turbulent kinetic energy (TKE) `(u_* ϕ)^2` following Tan et al. (2018).
 
 Returns `(u_* ϕ)^2` [m²/s²], where `ϕ = sqrt(TKE)/u_*` is the TKE-based velocity
 similarity function. In unstable conditions this is
@@ -192,9 +192,9 @@ it reduces to `3.75 u_*^2`. The convective (Deardorff) velocity scale `w_*` is c
 from the mixed-layer height `zi` (a fixed parameter) and the buoyancy flux implied by `ζ`.
 
 !!! note
-    This returns the full TKE rather than the streamwise velocity variance `σ_u^2`. 
-    The streamwise `ϕ_σu` (Panofsky et al. 1977) is available via 
-    `phi(uf, ζ, MomentumVariance())`.
+    This returns the full TKE, not the streamwise velocity variance `σ_u^2`. The streamwise
+    similarity function `ϕ_σu = σ_u / u_*` (Panofsky et al. 1977) is available via
+    `phi(uf, ζ, MomentumVariance())`, from which `σ_u^2 = (u_* ϕ_σu)^2`.
 
 !!! warning "Range of validity"
     This closure is **independent of the flux-profile parameterization** in `param_set`
@@ -209,7 +209,7 @@ from the mixed-layer height `zi` (a fixed parameter) and the buoyancy flux impli
 - `ustar`: Friction velocity [m/s].
 - `ζ`: Monin-Obukhov stability parameter [-].
 """
-function u_variance(param_set::APS, Δz_eff, ustar, ζ)
+function surface_tke(param_set::APS, Δz_eff, ustar, ζ)
     uf = SFP.uf_params(param_set)
     zi = SFP.gustiness_zi(param_set) # Mixed-layer height taken to be fixed
 
@@ -237,7 +237,7 @@ Compute the scalar variance `σ_s^2 = (scale * ϕ_σs)^2`, using the temperature
 similarity `ϕ_σs = ϕ_σθ` (Wyngaard et al. 1971; Tan et al. 2018).
 
 !!! warning "Range of validity"
-    As for [`u_variance`](@ref), this closure is **independent of the flux-profile
+    As for [`surface_tke`](@ref), this closure is **independent of the flux-profile
     parameterization** (Grachev/Gryanik define no variance functions) and returns the constant
     `2.0` on the stable side. The constant has some support in the very stable (z-less) limit
     but is not calibrated to stable-boundary-layer data.

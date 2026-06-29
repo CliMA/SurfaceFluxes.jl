@@ -56,7 +56,7 @@ SurfaceFluxes.compute_physical_scale_coeff
 SurfaceFluxes.compute_ustar
 SurfaceFluxes.compute_theta_star
 SurfaceFluxes.compute_q_star
-SurfaceFluxes.u_variance
+SurfaceFluxes.surface_tke
 SurfaceFluxes.scalar_variance
 SurfaceFluxes.theta_variance
 SurfaceFluxes.obukhov_length

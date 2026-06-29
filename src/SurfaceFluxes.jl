@@ -44,7 +44,7 @@ export compute_physical_scale_coeff,
     compute_ustar,
     compute_theta_star,
     compute_q_star,
-    u_variance,
+    surface_tke,
     scalar_variance,
     theta_variance,
     obukhov_length,
@@ -821,5 +821,15 @@ function solve_monin_obukhov(
         converged,
     )
 end
+
+# ------------------------------------------------------------------------------
+# Deprecations
+# ------------------------------------------------------------------------------
+
+# `u_variance` was renamed to `surface_tke` (it returns the surface-layer TKE, not the
+# streamwise variance σ_u²). `Base.@deprecate` forwards `u_variance` to `surface_tke` and
+# re-exports it, so existing `using SurfaceFluxes; u_variance(...)` keeps working (with a
+# deprecation warning under `--depwarn=yes`).
+Base.@deprecate u_variance surface_tke
 
 end # module

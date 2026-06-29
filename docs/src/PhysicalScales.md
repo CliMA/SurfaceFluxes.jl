@@ -55,10 +55,10 @@ Computed similarly to $\theta_*$ using the same heat stability function $F_h$. S
 
 ### Turbulent Kinetic Energy
 
-The function [`u_variance`](@ref) returns the turbulent kinetic energy (TKE) following Tan et al. (2018):
+The function [`surface_tke`](@ref) returns the turbulent kinetic energy (TKE) following Tan et al. (2018):
 
 ```julia
-u_variance(param_set, Δz_eff, ustar, ζ)
+surface_tke(param_set, Δz_eff, ustar, ζ)
 ```
 
 Returns the TKE, $(u_* \phi)^2$. The parameterization depends on stability:

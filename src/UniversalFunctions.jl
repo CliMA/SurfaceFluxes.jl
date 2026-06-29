@@ -463,7 +463,7 @@ end
 Streamwise velocity variance similarity `ϕ_σu = σ_u / u_*`.
 
 This is a parameterization-independent convective closure; see the note below. The exported
-[`u_variance`](@ref SurfaceFluxes.u_variance) uses the TKE form (the 5-argument method) instead.
+[`surface_tke`](@ref SurfaceFluxes.surface_tke) uses the TKE form (the 5-argument method) instead.
 
 # References
  - Unstable (ζ < 0): Panofsky et al. (1977). In the original, the argument is the mixed-layer
@@ -491,7 +491,7 @@ end
 
 Turbulent-kinetic-energy similarity `sqrt(TKE) / u_*`, the EDMF surface-layer TKE closure of
 Tan et al. (2018), Eq. 22: `TKE = 3.75 u_*^2 + 0.2 w_*^2 + u_*^2 (-ζ)^{2/3}` for `ζ < 0`,
-reducing to `3.75 u_*^2` for `ζ >= 0`. This is the form used by [`u_variance`](@ref SurfaceFluxes.u_variance).
+reducing to `3.75 u_*^2` for `ζ >= 0`. This is the form used by [`surface_tke`](@ref SurfaceFluxes.surface_tke).
 
 Parameterization-independent (see the variance-section note above): it is a surface boundary
 condition, not a stable-boundary-layer variance similarity. The stable-side value is a constant.

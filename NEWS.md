@@ -14,10 +14,12 @@ auto-sync workflow, and add `AGENTS.md`.
   `z0m = 2e-4` m, `z0s = 2e-5` m (the `ConstantRoughnessParams` keyword defaults), unified
   from the previous `1e-3`/`1e-3`. Callers that pass an explicit `config` (including all
   regression tests) are unaffected.
-- `u_variance` now uses the TKE-based similarity (Tan et al. 2018) for the `GryanikParams`
-  and `GrachevParams` parameterizations as well. Previously those silently fell back to the
-  streamwise-variance (Panofsky et al. 1977) form, ignoring the convective velocity scale;
-  `BusingerParams` results are unchanged.
+- `u_variance` is **renamed to `surface_tke`** (it returns the surface-layer turbulent kinetic
+  energy, not the streamwise variance `σ_u²`); `u_variance` is retained as a deprecated alias.
+  It also now uses the TKE-based similarity
+  (Tan et al. 2018) for the `GryanikParams` and `GrachevParams` parameterizations as well;
+  previously those silently fell back to the streamwise-variance (Panofsky et al. 1977) form,
+  ignoring the convective velocity scale. `BusingerParams` results are unchanged.
 
 [PR 230/231] Updates docs; minor bug fix; additional tests. Release of v1.0
 
