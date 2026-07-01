@@ -41,6 +41,7 @@ Every guide applies across the CliMA ecosystem unless it says otherwise.
 ### Workflow
 
 - [onboarding.md](workflow/onboarding.md): install Julia, clone a CliMA repo, set up Revise/Infiltrator/JuliaFormatter, first PR loop.
+- [running_on_gpu.md](workflow/running_on_gpu.md): run a model on GPU — install Julia, add `CUDA.jl`, CUDA runtime compatibility, `CLIMACOMMS_DEVICE`, verify the device.
 - [agent_autonomy.md](workflow/agent_autonomy.md): actions that require explicit user approval.
 - [debugging.md](workflow/debugging.md): interactive debugging recipes for numerical instabilities, dispatch, and `Field` plotting.
 - [review.md](workflow/review.md): PR review instructions and checklist.
