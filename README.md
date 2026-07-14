@@ -8,20 +8,32 @@ A package for computing surface fluxes between the atmosphere, ocean, and land u
 
 SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent surface fluxes of momentum, heat, and moisture. It supports GPU broadcasting, automatic differentiation, and multiple universal function parameterizations (Businger, Gryanik, Grachev), making it ideal for high-performance climate modeling.
 
-|                           |                                                                          |
-|--------------------------:|:-------------------------------------------------------------------------|
-| **Stable Release**        | [![stable][stable-img]][stable-url] [![docs-stable][docs-stable-img]][docs-stable-url] |
-| **Unit Tests**            | [![unit tests][gha-ci-img]][gha-ci-url] [![codecov][codecov-img]][codecov-url] |
-| **Downloads**             | [![Downloads][dlt-img]][dlt-url]                                         |
+|||
+|------------------:|:------------------------------------------------------------|
+| **Documentation** | [![stable][docs-stable-img]][docs-stable-url] [![dev][docs-dev-img]][docs-dev-url] |
+| **Version**       | [![version][version-img]][version-url]                      |
+| **License**       | [![license][license-img]][license-url]                      |
+| **Tests**         | [![gha ci][gha-ci-img]][gha-ci-url] [![buildkite][bk-ci-img]][bk-ci-url] |
+| **Code Coverage** | [![codecov][codecov-img]][codecov-url]                      |
+| **Downloads**     | [![Downloads][dlt-img]][dlt-url]                            |
 
-[stable-img]: https://img.shields.io/github/v/release/CliMA/SurfaceFluxes.jl?label=stable
-[stable-url]: https://github.com/CliMA/SurfaceFluxes.jl/releases/latest
-
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-green.svg
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: https://CliMA.github.io/SurfaceFluxes.jl/stable/
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://CliMA.github.io/SurfaceFluxes.jl/dev/
+
+[version-img]: https://juliahub.com/docs/General/SurfaceFluxes/stable/version.svg
+[version-url]: https://juliahub.com/ui/Packages/General/SurfaceFluxes
+
+[license-img]: https://img.shields.io/badge/license-Apache%202.0-blue.svg
+[license-url]: https://github.com/CliMA/SurfaceFluxes.jl/blob/main/LICENSE
 
 [gha-ci-img]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml/badge.svg
 [gha-ci-url]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml
+
+[bk-ci-img]: https://badge.buildkite.com/67b16555cf231443c62e1270109bc6a0d51e39671b479d7b36.svg?branch=main
+[bk-ci-url]: https://buildkite.com/clima/surfacefluxes-ci/builds?branch=main
 
 [codecov-img]: https://codecov.io/gh/CliMA/SurfaceFluxes.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/CliMA/SurfaceFluxes.jl
