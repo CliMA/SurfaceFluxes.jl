@@ -682,6 +682,140 @@ function (rf::ResidualFunction)(ζ)
 end
 
 """
+    solve_stability_param(root_function, ζ_max, options)
+
+GPU-friendly solver for the stability parameter ζ. It uses a fixed number
+of residual evaluations (`options.maxiter` + 5) and no data-dependent control
+flow when `options.forced_fixed_iters` is true: every point performs identical
+work, so warps execute uniformly.
+
+# Stage 1: branch detection and bracketing (5 evaluations)
+The residual at neutral stability is `f(0) = -Ri_b_state` (the theoretical
+bulk Richardson number `Ri_b(0)` vanishes), so its sign indicates the stability
+branch on which a root is expected: stable (`ζ > 0`) for `f(0) <= 0`, unstable
+(`ζ < 0`) for `f(0) > 0`.
+
+For a fixed surface state, this indication is exact: `Ri_b(ζ)` is monotone with
+`sign(Ri_b) = sign(ζ)`, so the root must lie on the branch matching the sign
+of the state Richardson number. With surface-state callbacks
+(`update_T_sfc`/`update_q_vap_sfc`), however, `Ri_b_state` itself varies with
+ζ, and in transitional (near-neutral) conditions, its sign can differ between
+the neutral evaluation and evaluations on the branch; therefore, the root can lie 
+on the opposite branch from what `f(0)` indicates. To cover this, the residual is
+probed at `ζ = ±1` on *both* branches, and at `|ζ| = 10, ζ_max` on the
+indicated branch. The bracketing interval is selected from the sign changes in
+priority order, innermost first: `(0, ±1)` on the indicated branch, `(0, ∓1)` 
+on the opposite branch, then `(±1, ±10)` and `(±10, ±ζ_max)` on the indicated 
+branch. (For a fixed surface state, the opposite-branch interval can never bracket, 
+so this probe changes nothing in callback-free solves; an opposite-branch root 
+at `|ζ| > 1` would require the callbacks to swing the state Richardson number 
+by O(1) along the branch and is not searched for.)
+
+If no probed interval brackets a sign change, no root exists within the
+physical range (e.g., supercritical `Ri_b`, where the state is more stable
+than the universal functions can support), and the solve saturates at the
+indicated branch limit; this preserves the expected stability regime with
+(near-)minimal fluxes.
+
+# Stage 2: fixed-count refinement (`options.maxiter` evaluations)
+Safeguarded regula falsi (Illinois variant) with a bisection fallback
+refines the root. The bracket from stage 1 is preserved at every step, so
+iterates are bounded by construction. In the saturated (no-root) case, the
+refinement runs on the outermost same-sign interval, and its result is
+discarded by the final `ifelse`. When `options.forced_fixed_iters` is
+false, the loop exits early once the bracket satisfies
+`options.tol`/`options.rtol`.
+
+Returns `(ζ, converged)`. `converged` is `true` when a sign change was
+found and the final bracket width satisfies the tolerances; the saturated
+case reports `false`. The flag is meaningful under `forced_fixed_iters`.
+"""
+function solve_stability_param(
+    root_function::F,
+    ζ_max::FT,
+    options::SolverOptions,
+) where {F, FT}
+    r0 = root_function(zero(FT))
+
+    # Indicated branch: stable (ζ > 0) iff Ri_b_state = -f(0) >= 0.
+    # Exact for a fixed surface state; a heuristic when callbacks make
+    # Ri_b_state vary with ζ (see the docstring).
+    # `sgn` inherits the numeric type of the residual (e.g., Dual) so that
+    # all iterates promote consistently under automatic differentiation.
+    sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
+
+    # Near-neutral probes on both branches, log-spaced probes outward on the
+    # indicated branch
+    p1 = sgn
+    m1 = -sgn
+    p2 = FT(10) * sgn
+    p3 = ζ_max * sgn
+    r1 = root_function(p1)
+    rm1 = root_function(m1)
+    r2 = root_function(p2)
+    r3 = root_function(p3)
+
+    # Sign-change interval, selected innermost first; the opposite-branch
+    # near-neutral interval (`cm`) covers transitional states whose callbacks
+    # put the root on the branch opposite to the `f(0)` indication. If no
+    # interval brackets (`bracketed == false`), the refinement below runs on
+    # `(p2, p3)` and its result is discarded.
+    c1 = r0 * r1 <= 0
+    cm = r0 * rm1 <= 0
+    c2 = r1 * r2 <= 0
+    c3 = r2 * r3 <= 0
+    bracketed = c1 | cm | c2 | c3
+
+    a = ifelse(c1 | cm, zero(r0), ifelse(c2, p1, p2))
+    fa = ifelse(c1 | cm, r0, ifelse(c2, r1, r2))
+    b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
+    fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
+
+    x = b
+    lastside = 0  # +1 if `a` was retained last, -1 if `b` was (Illinois damping)
+    for _ in 1:options.maxiter
+        # Regula falsi proposal, replaced by bisection when it is not finite
+        # or not strictly inside the bracket (e.g., same-sign endpoints in the
+        # saturated case, or a flat residual with `fb == fa`)
+        x_rf = (a * fb - b * fa) / (fb - fa)
+        x_bi = (a + b) / 2
+        use_rf = isfinite(x_rf) & (min(a, b) < x_rf) & (x_rf < max(a, b))
+        x = ifelse(use_rf, x_rf, x_bi)
+        fx = root_function(x)
+
+        # Bracket update; halving the retained endpoint's residual when the
+        # same endpoint is retained twice in a row (Illinois) prevents the
+        # one-sided stalls of plain regula falsi
+        keep_a = fa * fx <= 0  # root remains in [a, x]
+        fa = ifelse(keep_a, ifelse(lastside == 1, fa / 2, fa), fx)
+        fb = ifelse(keep_a, fx, ifelse(lastside == -1, fb / 2, fb))
+        a = ifelse(keep_a, a, x)
+        b = ifelse(keep_a, x, b)
+        lastside = ifelse(keep_a, 1, -1)
+
+        # Early exit only in tolerance-checked (CPU) mode; in forced maxiter mode, 
+        # the loop trip count is identical for every point
+        if !options.forced_fixed_iters
+            width = abs(b - a)
+            (width < options.tol || width < options.rtol * abs(x)) && break
+        end
+    end
+
+    # Final regula falsi interpolant of the last bracket: improves on the last
+    # evaluated point at no extra residual cost (discarded, like the rest of
+    # the refinement, when the interval does not bracket a root)
+    x_last = (a * fb - b * fa) / (fb - fa)
+    use_last = isfinite(x_last) & (min(a, b) <= x_last) & (x_last <= max(a, b))
+    x = ifelse(use_last, x_last, x)
+
+    width = abs(b - a)
+    converged =
+        bracketed && (width < options.tol || width < options.rtol * abs(x))
+    ζ = ifelse(bracketed, x, p3)
+    return ζ, converged
+end
+
+"""
     solve_monin_obukhov(param_set, inputs, scheme, options)
 
 Solves the Monin-Obukhov Similarity Theory (MOST) equations for the surface fluxes.
@@ -689,6 +823,14 @@ Iterates to find the stability parameter `ζ` that satisfies the
 surface layer profiles and surface balance equations. Convergence is controlled
 by `options.maxiter` and `options.tol`. If `options.forced_fixed_iters` is true,
 ignores tolerance and iterates for exactly `maxiter`.
+
+The ζ-iteration is performed by the internal `solve_stability_param`, a
+fixed-evaluation-count and branchless bracketed solve suitable for GPU execution: 
+it detects the stability branch from the residual at neutral stability, brackets 
+the root with log-spaced probes within the physical range `|ζ| <= 100`, and refines 
+it with a fixed number of safeguarded regula falsi iterations. When no root exists 
+in the physical range (supercritical `Ri_b`), `ζ` saturates at the limit of the 
+appropriate stability branch and `converged = false` is reported.
 """
 function solve_monin_obukhov(
     param_set::APS,
@@ -710,29 +852,13 @@ function solve_monin_obukhov(
         thermo_params,
     )
 
-    # Use SecantMethod with initial guesses spanning neutral stability
-    # (it has faster convergence than Brent's method with wide brackets)
-    ζ_init_unstable = FT(-1)
-    ζ_init_stable = FT(1)
-
-    sol = RS.find_zero(
-        root_function,
-        RS.SecantMethod(ζ_init_unstable, ζ_init_stable),
-        RS.CompactSolution(),
-        RS.RelativeOrAbsoluteSolutionTolerance(
-            options.forced_fixed_iters ? FT(0) : options.rtol,
-            options.forced_fixed_iters ? FT(0) : options.tol,
-        ),
-        options.maxiter,
-    )
-
-    # Clamp ζ to physical limits.
-    # For supercritical Ri_b (e.g., very stable stratification), the solver
-    # may not converge since no finite solution exists (e.g., for Businger profiles).
-    ζ_min = FT(-100)
+    # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
+    # stratification), no solution exists within this limit (e.g., for
+    # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
+    # solve saturates at the limit of the appropriate stability branch.
     ζ_max = FT(100)
-    ζ_final = clamp(sol.root, ζ_min, ζ_max)
-    converged = sol.converged
+
+    ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
 
     # Finalize state
     # 1. Compute u_star and roughness
