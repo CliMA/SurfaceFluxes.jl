@@ -735,8 +735,8 @@ the returned root is sharpened by a final interpolation of the last bracket
 
 Returns `(ζ, converged)`. `converged` is `true` when a sign change was found
 and either the solver's early-exit criterion fired (tolerance-checked mode)
-or the final bracket width satisfies the tolerances; the saturated case
-reports `false`. The flag is meaningful under `forced_fixed_iters`.
+or the final bracket width satisfies the tolerances. The saturated case
+reports `false`. This flag is meaningful regardless of the `forced_fixed_iters` setting.
 """
 function solve_stability_param(
     root_function::F,
@@ -851,7 +851,7 @@ it detects the stability branch from the residual at neutral stability, brackets
 the root with log-spaced probes within the physical range `|ζ| <= ζ_max = 100`, and refines
 it with a fixed number of safeguarded regula falsi iterations. When no
 root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
-limit of the appropriate stability branch (\pm ζ_max) and `converged = false` is reported.
+limit of the appropriate stability branch (± ζ_max) and `converged = false` is reported.
 """
 function solve_monin_obukhov(
     param_set::APS,
