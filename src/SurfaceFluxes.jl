@@ -848,10 +848,10 @@ ignores tolerance and iterates for exactly `maxiter`.
 The ζ-iteration is performed by the internal `solve_stability_param`, a
 fixed-evaluation-count and branchless bracketed solve suitable for GPU execution:
 it detects the stability branch from the residual at neutral stability, brackets
-the root with log-spaced probes within the physical range `|ζ| <= 100`, and refines
+the root with log-spaced probes within the physical range `|ζ| <= ζ_max = 100`, and refines
 it with a fixed number of safeguarded regula falsi iterations. When no
 root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
-limit of the appropriate stability branch and `converged = false` is reported.
+limit of the appropriate stability branch (\pm ζ_max) and `converged = false` is reported.
 """
 function solve_monin_obukhov(
     param_set::APS,
