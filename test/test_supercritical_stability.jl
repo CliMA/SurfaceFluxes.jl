@@ -15,6 +15,7 @@
 module TestSupercriticalStability
 
 using Test
+using ForwardDiff
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
@@ -371,6 +372,80 @@ import ClimaParams as CP
 
         # At least the first transition should show a genuine decrease
         @test results[1].Cd > results[3].Cd
+    end
+    @testset "AD Compatibility - Supercritical and Callbacks" begin
+        # 1. Supercritical AD check
+        function compute_shf_supercritical(T_sfc_val)
+            result = SF.surface_fluxes(
+                param_set,
+                FT(300), FT(0.005), FT(0), FT(0), FT(1.2),
+                T_sfc_val, FT(0.005),
+                FT(0), FT(10), FT(0),
+                (FT(1), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config,
+                SF.PointValueScheme(),
+                opts,
+            )
+            return result.shf
+        end
+
+        # T_sfc = 280 K is heavily supercritical for T_int = 300, u = 1 m/s
+        dSHF_dT_ad = ForwardDiff.derivative(compute_shf_supercritical, FT(280))
+        ϵ = FT(1e-4)
+        dSHF_dT_fd =
+            (
+                compute_shf_supercritical(FT(280) + ϵ) -
+                compute_shf_supercritical(FT(280) - ϵ)
+            ) / (2ϵ)
+        @test isapprox(dSHF_dT_ad, dSHF_dT_fd, rtol = ϵ, atol = FT(1e-4))
+
+        # 2. Opposite branch callbacks AD check
+        T_int_o = FT(295)
+        q_o = FT(0.005)
+        ρ_o = FT(1.15)
+        Δz_o = FT(10)
+        grav = SFP.grav(param_set)
+        cp_d = SFP.cp_d(param_set)
+        T_neutral = T_int_o + grav * Δz_o / cp_d
+
+        function update_T_sfc_flip(ζ, param_set, thermo_params, inputs,
+            scheme, u_star, z0m, z0h)
+            return ζ >= 0 ? T_neutral - FT(0.1) - 3 * ζ / (1 + ζ) :
+                   T_neutral - FT(0.1) + 5 * (-ζ) / (1 - ζ)
+        end
+
+        config_o = SF.SurfaceFluxConfig(
+            SF.ConstantRoughnessParams(FT(0.01), FT(0.001)),
+            SF.ConstantGustinessSpec(FT(1)),
+        )
+
+        function compute_shf_callbacks(T_sfc_val)
+            result = SF.surface_fluxes(
+                param_set,
+                T_int_o, q_o, FT(0), FT(0), ρ_o,
+                T_sfc_val, q_o,
+                FT(0), Δz_o, FT(0),
+                (FT(0.5), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config_o,
+                SF.PointValueScheme(),
+                opts,
+                nothing,
+                update_T_sfc_flip,
+                nothing,
+            )
+            return result.shf
+        end
+
+        # Base T_sfc near neutral
+        dSHF_dT_ad_cb = ForwardDiff.derivative(compute_shf_callbacks, T_neutral - FT(0.1))
+        dSHF_dT_fd_cb =
+            (
+                compute_shf_callbacks(T_neutral - FT(0.1) + ϵ) -
+                compute_shf_callbacks(T_neutral - FT(0.1) - ϵ)
+            ) / (2ϵ)
+        @test isapprox(dSHF_dT_ad_cb, dSHF_dT_fd_cb, rtol = ϵ, atol = FT(1e-4))
     end
 end
 

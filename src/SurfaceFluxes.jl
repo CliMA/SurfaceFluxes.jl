@@ -695,8 +695,8 @@ bulk Richardson number `Ri_b(0)` vanishes), so its sign indicates the stability
 branch on which a root is expected: stable (`ζ > 0`) for `f(0) <= 0`, unstable
 (`ζ < 0`) for `f(0) > 0`.
 
-For a fixed surface state, this indication is exact: `Ri_b(ζ)` is monotone with
-`sign(Ri_b) = sign(ζ)`, so the root must lie on the branch matching the sign
+For a fixed surface state, this indication is exact: `Ri_b(ζ)` is monotonic with
+`sign(Ri_b) = sign(ζ)`, so the root lies on the branch matching the sign
 of the state Richardson number. With surface-state callbacks
 (`update_T_sfc`/`update_q_vap_sfc`), however, `Ri_b_state` itself varies with
 ζ, and in transitional (near-neutral) conditions, its sign can differ between
@@ -718,17 +718,25 @@ indicated branch limit; this preserves the expected stability regime with
 (near-)minimal fluxes.
 
 # Stage 2: fixed-count refinement (`options.maxiter` evaluations)
-Safeguarded regula falsi (Illinois variant) with a bisection fallback
-refines the root. The bracket from stage 1 is preserved at every step, so
-iterates are bounded by construction. In the saturated (no-root) case, the
-refinement runs on the outermost same-sign interval, and its result is
-discarded by the final `ifelse`. When `options.forced_fixed_iters` is
-false, the loop exits early once the bracket satisfies
-`options.tol`/`options.rtol`.
+The refinement is delegated to RootSolvers' `RegulaFalsiMethod` (safeguarded
+regula falsi, Illinois variant), passing the stage-1 bracket with its
+already-evaluated endpoint residuals so that no residual evaluation is
+repeated. The bracket is preserved at every step, so iterates are bounded by
+construction. In the saturated (no-root) case, the refinement runs on the
+outermost same-sign interval (which RootSolvers rejects without iterating),
+and its result is discarded by the final `ifelse`.
 
-Returns `(ζ, converged)`. `converged` is `true` when a sign change was
-found and the final bracket width satisfies the tolerances; the saturated
-case reports `false`. The flag is meaningful under `forced_fixed_iters`.
+When `options.forced_fixed_iters` is true, `RootSolvers.NoTolerance` runs
+exactly `maxiter` iterations with no data-dependent early exit. Otherwise,
+`RootSolvers.RelativeOrAbsoluteSolutionTolerance(rtol, tol)` allows an early
+exit once the step between iterates satisfies the tolerances. In both modes,
+the returned root is sharpened by a final interpolation of the last bracket
+(`RootSolvers.TwoPointSolution`) at no extra residual cost.
+
+Returns `(ζ, converged)`. `converged` is `true` when a sign change was found
+and either the solver's early-exit criterion fired (tolerance-checked mode)
+or the final bracket width satisfies the tolerances; the saturated case
+reports `false`. The flag is meaningful under `forced_fixed_iters`.
 """
 function solve_stability_param(
     root_function::F,
@@ -771,46 +779,59 @@ function solve_stability_param(
     b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
     fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
 
-    x = b
-    lastside = 0  # +1 if `a` was retained last, -1 if `b` was (Illinois damping)
-    for _ in 1:options.maxiter
-        # Regula falsi proposal, replaced by bisection when it is not finite
-        # or not strictly inside the bracket (e.g., same-sign endpoints in the
-        # saturated case, or a flat residual with `fb == fa`)
-        x_rf = (a * fb - b * fa) / (fb - fa)
-        x_bi = (a + b) / 2
-        use_rf = isfinite(x_rf) & (min(a, b) < x_rf) & (x_rf < max(a, b))
-        x = ifelse(use_rf, x_rf, x_bi)
-        fx = root_function(x)
-
-        # Bracket update; halving the retained endpoint's residual when the
-        # same endpoint is retained twice in a row (Illinois) prevents the
-        # one-sided stalls of plain regula falsi
-        keep_a = fa * fx <= 0  # root remains in [a, x]
-        fa = ifelse(keep_a, ifelse(lastside == 1, fa / 2, fa), fx)
-        fb = ifelse(keep_a, fx, ifelse(lastside == -1, fb / 2, fb))
-        a = ifelse(keep_a, a, x)
-        b = ifelse(keep_a, x, b)
-        lastside = ifelse(keep_a, 1, -1)
-
-        # Early exit only in tolerance-checked (CPU) mode; in forced maxiter mode, 
-        # the loop trip count is identical for every point
-        if !options.forced_fixed_iters
-            width = abs(b - a)
-            (width < options.tol || width < options.rtol * abs(x)) && break
-        end
+    # Stage 2: fixed-count safeguarded refinement, delegated to RootSolvers'
+    # regula falsi (Illinois variant with a bisection fallback). The bracket
+    # endpoints are passed pre-evaluated, so no residual evaluation is repeated
+    # and the total count stays `5 + maxiter`. `TwoPointSolution` returns the
+    # final bracket state, from which the convergence flag and a sharpened root
+    # are computed.
+    sol = if options.forced_fixed_iters
+        # No data-dependent early exit: exactly `maxiter` iterations per point
+        RS.find_zero(
+            root_function,
+            RS.RegulaFalsiMethod,
+            a,
+            b,
+            fa,
+            fb,
+            RS.TwoPointSolution(),
+            RS.NoTolerance(),
+            options.maxiter,
+        )
+    else
+        # Tolerance-checked (CPU) mode: early exit on the step between iterates
+        RS.find_zero(
+            root_function,
+            RS.RegulaFalsiMethod,
+            a,
+            b,
+            fa,
+            fb,
+            RS.TwoPointSolution(),
+            RS.RelativeOrAbsoluteSolutionTolerance(options.rtol, options.tol),
+            options.maxiter,
+        )
     end
 
     # Final regula falsi interpolant of the last bracket: improves on the last
     # evaluated point at no extra residual cost (discarded, like the rest of
-    # the refinement, when the interval does not bracket a root)
-    x_last = (a * fb - b * fa) / (fb - fa)
-    use_last = isfinite(x_last) & (min(a, b) <= x_last) & (x_last <= max(a, b))
+    # the refinement, when the interval does not bracket a root). The bracket
+    # residuals may be Illinois-damped (halved), which preserves their signs
+    # and hence the interpolant's validity.
+    x = sol.root
+    x_last = (sol.x0 * sol.y1 - sol.x1 * sol.y0) / (sol.y1 - sol.y0)
+    lo = min(sol.x0, sol.x1)
+    hi = max(sol.x0, sol.x1)
+    use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
     x = ifelse(use_last, x_last, x)
 
-    width = abs(b - a)
+    # Converged when a sign change was found and either the solver's early-exit
+    # criterion was met (tolerance-checked mode) or the final bracket width satisfies 
+    # the tolerances.
+    width = abs(sol.x1 - sol.x0)
     converged =
-        bracketed && (width < options.tol || width < options.rtol * abs(x))
+        bracketed &&
+        (sol.converged || width < options.tol || width < options.rtol * abs(x))
     ζ = ifelse(bracketed, x, p3)
     return ζ, converged
 end
@@ -825,12 +846,12 @@ by `options.maxiter` and `options.tol`. If `options.forced_fixed_iters` is true,
 ignores tolerance and iterates for exactly `maxiter`.
 
 The ζ-iteration is performed by the internal `solve_stability_param`, a
-fixed-evaluation-count and branchless bracketed solve suitable for GPU execution: 
-it detects the stability branch from the residual at neutral stability, brackets 
-the root with log-spaced probes within the physical range `|ζ| <= 100`, and refines 
-it with a fixed number of safeguarded regula falsi iterations. When no root exists 
-in the physical range (supercritical `Ri_b`), `ζ` saturates at the limit of the 
-appropriate stability branch and `converged = false` is reported.
+fixed-evaluation-count and branchless bracketed solve suitable for GPU execution:
+it detects the stability branch from the residual at neutral stability, brackets
+the root with log-spaced probes within the physical range `|ζ| <= 100`, and refines
+it with a fixed number of safeguarded regula falsi iterations. When no
+root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
+limit of the appropriate stability branch and `converged = false` is reported.
 """
 function solve_monin_obukhov(
     param_set::APS,
