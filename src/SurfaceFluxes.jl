@@ -682,6 +682,161 @@ function (rf::ResidualFunction)(ζ)
 end
 
 """
+    solve_stability_param(root_function, ζ_max, options)
+
+GPU-friendly solver for the stability parameter ζ. It uses a fixed number
+of residual evaluations (`options.maxiter` + 5) and no data-dependent control
+flow when `options.forced_fixed_iters` is true: every point performs identical
+work, so warps execute uniformly.
+
+# Stage 1: branch detection and bracketing (5 evaluations)
+The residual at neutral stability is `f(0) = -Ri_b_state` (the theoretical
+bulk Richardson number `Ri_b(0)` vanishes), so its sign indicates the stability
+branch on which a root is expected: stable (`ζ > 0`) for `f(0) <= 0`, unstable
+(`ζ < 0`) for `f(0) > 0`.
+
+For a fixed surface state, this indication is exact: `Ri_b(ζ)` is monotonic with
+`sign(Ri_b) = sign(ζ)`, so the root lies on the branch matching the sign
+of the state Richardson number. With surface-state callbacks
+(`update_T_sfc`/`update_q_vap_sfc`), however, `Ri_b_state` itself varies with
+ζ, and in transitional (near-neutral) conditions, its sign can differ between
+the neutral evaluation and evaluations on the branch; therefore, the root can lie 
+on the opposite branch from what `f(0)` indicates. To cover this, the residual is
+probed at `ζ = ±1` on *both* branches, and at `|ζ| = 10, ζ_max` on the
+indicated branch. The bracketing interval is selected from the sign changes in
+priority order, innermost first: `(0, ±1)` on the indicated branch, `(0, ∓1)` 
+on the opposite branch, then `(±1, ±10)` and `(±10, ±ζ_max)` on the indicated 
+branch. (For a fixed surface state, the opposite-branch interval can never bracket, 
+so this probe changes nothing in callback-free solves; an opposite-branch root 
+at `|ζ| > 1` would require the callbacks to swing the state Richardson number 
+by O(1) along the branch and is not searched for.)
+
+If no probed interval brackets a sign change, no root exists within the
+physical range (e.g., supercritical `Ri_b`, where the state is more stable
+than the universal functions can support), and the solve saturates at the
+indicated branch limit; this preserves the expected stability regime with
+(near-)minimal fluxes.
+
+# Stage 2: fixed-count refinement (`options.maxiter` evaluations)
+The refinement is delegated to RootSolvers' `RegulaFalsiMethod` (safeguarded
+regula falsi, Illinois variant), passing the stage-1 bracket with its
+already-evaluated endpoint residuals so that no residual evaluation is
+repeated. The bracket is preserved at every step, so iterates are bounded by
+construction. In the saturated (no-root) case, the refinement runs on the
+outermost same-sign interval (which RootSolvers rejects without iterating),
+and its result is discarded by the final `ifelse`.
+
+When `options.forced_fixed_iters` is true, `RootSolvers.NoTolerance` runs
+exactly `maxiter` iterations with no data-dependent early exit. Otherwise,
+`RootSolvers.RelativeOrAbsoluteSolutionTolerance(rtol, tol)` allows an early
+exit once the step between iterates satisfies the tolerances. In both modes,
+the returned root is sharpened by a final interpolation of the last bracket
+(`RootSolvers.TwoPointSolution`) at no extra residual cost.
+
+Returns `(ζ, converged)`. `converged` is `true` when a sign change was found
+and either the solver's early-exit criterion fired (tolerance-checked mode)
+or the final bracket width satisfies the tolerances. The saturated case
+reports `false`. This flag is meaningful regardless of the `forced_fixed_iters` setting.
+"""
+function solve_stability_param(
+    root_function::F,
+    ζ_max::FT,
+    options::SolverOptions,
+) where {F, FT}
+    r0 = root_function(zero(FT))
+
+    # Indicated branch: stable (ζ > 0) iff Ri_b_state = -f(0) >= 0.
+    # Exact for a fixed surface state; a heuristic when callbacks make
+    # Ri_b_state vary with ζ (see the docstring).
+    # `sgn` inherits the numeric type of the residual (e.g., Dual) so that
+    # all iterates promote consistently under automatic differentiation.
+    sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
+
+    # Near-neutral probes on both branches, log-spaced probes outward on the
+    # indicated branch
+    p1 = sgn
+    m1 = -sgn
+    p2 = FT(10) * sgn
+    p3 = ζ_max * sgn
+    r1 = root_function(p1)
+    rm1 = root_function(m1)
+    r2 = root_function(p2)
+    r3 = root_function(p3)
+
+    # Sign-change interval, selected innermost first; the opposite-branch
+    # near-neutral interval (`cm`) covers transitional states whose callbacks
+    # put the root on the branch opposite to the `f(0)` indication. If no
+    # interval brackets (`bracketed == false`), the refinement below runs on
+    # `(p2, p3)` and its result is discarded.
+    c1 = r0 * r1 <= 0
+    cm = r0 * rm1 <= 0
+    c2 = r1 * r2 <= 0
+    c3 = r2 * r3 <= 0
+    bracketed = c1 | cm | c2 | c3
+
+    a = ifelse(c1 | cm, zero(r0), ifelse(c2, p1, p2))
+    fa = ifelse(c1 | cm, r0, ifelse(c2, r1, r2))
+    b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
+    fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
+
+    # Stage 2: fixed-count safeguarded refinement, delegated to RootSolvers'
+    # regula falsi (Illinois variant with a bisection fallback). The bracket
+    # endpoints are passed pre-evaluated, so no residual evaluation is repeated
+    # and the total count stays `5 + maxiter`. `TwoPointSolution` returns the
+    # final bracket state, from which the convergence flag and a sharpened root
+    # are computed.
+    sol = if options.forced_fixed_iters
+        # No data-dependent early exit: exactly `maxiter` iterations per point
+        RS.find_zero(
+            root_function,
+            RS.RegulaFalsiMethod,
+            a,
+            b,
+            fa,
+            fb,
+            RS.TwoPointSolution(),
+            RS.NoTolerance(),
+            options.maxiter,
+        )
+    else
+        # Tolerance-checked (CPU) mode: early exit on the step between iterates
+        RS.find_zero(
+            root_function,
+            RS.RegulaFalsiMethod,
+            a,
+            b,
+            fa,
+            fb,
+            RS.TwoPointSolution(),
+            RS.RelativeOrAbsoluteSolutionTolerance(options.rtol, options.tol),
+            options.maxiter,
+        )
+    end
+
+    # Final regula falsi interpolant of the last bracket: improves on the last
+    # evaluated point at no extra residual cost (discarded, like the rest of
+    # the refinement, when the interval does not bracket a root). The bracket
+    # residuals may be Illinois-damped (halved), which preserves their signs
+    # and hence the interpolant's validity.
+    x = sol.root
+    x_last = (sol.x0 * sol.y1 - sol.x1 * sol.y0) / (sol.y1 - sol.y0)
+    lo = min(sol.x0, sol.x1)
+    hi = max(sol.x0, sol.x1)
+    use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
+    x = ifelse(use_last, x_last, x)
+
+    # Converged when a sign change was found and either the solver's early-exit
+    # criterion was met (tolerance-checked mode) or the final bracket width satisfies 
+    # the tolerances.
+    width = abs(sol.x1 - sol.x0)
+    converged =
+        bracketed &&
+        (sol.converged || width < options.tol || width < options.rtol * abs(x))
+    ζ = ifelse(bracketed, x, p3)
+    return ζ, converged
+end
+
+"""
     solve_monin_obukhov(param_set, inputs, scheme, options)
 
 Solves the Monin-Obukhov Similarity Theory (MOST) equations for the surface fluxes.
@@ -689,6 +844,14 @@ Iterates to find the stability parameter `ζ` that satisfies the
 surface layer profiles and surface balance equations. Convergence is controlled
 by `options.maxiter` and `options.tol`. If `options.forced_fixed_iters` is true,
 ignores tolerance and iterates for exactly `maxiter`.
+
+The ζ-iteration is performed by the internal `solve_stability_param`, a
+fixed-evaluation-count and branchless bracketed solve suitable for GPU execution:
+it detects the stability branch from the residual at neutral stability, brackets
+the root with log-spaced probes within the physical range `|ζ| <= ζ_max = 100`, and refines
+it with a fixed number of safeguarded regula falsi iterations. When no
+root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
+limit of the appropriate stability branch (± ζ_max) and `converged = false` is reported.
 """
 function solve_monin_obukhov(
     param_set::APS,
@@ -710,29 +873,13 @@ function solve_monin_obukhov(
         thermo_params,
     )
 
-    # Use SecantMethod with initial guesses spanning neutral stability
-    # (it has faster convergence than Brent's method with wide brackets)
-    ζ_init_unstable = FT(-1)
-    ζ_init_stable = FT(1)
-
-    sol = RS.find_zero(
-        root_function,
-        RS.SecantMethod(ζ_init_unstable, ζ_init_stable),
-        RS.CompactSolution(),
-        RS.RelativeOrAbsoluteSolutionTolerance(
-            options.forced_fixed_iters ? FT(0) : options.rtol,
-            options.forced_fixed_iters ? FT(0) : options.tol,
-        ),
-        options.maxiter,
-    )
-
-    # Clamp ζ to physical limits.
-    # For supercritical Ri_b (e.g., very stable stratification), the solver
-    # may not converge since no finite solution exists (e.g., for Businger profiles).
-    ζ_min = FT(-100)
+    # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
+    # stratification), no solution exists within this limit (e.g., for
+    # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
+    # solve saturates at the limit of the appropriate stability branch.
     ζ_max = FT(100)
-    ζ_final = clamp(sol.root, ζ_min, ζ_max)
-    converged = sol.converged
+
+    ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
 
     # Finalize state
     # 1. Compute u_star and roughness

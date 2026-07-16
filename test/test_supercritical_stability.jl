@@ -15,6 +15,7 @@
 module TestSupercriticalStability
 
 using Test
+using ForwardDiff
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
@@ -136,6 +137,213 @@ import ClimaParams as CP
         @test result.shf < 0  # Downward heat flux (cold surface)
     end
 
+    @testset "Supercritical stability with coupled canopy callbacks" begin
+        # Regression test for solver robustness with T_sfc/q_vap_sfc callbacks
+        # (ClimaLand canopy coupling). With a strong inversion (~10 K over 10 m)
+        # and weak wind, Ri_b is supercritical. The callbacks additionally make
+        # the state Ri_b *increase* with ζ (colder canopy-weighted T_sfc as
+        # u_star drops), so the residual decreases toward a negative plateau.
+        T_int_c = FT(294.673095703125)
+        q_tot_int_c = FT(0.009545918211858238)
+        ρ_int_c = FT(1.157759649975361)
+        T_canopy = FT(284.6341213016535)
+        q_canopy = FT(0.008910620278696149)
+        Δz_c = FT(10)
+        d_c = FT(0.0573)
+        u_int_c = (FT(1.3673065900802612), FT(0))
+        AI = FT(3.1223678081630233)
+        leaf_Cd = FT(0.0726)
+        g_stomata = FT(5.848035071201371e-6)
+
+        config_c = SF.SurfaceFluxConfig(
+            SF.ConstantRoughnessParams(FT(0.359), FT(0.0544)),
+            SF.ConstantGustinessSpec(FT(1)),
+        )
+
+        # Canopy energy balance: T_sfc between T_int and T_canopy, weighted by
+        # the ratio of canopy conductance g_land to aerodynamic conductance g_h
+        function update_T_sfc(ζ, param_set, thermo_params, inputs, scheme,
+            u_star, z0m, z0h)
+            Φ_sfc = SF.surface_geopotential(inputs)
+            Φ_int = SF.interior_geopotential(param_set, inputs)
+            g_h = SF.heat_conductance(param_set, ζ, u_star, inputs, z0m, z0h, scheme)
+            g_land = leaf_Cd * u_star * AI
+            cp_d = SFP.cp_d(param_set)
+            r = g_land / g_h
+            return (inputs.T_int + inputs.T_sfc_guess * r + (Φ_int - Φ_sfc) / cp_d) /
+                   (1 + r)
+        end
+
+        # Canopy moisture balance with stomatal + leaf boundary-layer conductance
+        function update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme,
+            T_sfc, u_star, z0m, z0h)
+            g_leaf = leaf_Cd * u_star * AI
+            g_land = g_stomata * g_leaf / (g_leaf + g_stomata)
+            g_h = SF.heat_conductance(param_set, ζ, u_star, inputs, z0m, z0h, scheme)
+            q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+            r = g_land / g_h
+            return (r * inputs.q_vap_sfc_guess + q_vap_int) / (1 + r)
+        end
+
+        for uf_type in (UF.BusingerParams, UF.GryanikParams),
+            solver_opts in (
+                nothing,  # default: forced fixed iterations (GPU mode)
+                SF.SolverOptions{FT}(
+                    tol = FT(1e-4),
+                    rtol = FT(1e-4),
+                    maxiter = 30,
+                    forced_fixed_iters = false,
+                ),
+            )
+
+            ps = SFP.SurfaceFluxesParameters(FT, uf_type)
+            result = SF.surface_fluxes(
+                ps,
+                T_int_c, q_tot_int_c, FT(0), FT(0), ρ_int_c,
+                T_canopy, q_canopy,
+                FT(0), Δz_c, d_c,
+                u_int_c, (FT(0), FT(0)),
+                nothing,
+                config_c,
+                SF.PointValueScheme(),
+                solver_opts,
+                nothing,
+                update_T_sfc,
+                update_q_vap_sfc,
+            )
+
+            @test isfinite(result.shf)
+            @test isfinite(result.lhf)
+            @test isfinite(result.ustar)
+            @test isfinite(result.ζ)
+
+            # The stability regime must be preserved: strongly stable state
+            # must not come back as unstable (ζ < 0). This case is
+            # supercritical for both UFs, so the solve must deterministically
+            # saturate at the stable branch limit in both solver modes.
+            @test result.ζ == FT(100)
+            @test result.converged == false
+
+            # Near-decoupled surface: weak downward heat flux, weak friction
+            @test result.shf < 0
+            @test abs(result.shf) < FT(5)
+            @test FT(0) < result.ustar < FT(0.05)
+
+            # Final surface state must lie between the canopy and air states
+            @test T_canopy <= result.T_sfc <= T_int_c
+        end
+
+        # With the tolerance-checked solver, the no-root (supercritical) case
+        # must deterministically saturate at the stable limit
+        ps_b = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+        result_sat = SF.surface_fluxes(
+            ps_b,
+            T_int_c, q_tot_int_c, FT(0), FT(0), ρ_int_c,
+            T_canopy, q_canopy,
+            FT(0), Δz_c, d_c,
+            u_int_c, (FT(0), FT(0)),
+            nothing,
+            config_c,
+            SF.PointValueScheme(),
+            SF.SolverOptions{FT}(
+                tol = FT(1e-4),
+                rtol = FT(1e-4),
+                maxiter = 30,
+                forced_fixed_iters = false,
+            ),
+            nothing,
+            update_T_sfc,
+            update_q_vap_sfc,
+        )
+        @test result_sat.ζ == FT(100)
+        @test result_sat.converged == false
+    end
+
+    @testset "Opposite-branch root with surface-state callbacks" begin
+        # With callbacks, Ri_b_state varies with ζ, so the sign of the
+        # residual at neutral, f(0) = -Ri_b_state(0), is only a heuristic
+        # for the branch containing the root. This synthetic callback makes
+        # the state weakly stable when evaluated at ζ >= 0 (f(0) < 0 =>
+        # stable branch indicated, and supercritical there, so no stable
+        # root) but strongly unstable when evaluated at ζ < 0, putting the
+        # only root on the unstable branch. The ζ = ∓1 opposite-branch probe
+        # in solve_stability_param must find it; committing to the indicated
+        # branch alone would saturate at ζ = +100 with near-zero fluxes.
+        T_int_o = FT(295)
+        q_o = FT(0.005)
+        ρ_o = FT(1.15)
+        Δz_o = FT(10)
+        grav = SFP.grav(param_set)
+        cp_d = SFP.cp_d(param_set)
+        T_neutral = T_int_o + grav * Δz_o / cp_d
+
+        function update_T_sfc_flip(ζ, param_set, thermo_params, inputs,
+            scheme, u_star, z0m, z0h)
+            # Weakly stable for ζ >= 0 (growing supercritically), strongly
+            # unstable for ζ < 0
+            return ζ >= 0 ? T_neutral - FT(0.1) - 3 * ζ / (1 + ζ) :
+                   T_neutral - FT(0.1) + 5 * (-ζ) / (1 - ζ)
+        end
+
+        config_o = SF.SurfaceFluxConfig(
+            SF.ConstantRoughnessParams(FT(0.01), FT(0.001)),
+            SF.ConstantGustinessSpec(FT(1)),
+        )
+
+        for solver_opts in (
+            nothing,  # default: forced fixed iterations (GPU mode)
+            SF.SolverOptions{FT}(
+                tol = FT(1e-4),
+                rtol = FT(1e-4),
+                maxiter = 30,
+                forced_fixed_iters = false,
+            ),
+        )
+            result = SF.surface_fluxes(
+                param_set,
+                T_int_o, q_o, FT(0), FT(0), ρ_o,
+                T_neutral - FT(0.1), q_o,
+                FT(0), Δz_o, FT(0),
+                (FT(0.5), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config_o,
+                SF.PointValueScheme(),
+                solver_opts,
+                nothing,
+                update_T_sfc_flip,
+                nothing,
+            )
+
+            # Root found on the unstable branch, near neutral
+            @test FT(-1) < result.ζ < FT(0)
+            # Warm surface: upward sensible heat flux
+            @test result.shf > 0
+            @test isfinite(result.ustar) && result.ustar > 0
+        end
+
+        # In tolerance-checked mode the bracketed root must report converged
+        result_conv = SF.surface_fluxes(
+            param_set,
+            T_int_o, q_o, FT(0), FT(0), ρ_o,
+            T_neutral - FT(0.1), q_o,
+            FT(0), Δz_o, FT(0),
+            (FT(0.5), FT(0)), (FT(0), FT(0)),
+            nothing,
+            config_o,
+            SF.PointValueScheme(),
+            SF.SolverOptions{FT}(
+                tol = FT(1e-4),
+                rtol = FT(1e-4),
+                maxiter = 30,
+                forced_fixed_iters = false,
+            ),
+            nothing,
+            update_T_sfc_flip,
+            nothing,
+        )
+        @test result_conv.converged == true
+    end
+
     @testset "Fluxes decrease with increasing stability" begin
         # More strongly stable conditions should have smaller magnitude fluxes.
         # When ζ hits the upper clamp (100), Cd saturates to a constant value.
@@ -164,6 +372,80 @@ import ClimaParams as CP
 
         # At least the first transition should show a genuine decrease
         @test results[1].Cd > results[3].Cd
+    end
+    @testset "AD Compatibility - Supercritical and Callbacks" begin
+        # 1. Supercritical AD check
+        function compute_shf_supercritical(T_sfc_val)
+            result = SF.surface_fluxes(
+                param_set,
+                FT(300), FT(0.005), FT(0), FT(0), FT(1.2),
+                T_sfc_val, FT(0.005),
+                FT(0), FT(10), FT(0),
+                (FT(1), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config,
+                SF.PointValueScheme(),
+                opts,
+            )
+            return result.shf
+        end
+
+        # T_sfc = 280 K is heavily supercritical for T_int = 300, u = 1 m/s
+        dSHF_dT_ad = ForwardDiff.derivative(compute_shf_supercritical, FT(280))
+        ϵ = FT(1e-4)
+        dSHF_dT_fd =
+            (
+                compute_shf_supercritical(FT(280) + ϵ) -
+                compute_shf_supercritical(FT(280) - ϵ)
+            ) / (2ϵ)
+        @test isapprox(dSHF_dT_ad, dSHF_dT_fd, rtol = ϵ, atol = FT(1e-4))
+
+        # 2. Opposite branch callbacks AD check
+        T_int_o = FT(295)
+        q_o = FT(0.005)
+        ρ_o = FT(1.15)
+        Δz_o = FT(10)
+        grav = SFP.grav(param_set)
+        cp_d = SFP.cp_d(param_set)
+        T_neutral = T_int_o + grav * Δz_o / cp_d
+
+        function update_T_sfc_flip(ζ, param_set, thermo_params, inputs,
+            scheme, u_star, z0m, z0h)
+            return ζ >= 0 ? T_neutral - FT(0.1) - 3 * ζ / (1 + ζ) :
+                   T_neutral - FT(0.1) + 5 * (-ζ) / (1 - ζ)
+        end
+
+        config_o = SF.SurfaceFluxConfig(
+            SF.ConstantRoughnessParams(FT(0.01), FT(0.001)),
+            SF.ConstantGustinessSpec(FT(1)),
+        )
+
+        function compute_shf_callbacks(T_sfc_val)
+            result = SF.surface_fluxes(
+                param_set,
+                T_int_o, q_o, FT(0), FT(0), ρ_o,
+                T_sfc_val, q_o,
+                FT(0), Δz_o, FT(0),
+                (FT(0.5), FT(0)), (FT(0), FT(0)),
+                nothing,
+                config_o,
+                SF.PointValueScheme(),
+                opts,
+                nothing,
+                update_T_sfc_flip,
+                nothing,
+            )
+            return result.shf
+        end
+
+        # Base T_sfc near neutral
+        dSHF_dT_ad_cb = ForwardDiff.derivative(compute_shf_callbacks, T_neutral - FT(0.1))
+        dSHF_dT_fd_cb =
+            (
+                compute_shf_callbacks(T_neutral - FT(0.1) + ϵ) -
+                compute_shf_callbacks(T_neutral - FT(0.1) - ϵ)
+            ) / (2ϵ)
+        @test isapprox(dSHF_dT_ad_cb, dSHF_dT_fd_cb, rtol = ϵ, atol = FT(1e-4))
     end
 end
 

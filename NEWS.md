@@ -1,3 +1,14 @@
+[v1.1.0] More robust solve for the stability parameter ζ. The unbracketed secant
+iteration (which could take near-singular steps to |ζ| ≫ 100 in very stable conditions), is replaced by a branchless, bracketed solve, with a fixed number of residual evaluations.
+
+**Behavior changes:**
+
+- For supercritical `Ri_b` (no root within `|ζ| <= 100`), ζ now deterministically
+  saturates at the limit of the correct stability branch with `converged = false`,
+  instead of returning a clamped stray secant iterate that could lie on the wrong branch.
+- Converged roots may differ from the secant solver's at the level of the solver
+  tolerances; regression-test results are unchanged within their tolerances.
+
 [v1.0.1] Documentation audit and cleanup. Export `compute_profile_value` (previously
 documented but not exported). Fix docstring/Documenter rendering issues (a stray tab in the
 `windspeed` math block, and `[units] (...)` patterns that Documenter misparsed as links;
@@ -23,10 +34,10 @@ auto-sync workflow, and add `AGENTS.md`.
 
 [PR 230/231] Updates docs; minor bug fix; additional tests. Release of v1.0
 
-[PR 212] Refactor of SurfaceFluxes.jl: Consistently use stability parameter in all solvers and as inputs to many functions. Added functionality for wind speed dependent roughness lengths (Charnock, COARE3) and option to use functions to compute surface temperature/humidity. 
+[PR 212] Refactor of SurfaceFluxes.jl: Consistently use stability parameter in all solvers and as inputs to many functions. Added functionality for wind speed dependent roughness lengths (Charnock, COARE3) and option to use functions to compute surface temperature/humidity.
 
 [PR 211] Fixes a bug in sensible heat flux
 
-[PR 206] Updates UniversalFunctions.jl: Update functions to avoid catastrophic cancellations. Add continuity and linearisation tests + fix bug in the near-neutral limit. 
+[PR 206] Updates UniversalFunctions.jl: Update functions to avoid catastrophic cancellations. Add continuity and linearisation tests + fix bug in the near-neutral limit.
 
 [PR 186] Removes unused stability function types (Holtslag, Cheng, Beljaars). Currently supports (Businger, Grachev, Gryanik) types.  
