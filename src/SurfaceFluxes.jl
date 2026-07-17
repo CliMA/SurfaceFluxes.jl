@@ -63,6 +63,9 @@ export SurfaceFluxConditions,
     MoistModel,
     DryModel
 
+# From roughness_sublayer.jl
+export NoRoughnessSubLayer, PhysickGarrattRSL, HarmanFinniganRSL, rsl_profile_correction
+
 # From utilities.jl
 export surface_density
 
@@ -73,9 +76,10 @@ export compute_profile_value
 export PointValueScheme, LayerAverageScheme
 
 include("types.jl")
+include("utilities.jl")
+include("roughness_sublayer.jl")
 include("roughness_lengths.jl")
 include("input_builders.jl")
-include("utilities.jl")
 include("wind_and_gustiness.jl")
 include("physical_scales.jl")
 include("bulk_fluxes.jl")
@@ -604,6 +608,45 @@ given the exchange coefficients and surface state.
     return (shf, lhf, E, ρτxz, ρτyz)
 end
 
+"""
+    bulk_richardson_number(uf_params, rsl_model, Δz_eff, ζ, z0m, z0h, scheme)
+
+Bulk Richardson number used inside the stability solver residual, including any
+roughness sublayer (RSL) correction.
+
+Computes `ζ · F̂_h / F̂_m²` where `F̂ = F + P` includes the roughness sublayer
+correction from [`rsl_profile_correction`](@ref). Reduces to the standard
+[`UF.bulk_richardson_number`](@ref) when `rsl_model` is [`NoRoughnessSubLayer`](@ref),
+since the correction `P` is then zero for both momentum and heat transport.
+"""
+@inline function bulk_richardson_number(
+    uf_params,
+    rsl_model,
+    Δz_eff,
+    ζ,
+    z0m,
+    z0h,
+    scheme,
+)
+    F_m =
+        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
+    F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0h, UF.HeatTransport(), scheme)
+    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
+    P_h = rsl_profile_correction(rsl_model, Δz_eff, z0h, UF.HeatTransport())
+    return ζ * (F_h + P_h) / (F_m + P_m)^2
+end
+
+"""
+    evaluate_most_residual(
+        param_set, inputs, scheme, uf_params, thermo_params, ζ,
+        T_sfc_guess_safe, q_vap_sfc_guess_safe,
+    ) -> (residual, T_sfc_new, q_vap_sfc_new)
+
+Evaluate the MOST residual `Ri_b(ζ) − Ri_b(state)` for a candidate stability
+parameter `ζ`, optionally updating surface temperature and humidity via
+callbacks. Returns the residual together with the (possibly updated) surface
+state so iterative solvers can advance surface guesses across ζ iterations.
+"""
 function evaluate_monin_obukhov_residual(
     param_set,
     inputs,
@@ -623,7 +666,6 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 2. Update T_sfc and q_vap_sfc via callbacks or use current guesses
-    # Ensure type stability for default values (strip Union{Nothing, FT})
     T_sfc_new = eval_callback(
         inputs.update_T_sfc,
         T_sfc_guess_safe,
@@ -676,9 +718,10 @@ function evaluate_monin_obukhov_residual(
         q_vap_sfc_new,
     )
 
-    # 6. Evaluate residual
+    # 6. Evaluate residual (RSL-corrected theoretical Ri_b)
     Δz_eff = effective_height(inputs)
-    Rib_theory = UF.bulk_richardson_number(uf_params, Δz_eff, ζ, z0m, z0h, scheme)
+    Rib_theory =
+        bulk_richardson_number(uf_params, inputs.rsl_model, Δz_eff, ζ, z0m, z0h, scheme)
 
     return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
 end
@@ -1112,17 +1155,25 @@ function solve_monin_obukhov(
     # Consistent gustiness/fluxes
     b_flux = buoyancy_flux(param_set, ζ_final, u_star_curr, inputs)
 
-    # Use input coefficients if available, otherwise use MOST-derived ones
+    # Use input coefficients if available, otherwise use MOST-derived ones (with RSL)
     Δz_eff = effective_height(inputs)
     ΔU = windspeed(inputs, param_set, b_flux)
     ΔU_safe = max(ΔU, eps(FT))
     Cd =
         inputs.Cd !== nothing ? inputs.Cd :
         inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 :
-        drag_coefficient(param_set, ζ_final, z0m, Δz_eff, scheme)
+        drag_coefficient(param_set, ζ_final, z0m, Δz_eff, scheme, inputs.rsl_model)
     Ch =
         inputs.Ch !== nothing ? inputs.Ch :
-        heat_exchange_coefficient(param_set, ζ_final, z0m, z0h, Δz_eff, scheme)
+        heat_exchange_coefficient(
+            param_set,
+            ζ_final,
+            z0m,
+            z0h,
+            Δz_eff,
+            scheme,
+            inputs.rsl_model,
+        )
 
     (shf, lhf, E, ρτxz, ρτyz) = compute_flux_components(
         param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux,
