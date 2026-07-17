@@ -1,3 +1,8 @@
+AD compatibility tests now cover Enzyme (forward and reverse) via
+DifferentiationInterface, in addition to ForwardDiff. Derivatives of sensible heat
+flux with respect to surface temperature are checked against central finite differences
+across stable, near-neutral, and unstable regimes.
+
 [v1.1.0] More robust solve for the stability parameter ζ. The unbracketed secant
 iteration (which could take near-singular steps to |ζ| ≫ 100 in very stable conditions), is replaced by a branchless, bracketed solve, with a fixed number of residual evaluations.
 
