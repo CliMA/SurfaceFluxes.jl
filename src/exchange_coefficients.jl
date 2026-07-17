@@ -1,6 +1,6 @@
 """
 
-    drag_coefficient(param_set, ζ, z0m, Δz_eff, scheme)
+    drag_coefficient(param_set, ζ, z0m, Δz_eff, scheme, rsl_model = NoRoughnessSubLayer())
 
 Compute the drag coefficient `Cd` for momentum exchange.
 
@@ -8,14 +8,16 @@ Compute the drag coefficient `Cd` for momentum exchange.
 - `param_set`: Parameter set
 - `ζ`: Stability parameter `ζ = Δz_eff / L_MO`
 - `z0m`: Roughness length for momentum [m]
-- `Δz_eff`: Effective aerodynamic height `Δz - d` [m] 
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m]
 - `scheme`: Surface flux solver scheme (default: `PointValueScheme()`)
+- `rsl_model`: Optional roughness sublayer model (default: [`NoRoughnessSubLayer`](@ref)).
 
 # Formula:
 
-    Cd = (κ / F_m)^2
+    Cd = (κ / F̂_m)^2
 
-where `F_m` is the dimensionless velocity profile.
+where `F̂_m = F_m + P_m` is the RSL-corrected dimensionless velocity profile
+(`P_m ≤ 0` from [`rsl_profile_correction`](@ref)).
 """
 function drag_coefficient(
     param_set::APS,
@@ -23,13 +25,14 @@ function drag_coefficient(
     z0m,
     Δz_eff,
     scheme = UF.PointValueScheme(),
+    rsl_model = NoRoughnessSubLayer(),
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m =
-        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
-    Cd = (κ / F_m)^2
+    F_m = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
+    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
+    Cd = (κ / (F_m + P_m))^2
     return Cd
 end
 
@@ -52,25 +55,27 @@ end
 
 """
 
-    heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme, rsl_model = NoRoughnessSubLayer())
 
 Compute the heat exchange coefficient `Ch` for scalar exchange.
 
 # Formula:
 
-    Ch = κ^2 / (F_m * F_h),
+    Ch = κ² / (F̂_m · F̂_h),
 
-where `F_m` and `F_h` are the dimensionless profiles for momentum and scalars. 
-For the finite-volume case, this corresponds to the formulation in 
-Nishizawa & Kitamura (2018), Eqs. 21 & 22 (with Pr_0 absorbed into F_h).
+where `F̂_m = F_m + P_m` and `F̂_h = F_h + P_h` are the RSL-corrected dimensionless
+profiles for momentum and scalars respectively (corrections from
+[`rsl_profile_correction`](@ref)). For the finite-volume case, this corresponds to
+the formulation in Nishizawa & Kitamura (2018), Eqs. 21 & 22 (with Pr_0 absorbed into F_h).
 
 # Arguments
 - `param_set`: Parameter set
 - `ζ`: Stability parameter `ζ = Δz_eff / L_MO`
 - `z0m`: Roughness length for momentum [m]
 - `z0h`: Roughness length for scalars (heat/moisture) [m]
-- `Δz_eff`: Effective aerodynamic height `Δz - d` [m] 
+- `Δz_eff`: Effective aerodynamic height `Δz - d` [m]
 - `scheme`: Surface flux solver scheme (default: `PointValueScheme()`)
+- `rsl_model`: Optional roughness sublayer model (default: [`NoRoughnessSubLayer`](@ref)).
 """
 function heat_exchange_coefficient(
     param_set::APS,
@@ -79,15 +84,17 @@ function heat_exchange_coefficient(
     z0h,
     Δz_eff,
     scheme = UF.PointValueScheme(),
+    rsl_model = NoRoughnessSubLayer(),
 )
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m =
-        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
+    F_m = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
     F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0h, UF.HeatTransport(), scheme)
+    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
+    P_h = rsl_profile_correction(rsl_model, Δz_eff, z0h, UF.HeatTransport())
 
-    Ch = κ^2 / (F_m * F_h)
+    Ch = κ^2 / ((F_m + P_m) * (F_h + P_h))
     return Ch
 end
 
@@ -116,9 +123,9 @@ function heat_conductance(
     z0h,
     scheme = UF.PointValueScheme(),
 )
-    # Compute Ch
+    # Compute Ch (pass RSL model from inputs)
     Δz_eff = effective_height(inputs)
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme)
+    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme, inputs.rsl_model)
 
     # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
     current_speed = windspeed(param_set, ζ, ustar, inputs)

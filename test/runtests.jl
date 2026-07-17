@@ -34,6 +34,8 @@ include("test_deardorff_gustiness_integration.jl")    # Deardorff gustiness thro
 include("test_coare3_literature.jl")                  # COARE3 validation against Fairall et al. (2003)
 include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
+include("test_physick_garratt_rsl.jl")               # Physick-Garratt roughness sublayer model
+include("test_harman_finnigan_rsl.jl")              # Harman-Finnigan (2007) roughness sublayer model
 
 @testset "Regression Tests" begin
     # Regression tests with predefined (mostly stable) test cases.

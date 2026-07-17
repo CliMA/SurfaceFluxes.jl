@@ -18,6 +18,7 @@ The package implements **Monin-Obukhov Similarity Theory (MOST)** to relate surf
 - **Thermodynamic Consistency**: Integrated with [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) for accurate and consistent handling of moist air properties.
 - **GPU Compatibility**: Type stable and designed for high-performance computing with full GPU support via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
 - **Automatic Differentiation**: Compatible with AD frameworks such as [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl).
+- **Roughness Sublayer Corrections**: Optional corrections for enhanced turbulent exchange above rough surfaces (forests, urban canopies) via the [Physick & Garratt (1995)](https://doi.org/10.1007/BF00712382) and [Harman & Finnigan (2007)](https://doi.org/10.1007/s10546-006-9145-6) RSL parameterizations.
 - **Flexible Discretization**: Supports both **finite-difference** (point-wise) and **finite-volume** (layer-averaged) schemes.
 
 ## Installation

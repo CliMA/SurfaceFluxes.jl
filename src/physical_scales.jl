@@ -6,6 +6,7 @@
         z0,
         transport,
         scheme::SolverScheme,
+        rsl_model = NoRoughnessSubLayer(),
     )
 
 Compute the coefficient relating a bulk difference to its similarity scale.
@@ -13,11 +14,12 @@ Compute the coefficient relating a bulk difference to its similarity scale.
 Returns `ϕ` such that `scale = Δvalue * ϕ`; for example, `u★ = ΔU * ϕ_m`. It is given by
 
 ```math
-ϕ = \\frac{κ}{F(Δz_{eff}, ζ, z_0)}
+ϕ = \\frac{κ}{\\hat{F}(Δz_{eff}, ζ, z_0)}
 ```
 
-where `κ` is the von Kármán constant and `F` is the dimensionless profile function
-from [`UniversalFunctions`](@ref) for the requested `transport` and `scheme`.
+where `κ` is the von Kármán constant and `F̂ = F + P` is the RSL-corrected dimensionless
+profile (`P ≤ 0` from [`rsl_profile_correction`](@ref), zero when `rsl_model` is
+[`NoRoughnessSubLayer`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -26,6 +28,7 @@ from [`UniversalFunctions`](@ref) for the requested `transport` and `scheme`.
 - `z0`: Roughness length for the transported variable [m].
 - `transport`: Transport type (`MomentumTransport` or `HeatTransport`).
 - `scheme`: Discretization scheme ([`PointValueScheme`](@ref) or [`LayerAverageScheme`](@ref)).
+- `rsl_model`: Optional roughness sublayer model (default: [`NoRoughnessSubLayer`](@ref)).
 """
 function compute_physical_scale_coeff(
     param_set::APS,
@@ -34,19 +37,14 @@ function compute_physical_scale_coeff(
     z0,
     transport,
     scheme::SolverScheme,
+    rsl_model = NoRoughnessSubLayer(),
 )
     κ = SFP.von_karman_const(param_set)
     uf = SFP.uf_params(param_set)
 
-    profile = UF.dimensionless_profile(
-        uf,
-        Δz_eff,
-        ζ,
-        z0,
-        transport,
-        scheme,
-    )
-    return κ / profile
+    profile = UF.dimensionless_profile(uf, Δz_eff, ζ, z0, transport, scheme)
+    P = rsl_profile_correction(rsl_model, Δz_eff, z0, transport)
+    return κ / (profile + P)
 end
 
 """
@@ -87,6 +85,7 @@ function compute_ustar(
         z0,
         UF.MomentumTransport(),
         scheme,
+        inputs.rsl_model,
     )
     return ΔU * ϕ
 end
