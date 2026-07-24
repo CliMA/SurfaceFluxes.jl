@@ -122,6 +122,24 @@ Evaluate a surface state callback, returning `default` if callback is nothing or
 end
 
 """
+    with_sfc_guesses(inputs, T_sfc_guess, q_vap_sfc_guess)
+
+Return a copy of `inputs` with updated surface temperature and humidity guesses.
+Used to advance Newton iterates during the MOST solve without mutating the original inputs.
+"""
+@inline with_sfc_guesses(inputs, T_sfc_guess, q_vap_sfc_guess) =
+    (; inputs..., T_sfc_guess, q_vap_sfc_guess)
+
+@inline safe_T_sfc_guess(inputs) =
+    inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
+
+@inline safe_q_vap_sfc_guess(inputs) =
+    inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess
+
+@inline has_sfc_callbacks(inputs) =
+    inputs.update_T_sfc !== nothing || inputs.update_q_vap_sfc !== nothing
+
+"""
     surface_fluxes(
         param_set::APS,
         T_int,
@@ -586,24 +604,16 @@ given the exchange coefficients and surface state.
     return (shf, lhf, E, ρτxz, ρτyz)
 end
 
-struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
-    param_set::PS
-    inputs::I
-    scheme::SCH
-    uf_params::UF
-    thermo_params::TP
-end
-
-function (rf::ResidualFunction)(ζ)
-    FT = eltype(rf.param_set)
-
-    # Unpack parameters that do not change over iterations
-    param_set = rf.param_set
-    inputs = rf.inputs
-    scheme = rf.scheme
-    uf_params = rf.uf_params
-    thermo_params = rf.thermo_params
-
+function evaluate_most_residual(
+    param_set,
+    inputs,
+    scheme,
+    uf_params,
+    thermo_params,
+    ζ,
+    T_sfc_guess_safe,
+    q_vap_sfc_guess_safe,
+)
     # 1. Compute u_star and roughness lengths, iteratively if they are mutually dependent
     u_star, z0m, z0h = compute_ustar_and_roughness(
         param_set,
@@ -612,15 +622,8 @@ function (rf::ResidualFunction)(ζ)
         scheme,
     )
 
+    # 2. Update T_sfc and q_vap_sfc via callbacks or use current guesses
     # Ensure type stability for default values (strip Union{Nothing, FT})
-    # If guess is nothing, use interior values as safe dummy defaults
-    T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe =
-        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
-
-    # 2. Update T_sfc and q_vap_sfc via callbacks or use inputs
     T_sfc_new = eval_callback(
         inputs.update_T_sfc,
         T_sfc_guess_safe,
@@ -661,7 +664,6 @@ function (rf::ResidualFunction)(ζ)
     )
 
     # 4. Compute gustiness and ΔU
-    # Use the buoyancy flux derived from the current ζ and ustar to calculate gustiness
     current_ΔU = windspeed(param_set, ζ, u_star, inputs)
 
     # 5. Calculate state bulk Richardson number
@@ -678,7 +680,65 @@ function (rf::ResidualFunction)(ζ)
     Δz_eff = effective_height(inputs)
     Rib_theory = UF.bulk_richardson_number(uf_params, Δz_eff, ζ, z0m, z0h, scheme)
 
-    return Rib_theory - Rib_state
+    return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
+end
+
+struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
+    param_set::PS
+    inputs::I
+    scheme::SCH
+    uf_params::UF
+    thermo_params::TP
+end
+
+function (rf::ResidualFunction)(ζ)
+    inputs = rf.inputs
+    residual, _, _ = evaluate_most_residual(
+        rf.param_set,
+        inputs,
+        rf.scheme,
+        rf.uf_params,
+        rf.thermo_params,
+        ζ,
+        safe_T_sfc_guess(inputs),
+        safe_q_vap_sfc_guess(inputs),
+    )
+    return residual
+end
+
+"""
+    IterativeResidualFunction
+
+Mutable residual functor that advances `T_sfc_guess` and `q_vap_sfc_guess` across ζ
+solver iterations. Used when `update_T_sfc` or `update_q_vap_sfc` callbacks are set,
+so Newton-style surface-state updates linearize around the previous iterate rather
+than the initial guess.
+"""
+mutable struct IterativeResidualFunction{PS, I, UF, TP, SCH, FT1, FT2} <: Function
+    param_set::PS
+    inputs::I
+    scheme::SCH
+    uf_params::UF
+    thermo_params::TP
+    T_sfc_iter::FT1
+    q_vap_iter::FT2
+end
+
+function (rf::IterativeResidualFunction)(ζ)
+    inputs_cb = with_sfc_guesses(rf.inputs, rf.T_sfc_iter, rf.q_vap_iter)
+    residual, T_sfc_new, q_vap_sfc_new = evaluate_most_residual(
+        rf.param_set,
+        inputs_cb,
+        rf.scheme,
+        rf.uf_params,
+        rf.thermo_params,
+        ζ,
+        rf.T_sfc_iter,
+        rf.q_vap_iter,
+    )
+    rf.T_sfc_iter = T_sfc_new
+    rf.q_vap_iter = q_vap_sfc_new
+    return residual
 end
 
 """
@@ -865,13 +925,25 @@ function solve_monin_obukhov(
     uf_params = SFP.uf_params(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
 
-    root_function = ResidualFunction(
-        param_set,
-        inputs,
-        scheme,
-        uf_params,
-        thermo_params,
-    )
+    if has_sfc_callbacks(inputs)
+        root_function = IterativeResidualFunction(
+            param_set,
+            inputs,
+            scheme,
+            uf_params,
+            thermo_params,
+            safe_T_sfc_guess(inputs),
+            safe_q_vap_sfc_guess(inputs),
+        )
+    else
+        root_function = ResidualFunction(
+            param_set,
+            inputs,
+            scheme,
+            uf_params,
+            thermo_params,
+        )
+    end
 
     # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
     # stratification), no solution exists within this limit (e.g., for
@@ -881,22 +953,23 @@ function solve_monin_obukhov(
 
     ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
 
-    # Finalize state
-    # 1. Compute u_star and roughness
-    # Consistent with ζ_final
+    # Finalize state using advanced surface iterates when callbacks are active
+    if root_function isa IterativeResidualFunction
+        T_sfc_guess_safe = root_function.T_sfc_iter
+        q_vap_sfc_guess_safe = root_function.q_vap_iter
+        inputs = with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe)
+    else
+        T_sfc_guess_safe = safe_T_sfc_guess(inputs)
+        q_vap_sfc_guess_safe = safe_q_vap_sfc_guess(inputs)
+    end
+
+    # 1. Compute u_star and roughness consistent with ζ_final
     u_star_curr, z0m, z0h = compute_ustar_and_roughness(
         param_set,
         ζ_final,
         inputs,
         scheme,
     )
-
-    # Ensure type stability for default values (strip Union{Nothing, FT})
-    T_sfc_guess_safe =
-        inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
-    q_vap_sfc_guess_safe =
-        inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
-        inputs.q_vap_sfc_guess
 
     T_sfc_val = eval_callback(
         inputs.update_T_sfc,

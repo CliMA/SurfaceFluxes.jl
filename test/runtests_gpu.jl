@@ -297,4 +297,227 @@ else
         end
     end
 
+    # Surface-state callback broadcast on GPU.
+    #
+    # The `update_T_sfc` / `update_q_vap_sfc` callbacks (used by ClimaLand canopy
+    # coupling) are passed as trailing positional arguments to `surface_fluxes`.
+    # Because these test closures capture only isbits `FT` scalars, the closure
+    # itself is isbits and can be broadcast over a `CuArray` via `Ref(callback)`.
+    # These testsets mirror the CPU callback cases in
+    # `test_supercritical_stability.jl`, verifying the GPU path reproduces the
+    # CPU reference through the coupled canopy solve.
+
+    @testset "GPU broadcast - Supercritical Canopy Callbacks" begin
+        for FT in (Float32, Float64),
+            uf_type in (BusingerParams, SF.UniversalFunctions.GryanikParams)
+
+            param_set = SFP.SurfaceFluxesParameters(FT, uf_type)
+
+            # Canopy coupling constants (point-independent; captured by closures)
+            AI = FT(3.1223678081630233)
+            leaf_Cd = FT(0.0726)
+            g_stomata = FT(5.848035071201371e-6)
+
+            # Canopy energy balance: T_sfc weighted between air and canopy states
+            # by the ratio of canopy conductance to aerodynamic conductance.
+            update_T_sfc =
+                (ζ, ps, thermo_params, inputs, scheme, u_star, z0m, z0h) -> begin
+                    Φ_sfc = SF.surface_geopotential(inputs)
+                    Φ_int = SF.interior_geopotential(ps, inputs)
+                    g_h = SF.heat_conductance(ps, ζ, u_star, inputs, z0m, z0h, scheme)
+                    g_land = leaf_Cd * u_star * AI
+                    cp_d = SFP.cp_d(ps)
+                    r = g_land / g_h
+                    return (
+                        inputs.T_int + inputs.T_sfc_guess * r + (Φ_int - Φ_sfc) / cp_d
+                    ) /
+                           (1 + r)
+                end
+
+            # Canopy moisture balance with stomatal + leaf boundary-layer conductance.
+            update_q_vap_sfc =
+                (ζ, ps, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h) -> begin
+                    g_leaf = leaf_Cd * u_star * AI
+                    g_land = g_stomata * g_leaf / (g_leaf + g_stomata)
+                    g_h = SF.heat_conductance(ps, ζ, u_star, inputs, z0m, z0h, scheme)
+                    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+                    r = g_land / g_h
+                    return (r * inputs.q_vap_sfc_guess + q_vap_int) / (1 + r)
+                end
+
+            # Base supercritical canopy state (strong inversion, weak wind),
+            # replicated across points with the canopy temperature varied so the
+            # broadcast exercises distinct per-point solves.
+            T_int_c = FT(294.673095703125)
+            q_tot_int_c = FT(0.009545918211858238)
+            ρ_int_c = FT(1.157759649975361)
+            q_canopy_c = FT(0.008910620278696149)
+            Δz_c = FT(10)
+            d_c = FT(0.0573)
+            speed_c = FT(1.3673065900802612)
+
+            T_canopy_base = FT(284.6341213016535)
+            n = 4
+            T_canopy_vals = [T_canopy_base + FT(δ) for δ in (-2, -1, 0, 1)]
+
+            config_c = SF.SurfaceFluxConfig(
+                SF.ConstantRoughnessParams(FT(0.359), FT(0.0544)),
+                SF.ConstantGustinessSpec(FT(1)),
+            )
+            cpu_configs = [config_c for _ in 1:n]
+
+            # CPU reference (scalar solves)
+            cpu_shf = Vector{FT}(undef, n)
+            cpu_lhf = Vector{FT}(undef, n)
+            cpu_ustar = Vector{FT}(undef, n)
+            cpu_ζ = Vector{FT}(undef, n)
+            cpu_T_sfc = Vector{FT}(undef, n)
+            for i in 1:n
+                result = SF.surface_fluxes(
+                    param_set,
+                    T_int_c, q_tot_int_c, FT(0), FT(0), ρ_int_c,
+                    T_canopy_vals[i], q_canopy_c,
+                    FT(0), Δz_c, d_c,
+                    (speed_c, FT(0)), (FT(0), FT(0)),
+                    nothing, config_c,
+                    SF.PointValueScheme(), nothing, nothing,
+                    update_T_sfc, update_q_vap_sfc,
+                )
+                cpu_shf[i] = result.shf
+                cpu_lhf[i] = result.lhf
+                cpu_ustar[i] = result.ustar
+                cpu_ζ[i] = result.ζ
+                cpu_T_sfc[i] = result.T_sfc
+            end
+
+            # GPU broadcast over the point array
+            gpu_configs = ArrayType(cpu_configs)
+            T_int_array = ArrayType(fill(T_int_c, n))
+            q_tot_int_array = ArrayType(fill(q_tot_int_c, n))
+            ρ_int_array = ArrayType(fill(ρ_int_c, n))
+            T_canopy_array = ArrayType(T_canopy_vals)
+            q_canopy_array = ArrayType(fill(q_canopy_c, n))
+            u_int_array = ArrayType([(speed_c, FT(0)) for _ in 1:n])
+            u_sfc_array = ArrayType([(FT(0), FT(0)) for _ in 1:n])
+
+            gpu_results =
+                SF.surface_fluxes.(
+                    Ref(param_set), T_int_array, q_tot_int_array, Ref(FT(0)), Ref(FT(0)),
+                    ρ_int_array,
+                    T_canopy_array, q_canopy_array,
+                    Ref(FT(0)), Ref(Δz_c), Ref(d_c),
+                    u_int_array, u_sfc_array,
+                    Ref(nothing), gpu_configs,
+                    Ref(SF.PointValueScheme()), Ref(nothing), Ref(nothing),
+                    Ref(update_T_sfc), Ref(update_q_vap_sfc),
+                )
+
+            gpu_shf = Array(map(x -> x.shf, gpu_results))
+            gpu_lhf = Array(map(x -> x.lhf, gpu_results))
+            gpu_ustar = Array(map(x -> x.ustar, gpu_results))
+            gpu_ζ = Array(map(x -> x.ζ, gpu_results))
+            gpu_T_sfc = Array(map(x -> x.T_sfc, gpu_results))
+
+            @test all(isfinite, gpu_shf)
+            @test all(isfinite, gpu_lhf)
+            @test all(isfinite, gpu_ustar)
+            @test all(isfinite, gpu_ζ)
+
+            @test isapprox(gpu_shf, cpu_shf; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_lhf, cpu_lhf; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_ustar, cpu_ustar; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_ζ, cpu_ζ; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_T_sfc, cpu_T_sfc; rtol = FT(1e-3), atol = FT(1e-4))
+        end
+    end
+
+    @testset "GPU broadcast - Opposite-branch Callback" begin
+        for FT in (Float32, Float64)
+            param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+
+            grav = SFP.grav(param_set)
+            cp_d = SFP.cp_d(param_set)
+            T_int_o = FT(295)
+            q_o = FT(0.005)
+            ρ_o = FT(1.15)
+            Δz_o = FT(10)
+            T_neutral = T_int_o + grav * Δz_o / cp_d
+
+            # Synthetic callback: weakly stable (supercritical, no stable root)
+            # for ζ >= 0, strongly unstable for ζ < 0. The only root lives on the
+            # unstable branch and must be found via the opposite-branch probe.
+            δT = FT(0.1)
+            update_T_sfc_flip =
+                (ζ, ps, thermo_params, inputs, scheme, u_star, z0m, z0h) -> begin
+                    return ζ >= 0 ? T_neutral - δT - 3 * ζ / (1 + ζ) :
+                           T_neutral - δT + 5 * (-ζ) / (1 - ζ)
+                end
+
+            config_o = SF.SurfaceFluxConfig(
+                SF.ConstantRoughnessParams(FT(0.01), FT(0.001)),
+                SF.ConstantGustinessSpec(FT(1)),
+            )
+
+            # Vary wind speed per point to exercise distinct broadcast solves.
+            n = 4
+            speed_vals = FT.([0.3, 0.5, 0.7, 0.9])
+            T_sfc_guess = T_neutral - FT(0.1)
+            cpu_configs = [config_o for _ in 1:n]
+
+            cpu_shf = Vector{FT}(undef, n)
+            cpu_ustar = Vector{FT}(undef, n)
+            cpu_ζ = Vector{FT}(undef, n)
+            for i in 1:n
+                result = SF.surface_fluxes(
+                    param_set,
+                    T_int_o, q_o, FT(0), FT(0), ρ_o,
+                    T_sfc_guess, q_o,
+                    FT(0), Δz_o, FT(0),
+                    (speed_vals[i], FT(0)), (FT(0), FT(0)),
+                    nothing, config_o,
+                    SF.PointValueScheme(), nothing, nothing,
+                    update_T_sfc_flip, nothing,
+                )
+                cpu_shf[i] = result.shf
+                cpu_ustar[i] = result.ustar
+                cpu_ζ[i] = result.ζ
+            end
+
+            gpu_configs = ArrayType(cpu_configs)
+            T_int_array = ArrayType(fill(T_int_o, n))
+            q_array = ArrayType(fill(q_o, n))
+            ρ_array = ArrayType(fill(ρ_o, n))
+            T_sfc_array = ArrayType(fill(T_sfc_guess, n))
+            u_int_array = ArrayType([(speed_vals[i], FT(0)) for i in 1:n])
+            u_sfc_array = ArrayType([(FT(0), FT(0)) for _ in 1:n])
+
+            gpu_results =
+                SF.surface_fluxes.(
+                    Ref(param_set), T_int_array, q_array, Ref(FT(0)), Ref(FT(0)), ρ_array,
+                    T_sfc_array, q_array,
+                    Ref(FT(0)), Ref(Δz_o), Ref(FT(0)),
+                    u_int_array, u_sfc_array,
+                    Ref(nothing), gpu_configs,
+                    Ref(SF.PointValueScheme()), Ref(nothing), Ref(nothing),
+                    Ref(update_T_sfc_flip), Ref(nothing),
+                )
+
+            gpu_shf = Array(map(x -> x.shf, gpu_results))
+            gpu_ustar = Array(map(x -> x.ustar, gpu_results))
+            gpu_ζ = Array(map(x -> x.ζ, gpu_results))
+
+            @test all(isfinite, gpu_shf)
+            @test all(isfinite, gpu_ustar)
+            @test all(isfinite, gpu_ζ)
+
+            # Root should sit on the unstable branch (warm surface -> upward SHF)
+            @test all(gpu_shf .> 0)
+            @test all(gpu_ustar .> 0)
+
+            @test isapprox(gpu_shf, cpu_shf; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_ustar, cpu_ustar; rtol = FT(1e-3), atol = FT(1e-4))
+            @test isapprox(gpu_ζ, cpu_ζ; rtol = FT(1e-3), atol = FT(1e-4))
+        end
+    end
+
 end  # if CUDA.functional()

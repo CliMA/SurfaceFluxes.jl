@@ -109,4 +109,14 @@ Available callbacks:
 
 If a callback returns a non-`Real` value (or is `nothing`), the initial guess from the inputs is used instead.
 
+!!! warning "Evolving guesses across solver iterations"
+    When either callback is supplied, the solver uses an `IterativeResidualFunction`
+    that advances the surface state across ζ iterations. On each call the `inputs`
+    argument received by the callback will have `inputs.T_sfc_guess` and
+    `inputs.q_vap_sfc_guess` set to the **previous iteration's returned values**,
+    not the original guesses passed by the caller. Callbacks that read these fields
+    as a starting point for their own physics should be aware that the values change
+    with each solver iteration — this is intentional, so that Newton-style surface
+    updates linearize around the most recent iterate rather than the stale initial guess.
+
 This mechanism ensures that the final fluxes and surface state are in equilibrium with respect to the surface energy/moisture balance.
