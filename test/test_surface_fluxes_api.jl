@@ -80,6 +80,47 @@ const param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
     @test qs_calls[] > 0
     @test hooked_result.shf != base_result.shf
 
+    T_guess_history = FT[]
+    update_T_sfc_newton =
+        function (ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0s)
+            push!(T_guess_history, inputs.T_sfc_guess)
+            return inputs.T_sfc_guess +
+                   FT(0.5) * (inputs.T_int - inputs.T_sfc_guess)
+        end
+
+    newton_result = SF.surface_fluxes(
+        param_set,
+        T_int,
+        q_tot_int,
+        FT(0),
+        FT(0),
+        ρ_int,
+        T_sfc_guess,
+        q_vap_sfc_guess,
+        FT(0),
+        FT(10),
+        FT(0),
+        (0, 0),
+        (0, 0),
+        nothing,
+        SF.default_surface_flux_config(FT),
+        SF.PointValueScheme(),
+        SF.SolverOptions{FT}(maxiter = 5, forced_fixed_iters = true),
+        nothing,
+        update_T_sfc_newton,
+        nothing,
+    )
+
+    @test length(T_guess_history) > 1
+    @test T_guess_history[1] == T_sfc_guess
+    @test all(
+        T_guess_history[i + 1] ≈
+        T_guess_history[i] + FT(0.5) * (T_int - T_guess_history[i]) for
+        i in 1:(length(T_guess_history) - 1)
+    )
+    # Synthetic callback test
+    @test newton_result.T_sfc > T_sfc_guess
+
     config = SF.SurfaceFluxConfig(
         SF.COARE3RoughnessParams{FT}(),
         SF.ConstantGustinessSpec(FT(0.5)),

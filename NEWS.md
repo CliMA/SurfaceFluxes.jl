@@ -1,7 +1,18 @@
-AD compatibility tests now cover Enzyme (forward and reverse) via
+- AD compatibility tests now cover Enzyme (forward and reverse) via
 DifferentiationInterface, in addition to ForwardDiff. Derivatives of sensible heat
 flux with respect to surface temperature are checked against central finite differences
 across stable, near-neutral, and unstable regimes.
+
+**Behavior changes:**
+
+- When `update_T_sfc` or `update_q_vap_sfc` callbacks are supplied, the solver now
+  uses an iterative residual functor (`IterativeResidualFunction`) that advances
+  the surface-state guess across ζ iterations. On each solver call the `inputs`
+  argument received by the callback will have `inputs.T_sfc_guess` and
+  `inputs.q_vap_sfc_guess` set to the **previous iteration's returned values**,
+  not the original guesses passed by the caller. Callbacks that read these fields
+  as a starting point for their physics should be aware that the values evolve
+  across solver iterations.
 
 [v1.1.0] More robust solve for the stability parameter ζ. The unbracketed secant
 iteration (which could take near-singular steps to |ζ| ≫ 100 in very stable conditions), is replaced by a branchless, bracketed solve, with a fixed number of residual evaluations.
