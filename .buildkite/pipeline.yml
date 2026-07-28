@@ -29,14 +29,14 @@ steps:
 
   - label: "CPU tests"
     command:
-      - "julia --project=test --color=yes test/runtests.jl"
+      - "julia -O0 --project=test --color=yes test/runtests.jl"
     agents:
       slurm_ntasks: 1
     timeout_in_minutes: 60
 
   - label: "GPU tests"
     command:
-      - "julia --project=test --color=yes test/runtests_gpu.jl"
+      - "julia -O0 --project=test --color=yes test/runtests_gpu.jl"
     agents:
       slurm_ntasks: 1
       slurm_gpus: 1

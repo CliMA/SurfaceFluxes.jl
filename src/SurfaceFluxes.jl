@@ -604,7 +604,7 @@ given the exchange coefficients and surface state.
     return (shf, lhf, E, ρτxz, ρτyz)
 end
 
-function evaluate_most_residual(
+function evaluate_monin_obukhov_residual(
     param_set,
     inputs,
     scheme,
@@ -693,7 +693,7 @@ end
 
 function (rf::ResidualFunction)(ζ)
     inputs = rf.inputs
-    residual, _, _ = evaluate_most_residual(
+    residual, _, _ = evaluate_monin_obukhov_residual(
         rf.param_set,
         inputs,
         rf.scheme,
@@ -706,39 +706,73 @@ function (rf::ResidualFunction)(ζ)
     return residual
 end
 
-"""
-    IterativeResidualFunction
+# ---------------------------------------------------------------------------
+# Shared utilities for the ζ solve. Both the callback-free
+# (`solve_stability_param`) and callback (`solve_stability_param_cb`) paths use
+# identical branch detection, bracketing, and final-interpolant/convergence
+# logic - but `solve_stability_param` uses RootSolvers.jl
 
-Mutable residual functor that advances `T_sfc_guess` and `q_vap_sfc_guess` across ζ
-solver iterations. Used when `update_T_sfc` or `update_q_vap_sfc` callbacks are set,
-so Newton-style surface-state updates linearize around the previous iterate rather
-than the initial guess.
-"""
-mutable struct IterativeResidualFunction{PS, I, UF, TP, SCH, FT1, FT2} <: Function
-    param_set::PS
-    inputs::I
-    scheme::SCH
-    uf_params::UF
-    thermo_params::TP
-    T_sfc_iter::FT1
-    q_vap_iter::FT2
+# The residual at neutral stability,
+# `f(0) = -Ri_b_state`, indicates the branch: stable (ζ > 0) for `f(0) <= 0`,
+# unstable (ζ < 0) otherwise. Returns the four probe points `(p1, m1, p2, p3)`:
+# `±1` on both branches and `|ζ| = 10, ζ_max` on the indicated branch. `sgn`
+# inherits the numeric type of the residual (e.g., Dual) so all iterates
+# promote consistently under automatic differentiation.
+@inline function monin_obukhov_probe_points(r0, ζ_max::FT) where {FT}
+    sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
+    return sgn, -sgn, FT(10) * sgn, ζ_max * sgn
 end
 
-function (rf::IterativeResidualFunction)(ζ)
-    inputs_cb = with_sfc_guesses(rf.inputs, rf.T_sfc_iter, rf.q_vap_iter)
-    residual, T_sfc_new, q_vap_sfc_new = evaluate_most_residual(
-        rf.param_set,
-        inputs_cb,
-        rf.scheme,
-        rf.uf_params,
-        rf.thermo_params,
-        ζ,
-        rf.T_sfc_iter,
-        rf.q_vap_iter,
-    )
-    rf.T_sfc_iter = T_sfc_new
-    rf.q_vap_iter = q_vap_sfc_new
-    return residual
+# Bracket selection from the five probe residuals, innermost sign change first:
+# `(0, ±1)` on the indicated branch, `(0, ∓1)` on the opposite branch (covers
+# transitional states whose callbacks put the root on the branch opposite to
+# the `f(0)` indication), then `(±1, ±10)` and `(±10, ±ζ_max)`. Returns
+# `(bracketed, a, fa, b, fb)`; when `bracketed == false` no root exists in the
+# physical range and the caller's refinement result is discarded.
+@inline function monin_obukhov_bracket(r0, r1, rm1, r2, r3, p1, m1, p2, p3)
+    c1 = r0 * r1 <= 0
+    cm = r0 * rm1 <= 0
+    c2 = r1 * r2 <= 0
+    c3 = r2 * r3 <= 0
+    bracketed = c1 | cm | c2 | c3
+
+    a = ifelse(c1 | cm, zero(r0), ifelse(c2, p1, p2))
+    fa = ifelse(c1 | cm, r0, ifelse(c2, r1, r2))
+    b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
+    fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
+    return bracketed, a, fa, b, fb
+end
+
+# Final regula falsi interpolant of the last bracket `[(x0, y0), (x1, y1)]` and
+# the shared convergence flag, for both solve paths. The interpolant improves on
+# the last evaluated point at no extra residual cost; `x_fallback` is used when
+# it falls outside the bracket. `solver_converged` is the refinement loop's
+# early-exit flag — `RootSolvers`' `sol.converged` for the callback-free path,
+# the inlined loop's break flag for the callback path. Returns `(ζ, converged)`,
+# where `ζ` saturates at `p3` in the no-root case and `converged` is true when a
+# sign change was bracketed and either the solver exited early or the final
+# bracket width satisfies the tolerances.
+@inline function monin_obukhov_finalize(
+    x0,
+    x1,
+    y0,
+    y1,
+    x_fallback,
+    bracketed,
+    solver_converged,
+    p3,
+    options,
+)
+    x_last = (x0 * y1 - x1 * y0) / (y1 - y0)
+    lo = min(x0, x1)
+    hi = max(x0, x1)
+    use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
+    x = ifelse(use_last, x_last, x_fallback)
+    width = abs(x1 - x0)
+    tol_met = width < options.tol || width < options.rtol * abs(x)
+    ζ = ifelse(bracketed, x, p3)
+    converged = bracketed && (solver_converged || tol_met)
+    return ζ, converged
 end
 
 """
@@ -803,41 +837,16 @@ function solve_stability_param(
     ζ_max::FT,
     options::SolverOptions,
 ) where {F, FT}
+    # Stage 1: branch detection and bracketing. The bracket is selected
+    # innermost first; for a fixed surface state the branch indication is exact,
+    # while callbacks make it a heuristic (see the docstring and `monin_obukhov_bracket`).
     r0 = root_function(zero(FT))
-
-    # Indicated branch: stable (ζ > 0) iff Ri_b_state = -f(0) >= 0.
-    # Exact for a fixed surface state; a heuristic when callbacks make
-    # Ri_b_state vary with ζ (see the docstring).
-    # `sgn` inherits the numeric type of the residual (e.g., Dual) so that
-    # all iterates promote consistently under automatic differentiation.
-    sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
-
-    # Near-neutral probes on both branches, log-spaced probes outward on the
-    # indicated branch
-    p1 = sgn
-    m1 = -sgn
-    p2 = FT(10) * sgn
-    p3 = ζ_max * sgn
+    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max)
     r1 = root_function(p1)
     rm1 = root_function(m1)
     r2 = root_function(p2)
     r3 = root_function(p3)
-
-    # Sign-change interval, selected innermost first; the opposite-branch
-    # near-neutral interval (`cm`) covers transitional states whose callbacks
-    # put the root on the branch opposite to the `f(0)` indication. If no
-    # interval brackets (`bracketed == false`), the refinement below runs on
-    # `(p2, p3)` and its result is discarded.
-    c1 = r0 * r1 <= 0
-    cm = r0 * rm1 <= 0
-    c2 = r1 * r2 <= 0
-    c3 = r2 * r3 <= 0
-    bracketed = c1 | cm | c2 | c3
-
-    a = ifelse(c1 | cm, zero(r0), ifelse(c2, p1, p2))
-    fa = ifelse(c1 | cm, r0, ifelse(c2, r1, r2))
-    b = ifelse(c1, p1, ifelse(cm, m1, ifelse(c2, p2, p3)))
-    fb = ifelse(c1, r1, ifelse(cm, rm1, ifelse(c2, r2, r3)))
+    bracketed, a, fa, b, fb = monin_obukhov_bracket(r0, r1, rm1, r2, r3, p1, m1, p2, p3)
 
     # Stage 2: fixed-count safeguarded refinement, delegated to RootSolvers'
     # regula falsi (Illinois variant with a bisection fallback). The bracket
@@ -873,27 +882,120 @@ function solve_stability_param(
         )
     end
 
-    # Final regula falsi interpolant of the last bracket: improves on the last
-    # evaluated point at no extra residual cost (discarded, like the rest of
-    # the refinement, when the interval does not bracket a root). The bracket
-    # residuals may be Illinois-damped (halved), which preserves their signs
-    # and hence the interpolant's validity.
-    x = sol.root
-    x_last = (sol.x0 * sol.y1 - sol.x1 * sol.y0) / (sol.y1 - sol.y0)
-    lo = min(sol.x0, sol.x1)
-    hi = max(sol.x0, sol.x1)
-    use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
-    x = ifelse(use_last, x_last, x)
-
-    # Converged when a sign change was found and either the solver's early-exit
-    # criterion was met (tolerance-checked mode) or the final bracket width satisfies 
-    # the tolerances.
-    width = abs(sol.x1 - sol.x0)
-    converged =
-        bracketed &&
-        (sol.converged || width < options.tol || width < options.rtol * abs(x))
-    ζ = ifelse(bracketed, x, p3)
+    # Final interpolant + convergence (shared helper). The bracket residuals may
+    # be Illinois-damped (halved), which preserves their signs and hence the
+    # interpolant's validity. `sol.converged` is the solver's early-exit flag
+    # (tolerance-checked mode); the helper ORs it with the final bracket-width
+    # test and ANDs with `bracketed`.
+    ζ, converged = monin_obukhov_finalize(
+        sol.x0, sol.x1, sol.y0, sol.y1, sol.root, bracketed, sol.converged, p3, options,
+    )
     return ζ, converged
+end
+
+"""
+    solve_stability_param_cb(
+        param_set, inputs, scheme, uf_params, thermo_params,
+        ζ_max, options, T_sfc_init, q_vap_init,
+    )
+
+Variant of [`solve_stability_param`](@ref) for the surface-state-callback
+path. Performs identical bracketing and Illinois regula falsi refinement, but carries
+`T_sfc_iter` and `q_vap_iter` as stack-allocated locals between residual
+evaluations, so all values remain `isbits` and the function compiles inside GPU kernels.
+
+Returns `(ζ, converged, T_sfc_final, q_vap_final)`. The returned surface-state
+values are from the last residual evaluation and are used to finalize the surface
+fluxes after the solve.
+"""
+function solve_stability_param_cb(
+    param_set,
+    inputs,
+    scheme,
+    uf_params,
+    thermo_params,
+    ζ_max::FT,
+    options::SolverOptions,
+    T_sfc_init,
+    q_vap_init,
+) where {FT}
+    # Evaluate residual at ζ, advancing the surface-state guess as a plain local
+    function eval_cb(ζ, T_sfc, q_vap)
+        evaluate_monin_obukhov_residual(
+            param_set,
+            with_sfc_guesses(inputs, T_sfc, q_vap),
+            scheme, uf_params, thermo_params,
+            ζ, T_sfc, q_vap,
+        )
+    end
+
+    # Stage 1: branch detection and bracketing — same 5 probes as
+    # solve_stability_param (shared helpers), with the surface state threaded
+    # sequentially through each evaluation.
+    r0, T_curr, q_curr = eval_cb(zero(FT), T_sfc_init, q_vap_init)
+    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max)
+
+    r1, T_curr, q_curr = eval_cb(p1, T_curr, q_curr)
+    rm1, T_curr, q_curr = eval_cb(m1, T_curr, q_curr)
+    r2, T_curr, q_curr = eval_cb(p2, T_curr, q_curr)
+    r3, T_curr, q_curr = eval_cb(p3, T_curr, q_curr)
+
+    # Save the surface state after the last bracketing probe. In the no-root
+    # (supercritical) case the refinement loop runs on a same-sign interval and
+    # its state advances are discarded; we return this saved state instead.
+    T_p3 = T_curr
+    q_p3 = q_curr
+
+    bracketed, a, fa, b, fb = monin_obukhov_bracket(r0, r1, rm1, r2, r3, p1, m1, p2, p3)
+
+    # Stage 2: Illinois regula falsi, inlined so T_curr/q_curr thread as plain locals.
+    # Matches RootSolvers' _find_zero_bracketed/_regula_falsi_y_update exactly:
+    # conditional halving (only when the same endpoint was retained on the previous step)
+    # and a bisection fallback when the bracket is nearly flat.
+    c = a
+    lastside = 0  # +1 = b moved last, -1 = a moved last
+    solver_converged = false  # inlined-loop analogue of RootSolvers' sol.converged
+    for _ in 1:options.maxiter
+        # Regula falsi interpolant with bisection fallback for flat brackets
+        c = ifelse(
+            abs(fb - fa) < 100 * eps(fb),
+            a + (b - a) / 2,
+            (a * fb - b * fa) / (fb - fa),
+        )
+        fc, T_curr, q_curr = eval_cb(c, T_curr, q_curr)
+
+        # is_neg: root is between a and c → b moves to c
+        is_neg = fc * fa < zero(fc)  # strict, matching RootSolvers
+
+        # Illinois y-update: halve only when same endpoint retained twice in a row
+        fa_next = ifelse(is_neg, ifelse(lastside == +1, fa / 2, fa), fc)
+        fb_next = ifelse(is_neg, fc, ifelse(lastside == -1, fb / 2, fb))
+        a = ifelse(is_neg, a, c)
+        b = ifelse(is_neg, c, b)
+        fa = fa_next
+        fb = fb_next
+        lastside = ifelse(is_neg, +1, -1)
+
+        if !options.forced_fixed_iters
+            width = abs(b - a)
+            if width < options.tol || width < options.rtol * abs(c)
+                solver_converged = true
+                break
+            end
+        end
+    end
+
+    # Final interpolant + convergence (shared helper). The last evaluated point
+    # `c` is the fallback when the interpolant falls outside the bracket. Passing
+    # `solver_converged` gives this path the same convergence flag as the
+    # callback-free path's `sol.converged` (see `monin_obukhov_finalize`).
+    ζ, converged =
+        monin_obukhov_finalize(a, b, fa, fb, c, bracketed, solver_converged, p3, options)
+    # In the no-root case, discard the refinement loop's state (computed on a
+    # same-sign interval) and return the state from the saturated probe at p3.
+    T_final = ifelse(bracketed, T_curr, T_p3)
+    q_final = ifelse(bracketed, q_curr, q_p3)
+    return ζ, converged, T_final, q_final
 end
 
 """
@@ -925,16 +1027,28 @@ function solve_monin_obukhov(
     uf_params = SFP.uf_params(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
 
+    # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
+    # stratification), no solution exists within this limit (e.g., for
+    # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
+    # solve saturates at the limit of the appropriate stability branch.
+    ζ_max = FT(100)
+
     if has_sfc_callbacks(inputs)
-        root_function = IterativeResidualFunction(
-            param_set,
-            inputs,
-            scheme,
-            uf_params,
-            thermo_params,
-            safe_T_sfc_guess(inputs),
-            safe_q_vap_sfc_guess(inputs),
-        )
+        # Callback path: inline Illinois loop carries T_sfc/q_vap as stack locals
+        # so all values remain isbits and the solve compiles inside GPU kernels.
+        ζ_final, converged, T_sfc_guess_safe, q_vap_sfc_guess_safe =
+            solve_stability_param_cb(
+                param_set,
+                inputs,
+                scheme,
+                uf_params,
+                thermo_params,
+                ζ_max,
+                options,
+                safe_T_sfc_guess(inputs),
+                safe_q_vap_sfc_guess(inputs),
+            )
+        inputs = with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe)
     else
         root_function = ResidualFunction(
             param_set,
@@ -943,22 +1057,7 @@ function solve_monin_obukhov(
             uf_params,
             thermo_params,
         )
-    end
-
-    # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
-    # stratification), no solution exists within this limit (e.g., for
-    # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
-    # solve saturates at the limit of the appropriate stability branch.
-    ζ_max = FT(100)
-
-    ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
-
-    # Finalize state using advanced surface iterates when callbacks are active
-    if root_function isa IterativeResidualFunction
-        T_sfc_guess_safe = root_function.T_sfc_iter
-        q_vap_sfc_guess_safe = root_function.q_vap_iter
-        inputs = with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe)
-    else
+        ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
         T_sfc_guess_safe = safe_T_sfc_guess(inputs)
         q_vap_sfc_guess_safe = safe_q_vap_sfc_guess(inputs)
     end
