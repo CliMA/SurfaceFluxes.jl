@@ -110,7 +110,7 @@ Available callbacks:
 If a callback returns a non-`Real` value (or is `nothing`), the initial guess from the inputs is used instead.
 
 !!! warning "Evolving guesses across solver iterations"
-    When either callback is supplied, the solver uses an `IterativeResidualFunction`
+    When either callback is supplied, the solver uses an `solve_stability_param_cb` function
     that advances the surface state across ζ iterations. On each call the `inputs`
     argument received by the callback will have `inputs.T_sfc_guess` and
     `inputs.q_vap_sfc_guess` set to the **previous iteration's returned values**,
