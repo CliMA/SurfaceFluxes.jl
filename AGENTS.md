@@ -1,59 +1,65 @@
-# SurfaceFluxes.jl Agent Guide
+# CliMA Developer Guides: Agent Entry Point
 
-## Ecosystem Guidelines
+Read this file first. It is the agent entry point for the shared engineering guidelines. Each guide applies across the CliMA ecosystem unless stated otherwise.
 
-Please refer to the shared CliMA agent index for ecosystem-wide rules regarding architecture, performance, code quality, infrastructure, and workflows:
+In consumer repos, these guides live at `docs/dev-guides/` and are supplied by a git subtree from the canonical source <https://github.com/CliMA/DeveloperGuides>. The consumer's root `AGENTS.md` references this file and the repo-specific guide. Edit shared guides in the canonical repo, not in the subtree copy.
 
-- [docs/dev-guides/AGENTS.md](docs/dev-guides/AGENTS.md) — Shared CliMA agent guidelines.
+## Before you act: agent autonomy
 
-> Shared guides live at `docs/dev-guides/` and are vendored from the canonical source:
-> <https://github.com/CliMA/DeveloperGuides>. Edit shared guides there, not here. They are
-> synced automatically each month by `.github/workflows/update_dev_guides.yml`.
+Local, reversible work (editing files, running tests, formatting, committing to the current branch) needs no permission. Get explicit user approval before any irreversible, externally visible, or scientifically consequential action:
 
-## Before You Act: Agent Autonomy
+- **Git/GitHub**: `git push`, force-push, rebasing or amending pushed commits, `git reset --hard` or `git clean` with uncommitted changes, deleting branches, opening/merging/closing PRs, commenting on issues or PRs, tagging or pushing releases.
+- **Versioning and dependencies**: bumping `version` in `Project.toml`, editing `Manifest.toml`, changing `[compat]` or `[deps]`, `Pkg.update()`.
+- **Reproducibility data**: editing reference counters, MSE tolerances, or checksum/golden files in reproducibility-test directories. Change these only for a user-confirmed output change.
+- **CI and infrastructure**: editing `.buildkite/pipeline.yml` or `.github/workflows/*`, adding or removing CI jobs, disabling tests, skipping hooks (`--no-verify`).
+- **Public API and user-visible behavior**: renaming or removing exported symbols, renaming diagnostics or changing their units, changing or removing user-visible config keys.
 
-Before making changes that are externally visible or consequential (`git push`, version bumps, CI config changes, public API renames), check [docs/dev-guides/workflow/agent_autonomy.md](docs/dev-guides/workflow/agent_autonomy.md). The boundaries listed there require explicit user approval.
+The full enumeration and the allowed-without-approval list are in [workflow/agent_autonomy.md](workflow/agent_autonomy.md). When in doubt, ask.
 
-## Repo-Specific Guidelines
-
-SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moisture using Monin-Obukhov Similarity Theory (MOST). It is GPU-compatible, AD-compatible (ForwardDiff), and designed to be broadcast over arrays of heterogeneous surfaces.
+## Guides
 
 ### Architecture
 
-- **Two modules**: the top-level `SurfaceFluxes` module (physics, solver, fluxes) and the nested `SurfaceFluxes.UniversalFunctions` submodule (stability functions ϕ, ψ, Ψ). `SurfaceFluxes.Parameters` holds the parameter struct and accessors.
-- **Pure, stateless functions**: physics functions take a `param_set`, state, and configuration and return values or a [`SurfaceFluxConditions`](docs/src/API.md) struct; they do not mutate global state.
-- **GPU/AD compatibility**: hot paths use `ifelse` rather than branches to avoid warp divergence; both branches of an `ifelse` must be evaluable (guard invalid inputs with `min`/`max` so the discarded branch never errors). Avoid keyword-argument constructors in kernels. Do not contaminate the `Float32` path with `Float64` literals — wrap constants in `FT(...)`. See [docs/dev-guides/performance/](docs/dev-guides/performance/).
-- **Solver design**: `surface_fluxes` dispatches to one of four modes (prescribed coefficients, prescribed fluxes, prescribed heat+drag, or the iterative MOST solve). The iterative solve finds the stability parameter `ζ` as the root of `Ri_b(state) − Ri_b(ζ)` via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl), using a fixed iteration count by default for branch-free GPU execution.
+- [repo_structure.md](architecture/repo_structure.md): how to navigate any CliMA Julia package.
+- [ecosystem_conventions.md](architecture/ecosystem_conventions.md): module aliases, `Y`/`Yₜ`/`p` state layout, `ᶜ`/`ᶠ` notation, CI structure, reproducibility, diagnostics.
+- [architectural_boundaries.md](architecture/architectural_boundaries.md): layered architecture and boundary rules.
+- [cross_repo_contracts.md](architecture/cross_repo_contracts.md): call-site conventions for ecosystem packages.
+- [dependency_management.md](architecture/dependency_management.md): runtime vs dev dependencies, compat bounds.
 
-### Source layout
+### Performance
 
-| Path | Purpose |
-|------|---------|
-| `src/SurfaceFluxes.jl` | Top-level module: `surface_fluxes` entry point, mode dispatch, the MOST solve (`solve_monin_obukhov`, `ResidualFunction`) |
-| `src/UniversalFunctions.jl` | `UniversalFunctions` submodule: ϕ/ψ/Ψ for Businger, Gryanik, Grachev; solver schemes; dimensionless profiles |
-| `src/types.jl` | `SurfaceFluxConfig`, `FluxSpecs`, `SolverOptions`, `SurfaceFluxConditions`, moisture/gustiness model types |
-| `src/bulk_fluxes.jl` | Sensible/latent heat, evaporation, buoyancy, momentum fluxes, bulk Richardson number |
-| `src/exchange_coefficients.jl` | Drag/heat exchange coefficients and conductance |
-| `src/physical_scales.jl` | u\*, θ\*, q\*, variances, Obukhov length and stability parameter |
-| `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models; combined u\*–roughness solver |
-| `src/wind_and_gustiness.jl` | Effective wind speed and gustiness (constant, Deardorff) |
-| `src/profile_recovery.jl` | `compute_profile_value` for diagnosing variables at arbitrary heights |
-| `src/utilities.jl` | `surface_density`, geopotential helpers, `non_zero` |
-| `src/input_builders.jl` | `build_surface_flux_inputs`: normalizes user inputs into a NamedTuple |
-| `src/Parameters.jl` | `SurfaceFluxesParameters` and accessors |
-| `ext/CreateParametersExt.jl` | ClimaParams-based constructors (weak dependency) |
-| `test/` | Test suite (`runtests.jl`; GPU via `runtests_gpu.jl`) |
-| `docs/` | Documentation source (`docs/src/`) and shared dev-guides (`docs/dev-guides/`) |
+- [gpu_performance.md](performance/gpu_performance.md): GPU kernel rules, broadcast patterns, allocation avoidance.
+- [branchless_code.md](performance/branchless_code.md): avoiding warp divergence with `ifelse`, evaluate-both-cases splits, and fixed-iteration solvers chosen by offline tests.
+- [type_stability.md](performance/type_stability.md): Float32 compatibility, inference checks, struct field rules.
+- [numerical_robustness.md](performance/numerical_robustness.md): denominator regularization, clamping, NaN/Inf avoidance.
+- [ad_compatibility.md](performance/ad_compatibility.md): AD-safe patterns for ForwardDiff and Enzyme.
+- [allocation_debugging.md](performance/allocation_debugging.md): locating heap allocations with `Profile.Allocs`, JET, `@code_warntype`, flame graphs.
 
-## Local norms
+### Code Quality
 
-- For package tests, prefer `Pkg.test()` over manually `include`ing `test/runtests.jl`, so test-only dependencies load through the package test path.
-- Physics code is dimensional: carry SI units in docstrings (square brackets, e.g. `[W/m^2]`, `[kg/kg]`, `[m/s]`). Keep sign conventions explicit (fluxes are positive upward).
-- Match existing style: explicit names, narrow imports, comments that explain *why*. Unicode variable names (`ζ`, `θ`, `ϕ`, `ψ`, `Ψ`, `κ`, `ρ`) match the math.
-- Docstrings follow [docs/dev-guides/code-quality/documentation_policy.md](docs/dev-guides/code-quality/documentation_policy.md): an indented signature line, single-`#` section headings in plural standard form (`# Arguments`, `# Returns`, `# Fields`, `# Examples`, `# Notes`), and `[`name`](@ref)` cross-references for every type/function mentioned. Use `raw"""..."""` for docstrings with LaTeX backslashes.
-- Run `julia -e 'using JuliaFormatter; format(".")'` before committing code (config in `.JuliaFormatter.toml`, margin 92).
+- [getting_started.md](code-quality/getting_started.md): orienting newcomers to writing pointwise code compatible with ClimaCore `Field`s and broadcasting.
+- [code_style.md](code-quality/code_style.md): formatting, variable locality, Git workflow, feature removal, naming conventions.
+- [documentation_policy.md](code-quality/documentation_policy.md): docstrings, repository-level docs, minimally viable documentation.
+- [changelogs_and_versions.md](code-quality/changelogs_and_versions.md): `NEWS.md` format, SemVer rules, and the release/tagging flow.
+- [variable_list.md](code-quality/variable_list.md): standardized CliMA variable naming conventions.
+- [glossary.md](code-quality/glossary.md): general CliMA software and simulation terminology.
+- [software_design_patterns.md](code-quality/software_design_patterns.md): numbered SDPs for branchless logic, functors, parameter extraction, and more.
+
+### Infrastructure
+
+- [testing_and_validation.md](infrastructure/testing_and_validation.md): type-stability checks, Aqua.jl, allocation regression, AD tests.
+- [clima_comms.md](infrastructure/clima_comms.md): device-agnostic and MPI-distributed code patterns.
+
+### Workflow
+
+- [onboarding.md](workflow/onboarding.md): install Julia, clone a CliMA repo, set up Revise/Infiltrator/JuliaFormatter, first PR loop.
+- [running_on_gpu.md](workflow/running_on_gpu.md): run a model on GPU — install Julia, add `CUDA.jl`, CUDA runtime compatibility, `CLIMACOMMS_DEVICE`, verify the device.
+- [agent_autonomy.md](workflow/agent_autonomy.md): actions that require explicit user approval.
+- [debugging.md](workflow/debugging.md): interactive debugging recipes for numerical instabilities, dispatch, and `Field` plotting.
+- [review.md](workflow/review.md): PR review instructions and checklist.
+- [ci_triage.md](workflow/ci_triage.md): checklist for "passes locally, fails on CI" failure modes.
+- [cross_repo_issue_pr_search.md](workflow/cross_repo_issue_pr_search.md): org-scoped GitHub search to find and filter issues/PRs across CliMA.
 
 ## Self-correction
 
-- If the source layout table above is discovered to be stale, update it.
-- If the user gives a correction about how work should be done in this repo, add it to `Local norms` or another clearly labeled persistent section in this file so future sessions inherit it.
+If this index is stale or missing a guide, update it here and in the matching [README.md](README.md#guides) overview.

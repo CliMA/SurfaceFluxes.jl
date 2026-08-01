@@ -1,99 +1,153 @@
-<div align="center">
-  <img src="docs/src/assets/logo.svg" alt="SurfaceFluxes.jl Logo" width="128" height="128">
-</div>
+# DeveloperGuides
 
-# SurfaceFluxes.jl
+Shared engineering standards, architectural patterns, and development guidelines for human and AI developers across the [CliMA](https://clima.caltech.edu) ecosystem.
 
-A package for computing surface fluxes between the atmosphere, ocean, and land using Monin-Obukhov Similarity Theory (MOST).
+## Guides
 
-SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent surface fluxes of momentum, heat, and moisture. It supports GPU broadcasting, automatic differentiation, and multiple universal function parameterizations (Businger, Gryanik, Grachev), making it ideal for high-performance climate modeling.
+Every guide applies across the CliMA ecosystem unless it says otherwise.
 
-|                           |                                                                          |
-|--------------------------:|:-------------------------------------------------------------------------|
-| **Stable Release**        | [![stable][stable-img]][stable-url] [![docs-stable][docs-stable-img]][docs-stable-url] |
-| **Unit Tests**            | [![unit tests][gha-ci-img]][gha-ci-url] [![codecov][codecov-img]][codecov-url] |
-| **Downloads**             | [![Downloads][dlt-img]][dlt-url]                                         |
+### Architecture
 
-[stable-img]: https://img.shields.io/github/v/release/CliMA/SurfaceFluxes.jl?label=stable
-[stable-url]: https://github.com/CliMA/SurfaceFluxes.jl/releases/latest
+- [repo_structure.md](architecture/repo_structure.md): how to navigate any CliMA Julia package.
+- [ecosystem_conventions.md](architecture/ecosystem_conventions.md): module aliases, `Y`/`Yₜ`/`p` state layout, `ᶜ`/`ᶠ` notation, CI structure, reproducibility, diagnostics.
+- [architectural_boundaries.md](architecture/architectural_boundaries.md): layered architecture and boundary rules.
+- [cross_repo_contracts.md](architecture/cross_repo_contracts.md): call-site conventions for ecosystem packages.
+- [dependency_management.md](architecture/dependency_management.md): runtime vs dev dependencies, compat bounds.
 
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-green.svg
-[docs-stable-url]: https://CliMA.github.io/SurfaceFluxes.jl/stable/
+### Performance
 
-[gha-ci-img]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml/badge.svg
-[gha-ci-url]: https://github.com/CliMA/SurfaceFluxes.jl/actions/workflows/ci.yml
+- [gpu_performance.md](performance/gpu_performance.md): GPU kernel rules, broadcast patterns, allocation avoidance.
+- [branchless_code.md](performance/branchless_code.md): avoiding warp divergence with `ifelse`, evaluate-both-cases splits, and fixed-iteration solvers chosen by offline tests.
+- [type_stability.md](performance/type_stability.md): Float32 compatibility, inference checks, struct field rules.
+- [numerical_robustness.md](performance/numerical_robustness.md): denominator regularization, clamping, NaN/Inf avoidance.
+- [ad_compatibility.md](performance/ad_compatibility.md): AD-safe patterns for ForwardDiff and Enzyme.
+- [allocation_debugging.md](performance/allocation_debugging.md): locating heap allocations with `Profile.Allocs`, JET, `@code_warntype`, flame graphs.
 
-[codecov-img]: https://codecov.io/gh/CliMA/SurfaceFluxes.jl/branch/main/graph/badge.svg
-[codecov-url]: https://codecov.io/gh/CliMA/SurfaceFluxes.jl
+### Code Quality
 
-[dlt-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FSurfaceFluxes&query=total_requests&label=Downloads
-[dlt-url]: https://juliapkgstats.com/pkg/SurfaceFluxes
+- [getting_started.md](code-quality/getting_started.md): orienting newcomers to writing pointwise code compatible with ClimaCore `Field`s and broadcasting.
+- [code_style.md](code-quality/code_style.md): formatting, variable locality, Git workflow, feature removal, naming conventions.
+- [documentation_policy.md](code-quality/documentation_policy.md): docstrings, repository-level docs, minimally viable documentation.
+- [changelogs_and_versions.md](code-quality/changelogs_and_versions.md): `NEWS.md` format, SemVer rules, and the release/tagging flow.
+- [variable_list.md](code-quality/variable_list.md): standardized CliMA variable naming conventions.
+- [glossary.md](code-quality/glossary.md): general CliMA software and simulation terminology.
+- [software_design_patterns.md](code-quality/software_design_patterns.md): numbered SDPs for branchless logic, functors, parameter extraction, and more.
 
-## Features
+### Infrastructure
 
-- **Monin-Obukhov Similarity Theory**: Robust iterative solver for stability-dependent surface fluxes
-- **Universal Function Parameterizations**: [Businger et al. (1971)](https://doi.org/10.1175/1520-0469(1971)028%3C0181:FPRITA%3E2.0.CO;2), [Gryanik et al. (2020)](https://doi.org/10.1175/JAS-D-19-0255.1), and [Grachev et al. (2007)](https://doi.org/10.1007/s10546-007-9177-6) formulations
-- **GPU Support**: Full GPU acceleration with CUDA.jl and other GPU array types
-- **Land and Ocean Parameterizations**: Support for parameterizations for land and ocean surfaces, including roughness lengths that depend on wind speed (ocean) and vegetation characteristics (land)
-- **Dynamic Skin States**: Supports dynamic calculations of skin temperatures and humidities via user-supplied functions
-- **Finite-Difference and Finite-Volume Schemes**: Supports both finite-difference (point-wise) and finite-volume (layer-averaged) formulations following [Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534)
-- **AD Compatible**: Works with automatic differentiation frameworks for integration into differentiable models
+- [testing_and_validation.md](infrastructure/testing_and_validation.md): type-stability checks, Aqua.jl, allocation regression, AD tests.
+- [clima_comms.md](infrastructure/clima_comms.md): device-agnostic and MPI-distributed code patterns.
 
-## Quick Example
+### Workflow
 
-```julia
-using SurfaceFluxes
-import SurfaceFluxes.Parameters as SFP
-import SurfaceFluxes.UniversalFunctions as UF
-import ClimaParams
+- [onboarding.md](workflow/onboarding.md): install Julia, clone a CliMA repo, set up Revise/Infiltrator/JuliaFormatter, first PR loop.
+- [running_on_gpu.md](workflow/running_on_gpu.md): run a model on GPU — install Julia, add `CUDA.jl`, CUDA runtime compatibility, `CLIMACOMMS_DEVICE`, verify the device.
+- [agent_autonomy.md](workflow/agent_autonomy.md): actions that require explicit user approval.
+- [debugging.md](workflow/debugging.md): interactive debugging recipes for numerical instabilities, dispatch, and `Field` plotting.
+- [review.md](workflow/review.md): PR review instructions and checklist.
+- [ci_triage.md](workflow/ci_triage.md): checklist for "passes locally, fails on CI" failure modes.
+- [cross_repo_issue_pr_search.md](workflow/cross_repo_issue_pr_search.md): org-scoped GitHub search to find and filter issues/PRs across CliMA.
 
-# Create parameters
-FT = Float64
-param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+---
 
-# Compute surface fluxes
-result = surface_fluxes(
-    param_set,
-    T_int,           # Interior temperature [K]
-    q_tot,           # Interior total specific humidity [kg/kg]
-    q_liq,           # Interior liquid specific humidity [kg/kg]
-    q_ice,           # Interior ice specific humidity [kg/kg]
-    ρ_int,           # Interior density [kg/m³]
-    T_sfc,           # Surface temperature [K]
-    q_sfc,           # Surface specific humidity [kg/kg]
-    Φ_sfc,           # Surface geopotential [m²/s²]
-    Δz,              # Height above surface [m]
-    d,               # Displacement height [m]
-    u_int,           # Interior wind (u, v) [m/s]
-    u_sfc,           # Surface wind (u, v) [m/s]
-)
+## About DeveloperGuides
 
-# Access results
-result.shf      # Sensible heat flux [W/m²]
-result.lhf      # Latent heat flux [W/m²]
-result.evaporation  # Evaporation rate [kg/(m²·s)]
-result.ustar    # Friction velocity [m/s]
-result.ρτxz     # Momentum flux, x-component [N/m²]
-result.ρτyz     # Momentum flux, y-component [N/m²]
-result.Cd       # Drag coefficient [-]
-result.g_h      # Heat conductance Ch * U_eff [m/s]
-result.T_sfc    # Surface temperature [K] (final)
-result.q_vap_sfc # Surface vapor specific humidity [kg/kg] (final)
-result.L_MO     # Monin-Obukhov length [m]
-result.converged # Solver convergence status
+These guides are maintained in [CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides) and vendored into consumer repos as a Git subtree at the standardized path `docs/dev-guides/`. The material below is for maintaining and consuming that subtree; readers looking for engineering guidance want the [Guides](#guides) overview above.
+
+### Using the guides in a consumer repo
+
+A consumer repo keeps its own `AGENTS.md` at the root, which references `docs/dev-guides/AGENTS.md` (the agent entry point) plus a repo-specific guide (e.g. `docs/clima_atmos_specific.md`). See [`templates/`](templates/) for ready-to-copy starter files: a root `AGENTS.md`, a repo-specific guide skeleton, and the monthly sync workflow.
+
+```bash
+# Add the subtree to a new consumer repo
+git subtree add --prefix docs/dev-guides \
+    https://github.com/CliMA/DeveloperGuides.git main --squash
+
+# Pull the latest guides manually (most repos automate this monthly via update_dev_guides.yml)
+git subtree pull --prefix docs/dev-guides \
+    https://github.com/CliMA/DeveloperGuides.git main --squash \
+    -m "chore: sync dev guides from central repo"
 ```
 
-## Documentation
+> [!NOTE]
+> **Subtree pitfalls.**
+>
+> - `git subtree add --prefix docs/dev-guides ...` nests all of DeveloperGuides, including its own `AGENTS.md`, `LICENSE`, and `README.md`, under that prefix. It does not touch the consumer's root files, so the initial add does not conflict with them.
+> - The real risk is editing the vendored copy under `docs/dev-guides/` directly instead of upstream (see "Contributing" below). A later `git subtree pull` merges upstream changes into that path, so a local edit there can produce a genuine merge conflict. Resolve it like any merge conflict: fix the conflicting file, `git add`, `git commit`. Subtree operations use merge, not rebase, so `git rebase --continue` does not apply.
+> - When there are no new upstream commits the monthly run is a clean no-op. The workflow now fails loudly on a genuine `git subtree pull` error instead of masking it, so a red run means something actually needs attention.
 
-The full documentation, including the mathematical formulation of MOST, the universal
-function parameterizations, and the API reference, is available at the
-[stable docs](https://CliMA.github.io/SurfaceFluxes.jl/stable/).
+### Fixing a broken subtree sync
 
-## Contributing
+The monthly sync breaks in one of two ways: a dev-guides PR was squash-merged — which discards the `git subtree` metadata the next pull relies on — or the workflow lacks the write permissions it needs to open a PR. If a repo's sync stopped producing PRs, apply whichever fix below it needs; most repos only need the first.
 
-Contributors should follow the shared CliMA engineering standards in
-[`docs/dev-guides/`](docs/dev-guides/), which cover architecture, performance, code quality,
-documentation, and workflows. These are vendored from
-[CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides) and synced automatically
-each month. The repo's [`AGENTS.md`](AGENTS.md) is a starting point for AI agents with
-repo-specific guidance.
+**1. Update the workflow file (do this on every consumer repo).** Replace the old workflow with the current template rather than hand-editing it:
+
+```bash
+git checkout -b update-dev-guides-workflow
+mkdir -p .github/workflows
+curl -fsSL https://raw.githubusercontent.com/CliMA/DeveloperGuides/main/templates/update_dev_guides.yml.template \
+    -o .github/workflows/update_dev_guides.yml
+git add .github/workflows/update_dev_guides.yml
+git commit -m "ci: refresh dev-guides sync workflow from template"
+git push -u origin update-dev-guides-workflow
+```
+
+Then open a PR for that branch and merge it normally — this PR does not touch the subtree, so squash is fine. Also make sure **Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"** is enabled, or the workflow will fail when it tries to open the monthly sync PR.
+
+**2. Repair broken subtree metadata (only if a sync PR was ever squash-merged).** Symptom: a manual `git subtree pull` (or the workflow log) fails with `fatal: can't squash-merge: 'docs/dev-guides' was never added.` Remove and re-add the subtree:
+
+```bash
+git checkout -b fix-dev-guides-subtree
+git rm -r docs/dev-guides
+git commit -m "chore: remove dev-guides subtree (re-adding to fix metadata)"
+git subtree add --prefix docs/dev-guides \
+    https://github.com/CliMA/DeveloperGuides.git main --squash
+```
+
+Open a PR for this branch and **merge it with a merge commit, not squash** — squash-merging here immediately re-breaks the metadata. Any local edits to files under `docs/dev-guides/` are discarded, which is correct: that copy is vendored and should only be changed upstream.
+
+### Contributing
+
+Edits to shared guidelines belong in [CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides), not in the vendored copy inside a consumer repo. Open PRs there; once merged, the next subtree pull propagates them to every consumer.
+
+- Each guide has a **Self-correction** section: if you discover a guide is stale or missing a pattern, update it directly.
+- New guides go in the appropriate category directory and are added to this overview and to [AGENTS.md](AGENTS.md).
+- Cross-references between guides use relative paths (e.g. `../performance/gpu_performance.md`).
+
+### Repository layout
+
+```text
+├── AGENTS.md                  # Agent entry point: autonomy gate + guide index
+├── README.md                  # This file: guide overview + repo info
+├── architecture/              # System design, layering, contracts
+├── performance/               # GPU, type stability, numerics, AD
+├── code-quality/              # Style, docstrings, changelogs, naming
+├── infrastructure/            # Testing, device abstraction
+├── workflow/                  # Onboarding, debugging, review, CI triage
+└── templates/                 # Starter files for consumer repos
+```
+
+### CliMA ecosystem
+
+These guides are the central source of engineering standards across [CliMA](https://github.com/CliMA), including:
+
+- [ClimaAtmos](https://github.com/CliMA/ClimaAtmos.jl)
+- [ClimaCore](https://github.com/CliMA/ClimaCore.jl)
+- [ClimaLand](https://github.com/CliMA/ClimaLand.jl)
+- [ClimaOcean](https://github.com/CliMA/ClimaOcean.jl)
+- [ClimaCoupler](https://github.com/CliMA/ClimaCoupler.jl)
+- [Thermodynamics](https://github.com/CliMA/Thermodynamics.jl)
+- [CloudMicrophysics](https://github.com/CliMA/CloudMicrophysics.jl)
+- [SurfaceFluxes](https://github.com/CliMA/SurfaceFluxes.jl)
+- [ClimaTimeSteppers](https://github.com/CliMA/ClimaTimeSteppers.jl)
+
+### License
+
+[![license][license-img]][license-url] Apache 2.0; see [LICENSE](LICENSE).
+
+[license-img]: https://img.shields.io/github/license/CliMA/DeveloperGuides
+[license-url]: https://github.com/CliMA/DeveloperGuides/blob/main/LICENSE
+
+### Getting help
+
+For questions or suggestions, open an issue on [GitHub](https://github.com/CliMA/DeveloperGuides/issues).
