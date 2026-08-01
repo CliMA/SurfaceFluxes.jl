@@ -14,6 +14,7 @@ Common sources and fixes:
 | Infinity / NaN     | `Inf`, `NaN`                   | `FT(Inf)`, `FT(NaN)`                            |
 | Random numbers     | `rand()`                       | `rand(FT)`                                      |
 | Math constants     | `2 * π` converts to `Float64`  | `2 * FT(π)` (`x * π` is sufficient if `x::FT`)  |
+| Rational exponent  | `x^(2//3)` (`Rational{Int64}` promotes to `Float64`) | `cbrt(x)^2` (see [gpu_performance.md §10](gpu_performance.md)) |
 | Literal zero/one   | `0.0`, `1.0`                   | `zero(FT)`, `one(FT)`                           |
 
 ## 2. Detecting type instability
