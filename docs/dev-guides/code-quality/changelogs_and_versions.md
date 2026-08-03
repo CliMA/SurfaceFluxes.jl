@@ -34,7 +34,7 @@ main
 ----
 
 - One bullet per change, plain English, past tense.
-- Include the PR number as a link: PR [#1234](https://github.com/CliMA/MyPackage.jl/pull/1234).
+- Lead the bullet with the PR number as a link: `[#1234](https://github.com/CliMA/MyPackage.jl/pull/1234)`.
 
 v0.39.0
 -------
@@ -57,7 +57,7 @@ Some repos (notably `ClimaAtmos`, `ClimaCore`, `ClimaTimeSteppers`) prefix entri
 | `![][badge-✨feature/enhancement]` | New features                                                  |
 | `![][badge-🐛bugfix]`              | Bug fixes                                                     |
 
-Smaller library repos (`CloudMicrophysics`, `SurfaceFluxes`) use plain-text entries without badges. Match the convention already in the repo's `NEWS.md`.
+Smaller library repos vary: some (e.g. `SurfaceFluxes`) use plain-text entries without badges; others (e.g. `CloudMicrophysics`, as of this writing) have no `NEWS.md` at all. Check whether the repo has one before assuming a convention; match whatever exists, or start a plain `main` section (§1.3) if none does.
 
 ### 1.5 Example
 
@@ -67,15 +67,12 @@ main
 
 v0.39.0
 -------
-- ![][badge-💥breaking] Removed deprecated `old_config_key`. Use `new_config_key` instead.
-  PR [#1234](https://github.com/CliMA/MyPackage.jl/pull/1234).
-- ![][badge-✨feature/enhancement] Added `my_new_config_key` to control feature X.
-  PR [#1235](https://github.com/CliMA/MyPackage.jl/pull/1235).
+- [#1234](https://github.com/CliMA/MyPackage.jl/pull/1234) ![][badge-💥breaking] Removed deprecated `old_config_key`. Use `new_config_key` instead.
+- [#1235](https://github.com/CliMA/MyPackage.jl/pull/1235) ![][badge-✨feature/enhancement] Added `my_new_config_key` to control feature X.
 
 v0.38.4
 -------
-- ![][badge-🐛bugfix] Fixed incorrect surface flux calculation.
-  PR [#1230](https://github.com/CliMA/MyPackage.jl/pull/1230).
+- [#1230](https://github.com/CliMA/MyPackage.jl/pull/1230) ![][badge-🐛bugfix] Fixed incorrect surface flux calculation.
 ```
 
 ---

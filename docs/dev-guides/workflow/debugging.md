@@ -93,7 +93,7 @@ For Oceananigans state inspection, the [ClimaCoupler debugging guide](https://cl
 | A field carries stale values across stages       | A tendency function reads from `Yₜ` instead of writing to it; `Yₜ` must be write-only per [ecosystem_conventions.md §2](../architecture/ecosystem_conventions.md) |
 | Result differs by `~eps` from a reference        | Reordered floating-point arithmetic from a refactor, usually harmless, but flag with `🤖precisionΔ` ([changelogs_and_versions.md §1.4](../code-quality/changelogs_and_versions.md)) |
 | Float32 simulation diverges where Float64 is fine | A `1.0`/`Inf`/`6^x` literal promoted to Float64, see [type_stability.md §1](../performance/type_stability.md) |
-| NaN appears only on GPU                          | A scalar-indexing fallback that returns garbage, or a non-`isbits` arg in a kernel, see [gpu_performance.md §§7–8](../performance/gpu_performance.md) |
+| NaN appears only on GPU                          | A scalar-indexing fallback that returns garbage (see [clima_comms.md §5](../infrastructure/clima_comms.md)), or a non-`isbits` arg in a kernel (see [gpu_performance.md §8](../performance/gpu_performance.md)) |
 | Result depends on MPI rank count                 | A non-associative reduction or per-rank random state: see [clima_comms.md §2](../infrastructure/clima_comms.md) |
 
 ## 6. Other common pitfalls

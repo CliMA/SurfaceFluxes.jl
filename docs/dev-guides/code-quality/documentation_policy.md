@@ -36,7 +36,7 @@ These modes are guides, not strict partitions: CliMA repos commonly interleave t
 - [Documenter.jl](https://juliadocs.github.io/Documenter.jl/stable/) renders docstrings into documentation pages.
 - [Literate.jl](https://fredrikekre.github.io/Literate.jl/stable/) generates markdown and notebook-style examples from Julia scripts and runs them in CI.
 - Sources live in `docs/src/`; tutorials in `tutorials/` if present.
-- For local iteration, use `LiveServer.servedocs()` (see [onboarding.md §6](../workflow/onboarding.md)).
+- For local iteration, use `LiveServer.servedocs()` (see [onboarding.md §9](../workflow/onboarding.md)).
 
 ## 3. Docstrings
 
@@ -316,7 +316,7 @@ abstract type Foo end
 
 ### 3.11 What we don't use, and other anti-patterns
 
-- **`DocStringExtensions`** (`$(TYPEDEF)`, `$(FIELDS)`, `$(SIGNATURES)`, …). Spell out signatures, field lists, and types by hand. Readability in source matters more than DRY.
+- **`DocStringExtensions`** (`$(TYPEDEF)`, `$(FIELDS)`, `$(SIGNATURES)`, …). Spell out signatures, field lists, and types by hand. Readability in source matters more than DRY. Some existing repos (e.g. CloudMicrophysics.jl's parameter structs) use `$(FIELDS)` from before this guidance; don't introduce new uses, but migrating old ones is not required on its own.
 - **`jldoctest`** blocks. Most CliMA repos don't run doctests in CI, so jldoctests silently rot. Use plain ` ```julia ` blocks.
 - **Long mathematical derivations inline.** The docstring should give the reader enough to use the function; derivations belong on an *Explanation* page or in the source paper. Link to it.
 - **Generated docstrings via metaprogramming** (macros that splice docstrings into `@eval`'d definitions) unless unavoidable: hard to grep, hard to read, easy to break.

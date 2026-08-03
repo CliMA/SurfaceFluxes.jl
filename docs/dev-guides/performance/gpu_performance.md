@@ -162,6 +162,51 @@ Avoid using `DataTypes` (e.g. `Float64`) or their aliases (e.g `FT`) directly in
 
 After implementing or modifying hot-path code, verify zero allocations with the warm-up + `@allocated == 0` regression-test pattern documented in [allocation_debugging.md §1](allocation_debugging.md). Allocation benchmarks in `perf/` are not run automatically in CI, so allocation regressions must be caught at review time.
 
+## 10. Elementary functions: exponents and roots
+
+Transcendental functions dominate the cost of many physics kernels (size distributions, terminal velocities), and the general power operator `x^y` is one of the most expensive. Choosing the right form for a fractional power is frequently a several-fold kernel speedup: removing rational exponents alone gave a ~7x speedup in a CloudMicrophysics 2-moment kernel.
+
+**Underlying principle**: the cost of `x^y` depends entirely on the *type of the exponent*.
+
+- **Floating-point exponent** (`x^y`, `x^2.0f0`, `x^0.5f0`): computed as roughly `exp(y * log(x))`, two transcendentals plus special-case handling. Expensive.
+- **Integer-literal exponent** (`x^2`, `x^3`): non-negative integer literals dispatch to `Base.literal_pow`, which is plain multiplies (`x*x`, `x*x*x`). Negative integer literals (`x^-2`) take the general integer-exponent path (`inv` + multiplies), which is equally cheap. No transcendental either way.
+- **Rational-literal exponent** (`x^(2//3)`): the worst case on GPU. It is not reliably constant-folded by the GPU compiler. When it is not folded, each thread constructs a 16-byte `Rational{Int64}` and runs a 64-bit integer `gcd` (with overflow checks) to normalize it *before the power is even computed*. 64-bit integer division is emulated on the GPU and the `gcd` loop diverges. Even in the best case where it does fold, it still reduces to a floating-point `pow`.
+
+`sqrt` and `cbrt` map to dedicated, much cheaper routines than `pow`, so express fractional powers through them.
+
+The rules:
+
+1. **Never put a `Rational` literal in an exponent inside a kernel.** Not `x^(2//3)`, not `x^(-1//2)`, not `x^(3//2)`.
+2. **Rewrite a fractional power as a root composed with an integer-literal power:** `x^(p//q) == root_q(x)^p`, using `sqrt` for `q = 2` and `cbrt` for `q = 3`, with an integer *literal* for `p`.
+3. **Take the root first.** Prefer `cbrt(x)^2` over `cbrt(x^2)`: doing the root first keeps the intermediate in range. For large or small `x`, squaring first can overflow or underflow to `0`/`Inf` where the root-first form is still correct. (Square-first is marginally more accurate and is acceptable only for moderate compile-time constants where overflow is impossible.)
+4. **The exponent must be a literal, not a variable.** Only a written literal hits `literal_pow`; a *float* literal such as `x^2.0f0` is a `pow`, so write `x^2`. If a moment order or similar must be a variable, make it an `Int`, never a `Rational`.
+
+| Instead of | Write |
+|---|---|
+| `x^(1//2)`, `x^0.5f0` | `sqrt(x)` |
+| `x^(3//2)` | `x * sqrt(x)` (one multiply; `sqrt(x)^3` would be two) |
+| `x^(1//3)` | `cbrt(x)` |
+| `x^(2//3)` | `cbrt(x)^2` |
+| `x^(-2//3)` | `cbrt(x)^(-2)` |
+| `x^(1//6)` | `cbrt(sqrt(x))` |
+
+```julia
+# ❌ Bad: rational exponent -> Rational{Int64} + 64-bit gcd per thread, then a pow
+v = a * D^(2//3)
+
+# ✅ Preferred: one hardware cbrt plus an integer-literal square (literal_pow)
+v = a * cbrt(D)^2
+```
+
+A constant fractional power of compile-time parameters is best precomputed once, on the host, into a parameter or constructor field so it never appears in the kernel at all. Note the Float32 hazard: `Rational{Int64}` is a 64-bit type, so `x::Float32 ^ (2//3)` promotes the result to `Float64`, breaking Float32 kernels (see [type_stability.md §1](type_stability.md) for the general Float32-pollution checklist). See [Numerical Robustness §1–2](numerical_robustness.md) for guarding `sqrt` of a possibly-negative argument (`cbrt` accepts negatives, `sqrt` does not).
+
+## 11. Other patterns worth checking
+
+Two further patterns are not yet documented in depth here; worth considering when looking for more performance:
+
+- **Deduplicating a repeated pure computation across sibling functions.** If several functions each recompute the same expensive quantity from the same inputs, consider computing it once and threading it through as a default-valued optional argument, rather than duplicating the computation and relying on the compiler to CSE it across function-call boundaries (not guaranteed).
+- **Reducing quadrature order (or other numerical-integration resolution).** Beyond the fixed-iteration-count guidance for solvers in [Branchless Code Guide §§4–5](branchless_code.md), a quadrature-order reduction needs its own offline convergence study, and should be checked against integrand smoothness: a cusp or kink can cap achievable accuracy independent of node count.
+
 ## Self-correction
 
 If this guide is discovered to be stale or missing a pattern, update it.
