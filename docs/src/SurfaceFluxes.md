@@ -143,6 +143,94 @@ The following figure demonstrates profile recovery using the universal functions
 
 ![Bonan Figure 6.4](Bonan_Fig6-4.svg)
 
+## Roughness Sublayer Corrections
+
+Standard MOST assumes that the surface layer is statistically homogeneous and that
+dimensionless gradients depend only on $\zeta$. Above rough surfaces such as forests or
+urban canopies, however, organized eddies shed from the roughness elements enhance
+turbulent mixing in the **roughness sublayer (RSL)**, a region of depth $z_{\text{RSL}}$
+directly above the displacement height $d$. Within the RSL, the actual dimensionless
+gradient $\hat{\phi}$ is smaller than the MOST prediction $\phi(\zeta)$, leading to
+larger friction velocities and scalar exchange coefficients.
+
+SurfaceFluxes.jl captures this effect by modifying the dimensionless profile $F$ used in
+the Ri_b–ζ relation. A negative correction $P \le 0$ is added so that
+
+```math
+\hat{F} = F + P < F,
+```
+
+which reduces the theoretical Ri_b and hence increases $u_*$ and the exchange coefficients.
+The correction $P$ saturates to zero above the RSL ($z - d \ge z_{\text{RSL}}$).
+
+### Physick & Garratt (1995)
+
+The [`PhysickGarrattRSL`](@ref) model uses a **linear-ramp** enhancement function:
+
+```math
+\hat{\phi}(z) = \phi(\zeta)\,\mu(z), \qquad
+\mu(z) = 1 - c\!\left(1 - \frac{z-d}{z_{\text{RSL}}}\right) \text{ for } z-d < z_{\text{RSL}}.
+```
+
+Integrating from $z_0$ to $z_{\text{clip}} = \min(\Delta z_{\text{eff}},\, z_{\text{RSL}})$ gives
+the closed-form correction
+
+```math
+P = -c\!\left[\ln\!\left(\frac{z_{\text{clip}}}{z_0}\right) - \frac{z_{\text{clip}} - z_0}{z_{\text{RSL}}}\right].
+```
+
+Separate coefficients $c_m$ and $c_h$ are used for momentum and scalar transport.
+
+### Harman & Finnigan (2007)
+
+The [`HarmanFinniganRSL`](@ref) model uses an **exponential** correction motivated by
+mixing-layer theory:
+
+```math
+\hat{\phi}(z) = \phi(\zeta)\exp\!\left(-c_1\!\left(1 - \frac{z-d}{z_{\text{RSL}}}\right)\right)
+\text{ for } z - d \le z_{\text{RSL}}.
+```
+
+The RSL profile correction becomes
+
+```math
+P = \int_{z_0}^{z_{\text{clip}}} \frac{\exp\!\left(-c_1 + c_1 z / z_{\text{RSL}}\right) - 1}{z}\,\mathrm{d}z \le 0.
+```
+
+A log change of variables $u = \ln z$ removes the $1/z$ factor, 
+and the resulting smooth integral is evaluated by 4-point Gauss-Legendre quadrature with exact algebraic nodes and weights. For small $c_1$ the exponential approximates a linear ramp and the HF correction converges to the PG correction; for any $c_1 > 0$ the HF correction
+is weaker than PG for the same parameter value since $e^{-x} > 1 - x$ for $x > 0$.
+
+### Usage
+
+Pass an RSL model through [`SurfaceFluxConfig`](@ref):
+
+```julia
+rsl = PhysickGarrattRSL{Float64}(c_m = 0.4, c_h = 0.4, z_RSL = 10.0)
+config = SurfaceFluxConfig(
+    ConstantRoughnessParams{Float64}(),
+    ConstantGustinessSpec(1.0),
+    MoistModel(),
+    rsl,
+)
+result = surface_fluxes(param_set, ..., config = config)
+```
+
+The default ([`NoRoughnessSubLayer`](@ref)) leaves the MOST profiles unchanged.
+
+The following figure reproduces Figure 6.8 of Bonan (2019): dimensionless profiles of
+(a) $u/u_*$ and (b) $(\theta - \theta_s)/\theta_*$ with and without the roughness sublayer,
+using the same roughness lengths and displacement height as Figure 6.4 but with
+$L_{\mathrm{MO}} = -20\,\mathrm{m}$ and RSL top $z_* = 49\,\mathrm{m}$.
+Profiles integrate $\phi(\zeta)\,\mu(z)/z$ for standard MOST ($\mu = 1$), the
+Physick & Garratt (1995) linear-ramp $\mu$, and the Harman & Finnigan (2007)
+exponential $\mu$ (coefficient $0.7$, as in Bonan's supplemental programs).
+RSL curves are shifted so they coincide with MOST for $z \ge z_*$.
+
+![RSL profiles (Bonan Fig. 6.8)](RSL_profiles.svg)
+
 ## References
 
 - Bonan, G. (2019). *Climate Change and Terrestrial Ecosystem Modeling*. Cambridge University Press. ISBN: 978-1-107-04378-7
+- Physick, W. L., & Garratt, J. R. (1995). Incorporation of a high-roughness lower boundary into a mesoscale model for studies of dry deposition over complex terrain. *Boundary-Layer Meteorology*, 74, 55–71. [DOI: 10.1007/BF00715710](https://doi.org/10.1007/BF00715710)
+- Harman, I. N., & Finnigan, J. J. (2007). A simple unified theory for flow in the canopy and roughness sublayer. *Boundary-Layer Meteorology*, 123, 339–363. [DOI: 10.1007/s10546-006-9145-6](https://doi.org/10.1007/s10546-006-9145-6)

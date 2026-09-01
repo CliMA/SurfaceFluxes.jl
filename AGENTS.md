@@ -38,7 +38,7 @@ SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moistu
 | `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models; combined u\*–roughness solver |
 | `src/wind_and_gustiness.jl` | Effective wind speed and gustiness (constant, Deardorff) |
 | `src/profile_recovery.jl` | `compute_profile_value` for diagnosing variables at arbitrary heights |
-| `src/utilities.jl` | `surface_density`, geopotential helpers, `non_zero` |
+| `src/utilities.jl` | `surface_density`, geopotential helpers, `non_zero`, Gauss-Legendre quadrature |
 | `src/input_builders.jl` | `build_surface_flux_inputs`: normalizes user inputs into a NamedTuple |
 | `src/Parameters.jl` | `SurfaceFluxesParameters` and accessors |
 | `ext/CreateParametersExt.jl` | ClimaParams-based constructors (weak dependency) |
