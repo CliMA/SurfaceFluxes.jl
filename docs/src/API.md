@@ -81,6 +81,19 @@ SurfaceFluxes.MoistModel
 SurfaceFluxes.DryModel
 ```
 
+## Roughness Sublayer
+
+Models for the roughness sublayer (RSL) correction, which enhances turbulent exchange
+above rough surfaces beyond standard MOST predictions. Pass the chosen model via
+`SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)`.
+
+```@docs
+SurfaceFluxes.NoRoughnessSubLayer
+SurfaceFluxes.PhysickGarrattRSL
+SurfaceFluxes.HarmanFinniganRSL
+SurfaceFluxes.rsl_profile_correction
+```
+
 ## Universal Functions
 
 The `UniversalFunctions` sub-module defines the stability functions $\phi(\zeta)$ and $\psi(\zeta)$.

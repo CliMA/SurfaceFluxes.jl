@@ -4,13 +4,14 @@ using DocumenterCitations
 # https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
 ENV["GKSwstype"] = "nul"
 
-bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
+bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"); style = :authoryear)
 
 
 # Generate plots
 cd(joinpath(@__DIR__, "src")) do
     include(joinpath(@__DIR__, "src", "plot_universal_functions.jl"))
     include(joinpath(@__DIR__, "src", "plot_bonan_profiles.jl"))
+    include(joinpath(@__DIR__, "src", "plot_rsl_profiles.jl"))
 end
 
 #! format: off

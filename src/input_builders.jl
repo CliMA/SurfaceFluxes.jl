@@ -31,6 +31,7 @@ A `NamedTuple` with the following fields:
 - `roughness_model`: Roughness parameterization, e.g. [`ConstantRoughnessParams`](@ref).
 - `gustiness_model`: Gustiness parameterization, e.g. [`ConstantGustinessSpec`](@ref).
 - `moisture_model`: Moisture model, [`MoistModel`](@ref) or [`DryModel`](@ref).
+- `rsl_model`: Roughness sublayer model, e.g. [`PhysickGarrattRSL`](@ref) or [`NoRoughnessSubLayer`](@ref).
 - `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values
@@ -78,6 +79,7 @@ function build_surface_flux_inputs(
         roughness_model = config.roughness,
         gustiness_model = config.gustiness,
         moisture_model = config.moisture_model,
+        rsl_model = config.rsl_model,
         roughness_inputs,
         update_T_sfc,
         update_q_vap_sfc,

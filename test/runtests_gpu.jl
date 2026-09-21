@@ -201,17 +201,19 @@ else
 
             # Mix COARE3 (ocean-like) and Raupach (land-like) roughness
             # Use COARE3 for odd indices, Raupach for even indices
-            # Define concrete config types to avoid abstract container promotion
-            # (which would make the struct non-isbits and incompatible with CuArray)
+            # Fully concrete config types (including RSL) so the Union is an
+            # isbitsunion that CuArray can allocate inline.
             ConfCOARE = SF.SurfaceFluxConfig{
                 SF.COARE3RoughnessParams{FT},
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
+                SF.NoRoughnessSubLayer,
             }
             ConfRaupach = SF.SurfaceFluxConfig{
                 SF.RaupachRoughnessParams{FT},
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
+                SF.NoRoughnessSubLayer,
             }
             ConfigType = Union{ConfCOARE, ConfRaupach}
 
@@ -517,6 +519,124 @@ else
             @test isapprox(gpu_shf, cpu_shf; rtol = FT(1e-3), atol = FT(1e-4))
             @test isapprox(gpu_ustar, cpu_ustar; rtol = FT(1e-3), atol = FT(1e-4))
             @test isapprox(gpu_ζ, cpu_ζ; rtol = FT(1e-3), atol = FT(1e-4))
+        end
+    end
+
+    # Roughness-sublayer configs on GPU: canopy-like states with PG / HF RSL.
+    @testset "GPU broadcast - Roughness Sublayer (PG + HF)" begin
+        for FT in (Float32, Float64)
+            param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+
+            # Forest-like column: Δz = 40 m, d = 7 m, z_RSL = 20 m above d.
+            n = 4
+            T_int_vals = FT.([288.0, 290.0, 292.0, 295.0])
+            T_sfc_vals = FT.([286.0, 289.0, 293.0, 298.0])
+            speed_vals = FT.([2.0, 3.5, 5.0, 7.0])
+            Δz = FT(40)
+            d = FT(7)
+            q = FT(0.008)
+            ρ = FT(1.2)
+            roughness = SF.ConstantRoughnessParams{FT}(z0m = FT(1.0), z0s = FT(0.1))
+            gustiness = SF.ConstantGustinessSpec(FT(0.001))
+
+            rsl_cases = (
+                (
+                    "PhysickGarrattRSL",
+                    SF.PhysickGarrattRSL{FT}(
+                        c_m = FT(0.4),
+                        c_h = FT(0.4),
+                        z_RSL = FT(20.0),
+                    ),
+                ),
+                (
+                    "HarmanFinniganRSL",
+                    SF.HarmanFinniganRSL{FT}(
+                        c1_m = FT(0.5),
+                        c1_h = FT(0.5),
+                        z_RSL = FT(20.0),
+                    ),
+                ),
+            )
+
+            for (rsl_name, rsl_model) in rsl_cases
+                @testset "$rsl_name ($FT)" begin
+                    config =
+                        SF.SurfaceFluxConfig(roughness, gustiness, SF.DryModel(), rsl_model)
+                    cpu_configs = [config for _ in 1:n]
+
+                    cpu_shf = Vector{FT}(undef, n)
+                    cpu_ustar = Vector{FT}(undef, n)
+                    cpu_Cd = Vector{FT}(undef, n)
+                    for i in 1:n
+                        result = SF.surface_fluxes(
+                            param_set,
+                            T_int_vals[i],
+                            q,
+                            FT(0),
+                            FT(0),
+                            ρ,
+                            T_sfc_vals[i],
+                            q,
+                            FT(0),
+                            Δz,
+                            d,
+                            (speed_vals[i], FT(0)),
+                            (FT(0), FT(0)),
+                            nothing,
+                            config,
+                        )
+                        cpu_shf[i] = result.shf
+                        cpu_ustar[i] = result.ustar
+                        cpu_Cd[i] = result.Cd
+                    end
+
+                    gpu_configs = ArrayType(cpu_configs)
+                    T_int_array = ArrayType(T_int_vals)
+                    T_sfc_array = ArrayType(T_sfc_vals)
+                    q_array = ArrayType(fill(q, n))
+                    ρ_array = ArrayType(fill(ρ, n))
+                    u_int_array = ArrayType([(speed_vals[i], FT(0)) for i in 1:n])
+                    u_sfc_array = ArrayType([(FT(0), FT(0)) for _ in 1:n])
+                    Φ_array = ArrayType(fill(FT(0), n))
+                    Δz_array = ArrayType(fill(Δz, n))
+                    d_array = ArrayType(fill(d, n))
+
+                    gpu_results =
+                        SF.surface_fluxes.(
+                            Ref(param_set),
+                            T_int_array,
+                            q_array,
+                            Ref(FT(0)),
+                            Ref(FT(0)),
+                            ρ_array,
+                            T_sfc_array,
+                            q_array,
+                            Φ_array,
+                            Δz_array,
+                            d_array,
+                            u_int_array,
+                            u_sfc_array,
+                            Ref(nothing),
+                            gpu_configs,
+                            Ref(SF.PointValueScheme()),
+                            Ref(SF.SolverOptions{FT}(tol = FT(1e-2), maxiter = 15)),
+                            Ref(SF.FluxSpecs{FT}()),
+                        )
+
+                    gpu_shf = Array(map(x -> x.shf, gpu_results))
+                    gpu_ustar = Array(map(x -> x.ustar, gpu_results))
+                    gpu_Cd = Array(map(x -> x.Cd, gpu_results))
+
+                    @test all(isfinite, gpu_shf)
+                    @test all(isfinite, gpu_ustar)
+                    @test all(isfinite, gpu_Cd)
+                    @test all(gpu_ustar .> 0)
+                    @test all(gpu_Cd .> 0)
+                    @test isapprox(gpu_shf, cpu_shf; rtol = FT(1e-5), atol = FT(1e-5))
+                    @test isapprox(gpu_ustar, cpu_ustar; rtol = FT(1e-5), atol = FT(1e-5))
+                    @test isapprox(gpu_Cd, cpu_Cd; rtol = FT(1e-5), atol = FT(1e-5))
+                end
+            end
         end
     end
 

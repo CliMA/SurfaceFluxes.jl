@@ -107,3 +107,36 @@ Returns `Δz - d` [m].
     FT = typeof(inputs.Δz)
     return max(inputs.Δz - inputs.d, eps(FT))
 end
+
+# ============================================================================
+# Quadrature
+# ============================================================================
+
+"""
+    gauss_legendre4(f, a, b)
+
+4-point Gauss-Legendre quadrature of callable `f` on `[a, b]`.
+
+Nodes and weights are the exact algebraic 4-point rule on [-1, 1]:
+```
+t = ±√((3 ∓ 2√(6/5))/7),    w = (18 ± √30)/36
+```
+mapped affinely via `x = m ± h·t` with `m = (a+b)/2`, `h = (b-a)/2`.
+`f` should be a functor (not a capturing closure) for allocation-free /
+AD-safe evaluation.
+"""
+@inline function gauss_legendre4(f::F, a, b) where {F}
+    FT = typeof(a)
+    s = sqrt(FT(6) / FT(5))
+    t_inner = sqrt((FT(3) - FT(2) * s) / FT(7))
+    t_outer = sqrt((FT(3) + FT(2) * s) / FT(7))
+    w_inner = (FT(18) + sqrt(FT(30))) / FT(36)
+    w_outer = (FT(18) - sqrt(FT(30))) / FT(36)
+
+    m = (a + b) / 2
+    h = (b - a) / 2
+    return h * (
+        w_inner * (f(m - h * t_inner) + f(m + h * t_inner)) +
+        w_outer * (f(m - h * t_outer) + f(m + h * t_outer))
+    )
+end

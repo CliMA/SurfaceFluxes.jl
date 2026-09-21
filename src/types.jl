@@ -4,6 +4,7 @@
 
 abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
+abstract type AbstractRoughnessSubLayerModel end
 
 
 
@@ -58,19 +59,27 @@ Configuration for surface flux calculation components.
 - `roughness`: The roughness length parameterization to use (e.g., [`ConstantRoughnessParams`](@ref)).
 - `gustiness`: The gustiness parameterization to use (e.g., [`ConstantGustinessSpec`](@ref)).
 - `moisture_model`: The moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
+- `rsl_model`: Roughness sublayer correction model (e.g., [`PhysickGarrattRSL`](@ref)).
+  Defaults to [`NoRoughnessSubLayer`](@ref) (standard MOST, no RSL correction).
 """
 struct SurfaceFluxConfig{
     R <: AbstractRoughnessParams,
     G <: AbstractGustinessSpec,
     M <: AbstractMoistureModel,
+    RSL <: AbstractRoughnessSubLayerModel,
 }
     roughness::R
     gustiness::G
     moisture_model::M
+    rsl_model::RSL
 end
 
 function SurfaceFluxConfig(roughness, gustiness)
-    return SurfaceFluxConfig(roughness, gustiness, MoistModel())
+    return SurfaceFluxConfig(roughness, gustiness, MoistModel(), NoRoughnessSubLayer())
+end
+
+function SurfaceFluxConfig(roughness, gustiness, moisture_model)
+    return SurfaceFluxConfig(roughness, gustiness, moisture_model, NoRoughnessSubLayer())
 end
 
 
