@@ -813,13 +813,16 @@ end
 
 # Final regula falsi interpolant of the last bracket `[(x0, y0), (x1, y1)]` and
 # the shared convergence flag, for both solve paths. The interpolant improves on
-# the last evaluated point at no extra residual cost; `x_fallback` is used when
-# it falls outside the bracket. `solver_converged` is the refinement loop's
+# the last evaluated point `x_fallback` (the last iterate) with no further
+# residual evaluation; `x_fallback` is used when the interpolant falls outside
+# the bracket.
+# `solver_converged` is the refinement loop's
 # early-exit flag — `RootSolvers`' `sol.converged` for the callback-free path,
 # the inlined loop's break flag for the callback path. Returns `(ζ, converged)`,
 # where `ζ` saturates at `p3` in the no-root case and `converged` is true when a
-# sign change was bracketed and either the solver exited early or the final
-# bracket width satisfies the tolerances.
+# sign change was bracketed and either the solver exited early, the final
+# bracket width satisfies the tolerances, or the step from the last iterate to
+# the final interpolant (the next regula falsi iterate) satisfies the tolerances.
 @inline function monin_obukhov_finalize(
     x0,
     x1,
@@ -837,7 +840,15 @@ end
     use_last = isfinite(x_last) & (lo <= x_last) & (x_last <= hi)
     x = ifelse(use_last, x_last, x_fallback)
     width = abs(x1 - x0)
-    tol_met = width < options.tol || width < options.rtol * abs(x)
+    # The bracket width is not a reliable criterion for regula falsi, where one
+    # endpoint can stay fixed (e.g., for a residual that is linear in ζ, the root is
+    # hit exactly and the far endpoint never moves). As in RootSolvers'
+    # tolerance-checked mode, the step between the last iterate `x_fallback` and the
+    # next one (the final interpolant) is also accepted.
+    step = abs(x_last - x_fallback)
+    tol_met =
+        (width < options.tol) | (width < options.rtol * abs(x)) |
+        (use_last & ((step < options.tol) | (step < options.rtol * abs(x))))
     ζ = ifelse(bracketed, x, p3)
     converged = bracketed && (solver_converged || tol_met)
     return ζ, converged
@@ -893,12 +904,17 @@ exactly `maxiter` iterations with no data-dependent early exit. Otherwise,
 `RootSolvers.RelativeOrAbsoluteSolutionTolerance(rtol, tol)` allows an early
 exit once the step between iterates satisfies the tolerances. In both modes,
 the returned root is sharpened by a final interpolation of the last bracket
-(`RootSolvers.TwoPointSolution`) at no extra residual cost.
+(`RootSolvers.TwoPointSolution`), with no further residual evaluation.
 
 Returns `(ζ, converged)`. `converged` is `true` when a sign change was found
-and either the solver's early-exit criterion fired (tolerance-checked mode)
-or the final bracket width satisfies the tolerances. The saturated case
-reports `false`. This flag is meaningful regardless of the `forced_fixed_iters` setting.
+and either the solver's early-exit criterion fired (tolerance-checked mode),
+the final bracket width satisfies the tolerances, or the step from the last
+iterate to the final interpolant (the step-between-iterates criterion of the
+tolerance-checked mode, evaluated once more) satisfies the tolerances. The
+bracket width alone is not a reliable criterion for regula falsi, where one
+endpoint can stay fixed (e.g., for a residual that is linear in ζ). The
+saturated case reports `false`. This flag is meaningful regardless of the
+`forced_fixed_iters` setting.
 """
 function solve_stability_param(
     root_function::F,
