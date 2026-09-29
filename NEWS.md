@@ -1,4 +1,4 @@
-[main] Stability caps for stable stratification:
+[v1.3.0] Stability caps for stable stratification:
 
 - New `SurfaceFluxConfig` field `stability_cap` (fifth positional argument; default
   `NoStabilityCap()`, standard MOST). `ConstantStabilityCap(ζ_max)` caps the stability
@@ -22,7 +22,7 @@
   `build_surface_flux_inputs`), so they agree with `surface_fluxes` for the same
   configuration.
 
-[main] Roughness sublayer (RSL) corrections reworked (the RSL models have not yet been
+[v1.3.0] Roughness sublayer (RSL) corrections reworked (the RSL models have not yet been
 released):
 
 - `PhysickGarrattRSL` and `HarmanFinniganRSL` are renamed `LinearRSL` and
