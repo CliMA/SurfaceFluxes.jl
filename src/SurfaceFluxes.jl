@@ -70,6 +70,10 @@ export NoRoughnessSubLayer,
     rsl_profile_correction,
     rsl_corrected_profile
 
+# From stability_cap.jl
+export NoStabilityCap,
+    ConstantStabilityCap, MaxHeatFluxStabilityCap, max_heat_flux_stability
+
 # From utilities.jl
 export surface_density
 
@@ -82,6 +86,7 @@ export PointValueScheme, LayerAverageScheme
 include("types.jl")
 include("utilities.jl")
 include("roughness_sublayer.jl")
+include("stability_cap.jl")
 include("roughness_lengths.jl")
 include("input_builders.jl")
 include("wind_and_gustiness.jl")
@@ -204,6 +209,8 @@ Can operate in four modes depending on inputs:
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `MoistModel`.
     - `rsl_model`: Roughness sublayer model (e.g., `NoRoughnessSubLayer`, `ExponentialRSL`).
+    - `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
+      `NoStabilityCap`, `MaxHeatFluxStabilityCap`).
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
@@ -402,7 +409,7 @@ function compute_fluxes_given_coefficients(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO,
+        L_MO, L_MO,
         true,
     )
 end
@@ -474,8 +481,11 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
         inputs.roughness_inputs,
     )
 
-    # Compute g_h
+    # Compute g_h, with the stability cap (if any) evaluated at the roughness length
+    # implied by the prescribed friction velocity
+    inputs = with_stability_cap(inputs, param_set, scheme, z0m)
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
+    L_eff = effective_obukhov_length(inputs, ζ, Δz_eff, L_MO)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -486,7 +496,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO,
+        L_MO, L_eff,
         true,
     )
 end
@@ -565,8 +575,11 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         inputs.roughness_inputs,
     )
 
-    # Compute g_h
+    # Compute g_h, with the stability cap (if any) evaluated at the roughness length
+    # implied by the derived friction velocity
+    inputs = with_stability_cap(inputs, param_set, scheme, z0m)
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
+    L_eff = effective_obukhov_length(inputs, ζ, Δz_eff, L_MO)
 
     # Compute momentum fluxes using Cd
     gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
@@ -577,7 +590,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO,
+        L_MO, L_eff,
         true,
     )
 end
@@ -614,15 +627,18 @@ given the exchange coefficients and surface state.
 end
 
 """
-    bulk_richardson_number(uf_params, rsl_model, Δz_eff, ζ, z0m, z0h, scheme)
+    bulk_richardson_number(uf_params, rsl_model, Δz_eff, ζ, z0m, z0h, scheme, ζ_cap = nothing)
 
 Bulk Richardson number used inside the stability solver residual, including any
-roughness sublayer (RSL) correction.
+roughness sublayer (RSL) correction and stability cap.
 
 Computes `ζ · F̂_h / F̂_m²` where `F̂ = F + P` includes the roughness sublayer
-correction (see [`rsl_corrected_profile`](@ref)). Reduces to the standard
-[`UF.bulk_richardson_number`](@ref) when `rsl_model` is [`NoRoughnessSubLayer`](@ref),
-since the correction `P` is then zero for both momentum and heat transport.
+correction (see [`rsl_corrected_profile`](@ref)), and the profiles `F̂` are evaluated
+at the capped stability parameter `min(ζ, ζ_cap)` (no cap if `ζ_cap === nothing`),
+so that `Ri_b` increases linearly with `ζ` beyond the cap. Reduces to the standard
+[`UF.bulk_richardson_number`](@ref) when `rsl_model` is [`NoRoughnessSubLayer`](@ref)
+and there is no cap, since the correction `P` is then zero for both momentum and
+heat transport.
 """
 @inline function bulk_richardson_number(
     uf_params,
@@ -632,12 +648,14 @@ since the correction `P` is then zero for both momentum and heat transport.
     z0m,
     z0h,
     scheme,
+    ζ_cap = nothing,
 )
+    ζ_c = capped_stability(ζ, ζ_cap)
     F̂_m = rsl_corrected_profile(
         uf_params,
         rsl_model,
         Δz_eff,
-        ζ,
+        ζ_c,
         z0m,
         UF.MomentumTransport(),
         scheme,
@@ -646,7 +664,7 @@ since the correction `P` is then zero for both momentum and heat transport.
         uf_params,
         rsl_model,
         Δz_eff,
-        ζ,
+        ζ_c,
         z0h,
         UF.HeatTransport(),
         scheme,
@@ -746,6 +764,7 @@ function evaluate_monin_obukhov_residual(
         z0m,
         z0h,
         scheme,
+        get(inputs, :ζ_cap, nothing),
     )
 
     return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
@@ -789,6 +808,27 @@ end
 @inline function monin_obukhov_probe_points(r0, ζ_max::FT) where {FT}
     sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
     return sgn, -sgn, FT(10) * sgn, ζ_max * sgn
+end
+
+# Far probe on the stable branch with a stability cap. Beyond the cap, the theoretical
+# Ri_b is linear in ζ, so a root always exists, but it can exceed ζ_max (strong
+# stratification at low wind speed). Without a cap, the far probe stays at ±ζ_max
+# (the supercritical saturation limit). With a cap, the secant through the probes at
+# ζ = 0 and ζ = 10 extrapolates the root. Beyond the cap,
+# Ri_b(ζ) = ζ Ri_b(ζ_cap)/ζ_cap is a line through the origin, so for a fixed surface
+# state the extrapolation is exact
+# if the cap is ≤ 10, and underestimates the root otherwise (Ri_b is concave below the
+# cap for the stable universal functions, so the secant slope Ri_b(10)/10 is at least
+# Ri_b(ζ_cap)/ζ_cap). The probe is moved to twice the extrapolated root (margin for
+# callbacks and caps above 10) only if the extrapolated root exceeds ζ_max, so other
+# solves are unchanged.
+@inline monin_obukhov_far_probe(::Nothing, p3, p2, r0, r2) = p3
+@inline function monin_obukhov_far_probe(ζ_cap, p3, p2, r0, r2)
+    s = (r2 - r0) / p2
+    ζ_root = p2 - r2 / s
+    extend =
+        (p3 > zero(p3)) & (r2 < zero(r2)) & (s > zero(s)) & isfinite(ζ_root) & (ζ_root > p3)
+    return ifelse(extend, 2 * ζ_root, p3)
 end
 
 # Bracket selection from the five probe residuals, innermost sign change first:
@@ -841,10 +881,10 @@ end
     x = ifelse(use_last, x_last, x_fallback)
     width = abs(x1 - x0)
     # The bracket width is not a reliable criterion for regula falsi, where one
-    # endpoint can stay fixed (e.g., for a residual that is linear in ζ, the root is
-    # hit exactly and the far endpoint never moves). As in RootSolvers'
-    # tolerance-checked mode, the step between the last iterate `x_fallback` and the
-    # next one (the final interpolant) is also accepted.
+    # endpoint can stay fixed (e.g., for a residual that is linear in ζ, as beyond a
+    # stability cap, the root is hit exactly and the far endpoint never moves). As in
+    # RootSolvers' tolerance-checked mode, the step between the last iterate
+    # `x_fallback` and the next one (the final interpolant) is also accepted.
     step = abs(x_last - x_fallback)
     tol_met =
         (width < options.tol) | (width < options.rtol * abs(x)) |
@@ -855,7 +895,7 @@ end
 end
 
 """
-    solve_stability_param(root_function, ζ_max, options)
+    solve_stability_param(root_function, ζ_max, options, ζ_cap = nothing)
 
 GPU-friendly solver for the stability parameter ζ. It uses a fixed number
 of residual evaluations (`options.maxiter` + 5) and no data-dependent control
@@ -890,6 +930,13 @@ than the universal functions can support), and the solve saturates at the
 indicated branch limit; this preserves the expected stability regime with
 (near-)minimal fluxes.
 
+With a stability cap (`ζ_cap !== nothing`), the theoretical `Ri_b` is linear in `ζ`
+beyond the cap, so a stable root always exists, but it can exceed `ζ_max` (strong
+stratification at low wind speed). The far stable probe is then moved from `ζ_max` to
+twice the root extrapolated from the probes at `ζ = 0` and `ζ = 10` (exact for a fixed
+surface state if the cap is ≤ 10), if that extrapolated root exceeds `ζ_max` (see
+`monin_obukhov_far_probe`).
+
 # Stage 2: fixed-count refinement (`options.maxiter` evaluations)
 The refinement is delegated to RootSolvers' `RegulaFalsiMethod` (safeguarded
 regula falsi, Illinois variant), passing the stage-1 bracket with its
@@ -912,14 +959,15 @@ the final bracket width satisfies the tolerances, or the step from the last
 iterate to the final interpolant (the step-between-iterates criterion of the
 tolerance-checked mode, evaluated once more) satisfies the tolerances. The
 bracket width alone is not a reliable criterion for regula falsi, where one
-endpoint can stay fixed (e.g., for a residual that is linear in ζ). The
-saturated case reports `false`. This flag is meaningful regardless of the
-`forced_fixed_iters` setting.
+endpoint can stay fixed (e.g., beyond a stability cap, where the residual is
+linear in ζ). The saturated case reports `false`. This flag is meaningful
+regardless of the `forced_fixed_iters` setting.
 """
 function solve_stability_param(
     root_function::F,
     ζ_max::FT,
     options::SolverOptions,
+    ζ_cap = nothing,
 ) where {F, FT}
     # Stage 1: branch detection and bracketing. The bracket is selected
     # innermost first; for a fixed surface state the branch indication is exact,
@@ -929,6 +977,7 @@ function solve_stability_param(
     r1 = root_function(p1)
     rm1 = root_function(m1)
     r2 = root_function(p2)
+    p3 = monin_obukhov_far_probe(ζ_cap, p3, p2, r0, r2)
     r3 = root_function(p3)
     bracketed, a, fa, b, fb = monin_obukhov_bracket(r0, r1, rm1, r2, r3, p1, m1, p2, p3)
 
@@ -1022,6 +1071,7 @@ function solve_stability_param_cb(
     r1, T_curr, q_curr = eval_cb(p1, T_curr, q_curr)
     rm1, T_curr, q_curr = eval_cb(m1, T_curr, q_curr)
     r2, T_curr, q_curr = eval_cb(p2, T_curr, q_curr)
+    p3 = monin_obukhov_far_probe(get(inputs, :ζ_cap, nothing), p3, p2, r0, r2)
     r3, T_curr, q_curr = eval_cb(p3, T_curr, q_curr)
 
     # Save the surface state after the last bracketing probe. In the no-root
@@ -1098,6 +1148,8 @@ the root with log-spaced probes within the physical range `|ζ| <= ζ_max = 100`
 it with a fixed number of safeguarded regula falsi iterations. When no
 root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
 limit of the appropriate stability branch (± ζ_max) and `converged = false` is reported.
+With a stability cap, a stable root always exists; if it lies beyond `ζ_max`, the far
+probe is extended to bracket it (see `solve_stability_param`).
 """
 function solve_monin_obukhov(
     param_set::APS,
@@ -1116,6 +1168,9 @@ function solve_monin_obukhov(
     # Businger profiles, whose Ri_b(ζ) saturates at a critical value), and the
     # solve saturates at the limit of the appropriate stability branch.
     ζ_max = FT(100)
+
+    # Numerical value of the stability cap (if any), constant during the solve
+    inputs = with_stability_cap(inputs, param_set, scheme)
 
     if has_sfc_callbacks(inputs)
         # Callback path: inline Illinois loop carries T_sfc/q_vap as stack locals
@@ -1141,7 +1196,8 @@ function solve_monin_obukhov(
             uf_params,
             thermo_params,
         )
-        ζ_final, converged = solve_stability_param(root_function, ζ_max, options)
+        ζ_final, converged =
+            solve_stability_param(root_function, ζ_max, options, inputs.ζ_cap)
         T_sfc_guess_safe = safe_T_sfc_guess(inputs)
         q_vap_sfc_guess_safe = safe_q_vap_sfc_guess(inputs)
     end
@@ -1197,18 +1253,21 @@ function solve_monin_obukhov(
     b_flux = buoyancy_flux(param_set, ζ_final, u_star_curr, inputs)
 
     # Use input coefficients if available, otherwise use MOST-derived ones (with RSL)
+    # Exchange coefficients at the capped stability parameter (the returned ζ_final
+    # and L_MO are the uncapped values, consistent with the computed fluxes)
     Δz_eff = effective_height(inputs)
     ΔU = windspeed(inputs, param_set, b_flux)
     ΔU_safe = max(ΔU, eps(FT))
+    ζ_capped = capped_stability(inputs, ζ_final)
     Cd =
         inputs.Cd !== nothing ? inputs.Cd :
         inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 :
-        drag_coefficient(param_set, ζ_final, z0m, Δz_eff, scheme, inputs.rsl_model)
+        drag_coefficient(param_set, ζ_capped, z0m, Δz_eff, scheme, inputs.rsl_model)
     Ch =
         inputs.Ch !== nothing ? inputs.Ch :
         heat_exchange_coefficient(
             param_set,
-            ζ_final,
+            ζ_capped,
             z0m,
             z0h,
             Δz_eff,
@@ -1222,13 +1281,14 @@ function solve_monin_obukhov(
 
     g_h = Ch * ΔU_safe
     L_MO = obukhov_length(param_set, u_star_curr, b_flux)
+    L_eff = effective_obukhov_length(inputs, ζ_final, Δz_eff, L_MO)
 
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
         u_star_curr, ζ_final, Cd, g_h,
         T_sfc_val, q_vap_sfc_val,
-        L_MO,
+        L_MO, L_eff,
         converged,
     )
 end

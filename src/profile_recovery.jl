@@ -23,6 +23,15 @@ at effective aerodynamic height `Δz_eff` (height above surface minus displaceme
 where `F̂_z = F_z + P` is the dimensionless profile at height `Δz_eff`, including the
 roughness sublayer correction `P` (see [`rsl_corrected_profile`](@ref)).
 
+!!! warning "Stability caps"
+    With a stability cap (e.g., [`MaxHeatFluxStabilityCap`](@ref)), the returned `L_MO`
+    is the Obukhov length implied by the fluxes, but the exchange coefficients and
+    similarity scales were evaluated at the capped stability parameter
+    `min(ζ, ζ_cap)` at the forcing height `Δz_eff_ref`. Profiles consistent with the
+    fluxes (which reproduce the forcing values at `Δz_eff_ref`) are obtained by passing
+    the effective length `L_eff = Δz_eff_ref / min(ζ, ζ_cap)`, returned as the field
+    `L_eff` of [`SurfaceFluxConditions`](@ref), instead of `L_MO`. Passing `L_MO` beyond
+    the cap overestimates the recovered differences.
 """
 function compute_profile_value(
     param_set::APS,

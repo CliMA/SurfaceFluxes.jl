@@ -206,3 +206,59 @@ end
     end
 end
 
+@testset verbose = true "AD Compatibility - Stability Cap" begin
+    FT = Float64
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.GryanikParams)
+    T_int = FT(300)
+    q_int = FT(0.005)
+    ρ_int = FT(1.2)
+    u_int = (FT(2), FT(0))
+    u_sfc = (FT(0), FT(0))
+    roughness = SF.ConstantRoughnessParams(FT(0.1), FT(0.01))
+    gustiness = SF.ConstantGustinessSpec(FT(1))
+    opts = SF.SolverOptions{FT}(maxiter = 30, tol = FT(1e-10), rtol = FT(1e-10),
+        forced_fixed_iters = false)
+
+    caps = (
+        ("ConstantStabilityCap", SF.ConstantStabilityCap(FT(0.5))),
+        ("MaxHeatFluxStabilityCap", SF.MaxHeatFluxStabilityCap()),
+    )
+    for (cap_name, cap) in caps
+        config = SF.SurfaceFluxConfig(roughness, gustiness, SF.MoistModel(),
+            SF.NoRoughnessSubLayer(), cap)
+        compute_shf_cap(T_sfc_val) =
+            SF.surface_fluxes(param_set, T_int, q_int, FT(0), FT(0), ρ_int, T_sfc_val,
+                q_int, FT(0), FT(10), FT(0), u_int, u_sfc, nothing, config,
+                SF.PointValueScheme(), opts).shf
+        # Height derivative: for MaxHeatFluxStabilityCap, the cap ζ_p itself depends on
+        # Δz, so this exercises AD through `max_heat_flux_stability`
+        compute_shf_dz(Δz) =
+            SF.surface_fluxes(param_set, T_int, q_int, FT(0), FT(0), ρ_int, FT(290),
+                q_int, FT(0), Δz, FT(0), u_int, u_sfc, nothing, config,
+                SF.PointValueScheme(), opts).shf
+
+        @testset "$cap_name — d(SHF)/d(T_sfc) and d(SHF)/d(Δz)" begin
+            for (backend_name, backend) in ad_backends()
+                @testset "AD backend: $backend_name" begin
+                    # Capped (T_sfc = 290 K) and uncapped weakly stable states
+                    for T_sfc_base in FT[290, 299.8]
+                        d_ad = DI.derivative(compute_shf_cap, backend, T_sfc_base)
+                        ϵ = FT(1e-4)
+                        d_fd =
+                            (
+                                compute_shf_cap(T_sfc_base + ϵ) -
+                                compute_shf_cap(T_sfc_base - ϵ)
+                            ) / (2ϵ)
+                        @test isfinite(d_ad)
+                        @test isapprox(d_ad, d_fd, rtol = FT(1e-4), atol = FT(1e-6))
+                    end
+                    d_ad = DI.derivative(compute_shf_dz, backend, FT(10))
+                    ϵ = FT(1e-4)
+                    d_fd = (compute_shf_dz(FT(10) + ϵ) - compute_shf_dz(FT(10) - ϵ)) / (2ϵ)
+                    @test isfinite(d_ad)
+                    @test isapprox(d_ad, d_fd, rtol = FT(1e-3), atol = FT(1e-6))
+                end
+            end
+        end
+    end
+end

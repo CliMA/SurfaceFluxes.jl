@@ -59,6 +59,7 @@ end
     include("test_energy_budget_closure.jl")
     include("test_profile_recovery_roundtrip.jl")
     include("test_supercritical_stability.jl")
+    include("test_stability_cap.jl")
 end
 
 @testset "Land Use Cases" begin

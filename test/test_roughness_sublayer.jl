@@ -214,6 +214,17 @@ models(zR) = (
                     @test 0.1 < r.g_h / ref.g_h <= 1 + 1e-6
                     @test r.ustar > 1e-4  # no collapse to the lower u* bracket limit
                 end
+                # With a stability cap, stable solves converge (no supercritical collapse)
+                rc = SF.surface_fluxes(
+                    param_set, 290.0, 0.0, 0.0, 0.0, 1.2, 290.0 + ΔT, 0.0, 0.0,
+                    h + dzabove,
+                    d, (U, 0.0), (0.0, 0.0), nothing,
+                    SF.SurfaceFluxConfig(rough, gust, SF.DryModel(), rsl,
+                        SF.MaxHeatFluxStabilityCap()), sch,
+                    SF.SolverOptions{FT}(maxiter = 40, tol = 1e-6, rtol = 1e-6,
+                        forced_fixed_iters = false),
+                )
+                @test rc.converged && isfinite(rc.shf) && rc.g_h > 0
             end
         end
     end

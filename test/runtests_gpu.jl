@@ -208,12 +208,14 @@ else
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,
+                SF.NoStabilityCap,
             }
             ConfRaupach = SF.SurfaceFluxConfig{
                 SF.RaupachRoughnessParams{FT},
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,
+                SF.NoStabilityCap,
             }
             ConfigType = Union{ConfCOARE, ConfRaupach}
 
@@ -627,6 +629,87 @@ else
                     @test isapprox(gpu_shf, cpu_shf; rtol = FT(1e-5), atol = FT(1e-5))
                     @test isapprox(gpu_ustar, cpu_ustar; rtol = FT(1e-5), atol = FT(1e-5))
                     @test isapprox(gpu_Cd, cpu_Cd; rtol = FT(1e-5), atol = FT(1e-5))
+                end
+            end
+        end
+    end
+
+    # Stability caps on GPU: capped stable states (including roots beyond ζ_max = 100
+    # and a canopy with an RSL, for which ζ_p is computed with the RSL correction), a
+    # weakly stable and an unstable state, and a surface-state callback.
+    @testset "GPU broadcast - Stability Caps" begin
+        for FT in (Float32, Float64),
+            uf_type in (BusingerParams, SF.UniversalFunctions.GryanikParams)
+
+            param_set = SFP.SurfaceFluxesParameters(FT, uf_type)
+            n = 5
+            T_int_vals = FT.([300, 300, 300, 300, 300])
+            T_sfc_vals = FT.([290, 270, 299.8, 305, 285])
+            speed_vals = FT.([2, 1, 3, 3, 1.5])
+            Δz_vals = FT.([10, 50, 10, 10, 40])
+            d_vals = FT.([0, 0, 0, 0, 20])
+            q = FT(0.005)
+            ρ = FT(1.2)
+            roughness = SF.ConstantRoughnessParams(FT(0.1), FT(0.01))
+            gustiness = SF.ConstantGustinessSpec(FT(1))
+            rsl = SF.ExponentialRSL(FT; c_m = 0.7, c_h = 0.7, z_RSL = 20.0)
+
+            # Canopy-like surface temperature relaxation through the aerodynamic
+            # conductance, which sees the cap
+            T_leaf = FT(288)
+            g_leaf = FT(0.05)
+            update_T_sfc =
+                (ζ, ps, thermo_params, inputs, scheme, u_star, z0m, z0h) -> begin
+                    g_h = SF.heat_conductance(ps, ζ, u_star, inputs, z0m, z0h, scheme)
+                    return (inputs.T_int + T_leaf * g_leaf / g_h) / (1 + g_leaf / g_h)
+                end
+
+            for (cap_name, cap) in (
+                    ("ConstantStabilityCap", SF.ConstantStabilityCap(FT(0.5))),
+                    ("MaxHeatFluxStabilityCap", SF.MaxHeatFluxStabilityCap()),
+                ),
+                (rsl_name, rsl_model) in (("no RSL", SF.NoRoughnessSubLayer()),
+                    ("ExponentialRSL", rsl)),
+                callback in (nothing, update_T_sfc)
+
+                @testset "$cap_name, $rsl_name, callback = $(callback !== nothing) ($FT, $uf_type)" begin
+                    config = SF.SurfaceFluxConfig(roughness, gustiness, SF.MoistModel(),
+                        rsl_model, cap)
+                    cpu_results = [
+                        SF.surface_fluxes(
+                            param_set,
+                            T_int_vals[i], q, FT(0), FT(0), ρ,
+                            T_sfc_vals[i], q,
+                            FT(0), Δz_vals[i], d_vals[i],
+                            (speed_vals[i], FT(0)), (FT(0), FT(0)),
+                            nothing, config,
+                            SF.PointValueScheme(), nothing, nothing,
+                            callback, nothing,
+                        ) for i in 1:n
+                    ]
+
+                    gpu_results =
+                        SF.surface_fluxes.(
+                            Ref(param_set),
+                            ArrayType(T_int_vals), Ref(q), Ref(FT(0)), Ref(FT(0)), Ref(ρ),
+                            ArrayType(T_sfc_vals), Ref(q),
+                            Ref(FT(0)), ArrayType(Δz_vals), ArrayType(d_vals),
+                            ArrayType([(speed_vals[i], FT(0)) for i in 1:n]),
+                            ArrayType([(FT(0), FT(0)) for _ in 1:n]),
+                            Ref(nothing), ArrayType([config for _ in 1:n]),
+                            Ref(SF.PointValueScheme()), Ref(nothing), Ref(nothing),
+                            Ref(callback), Ref(nothing),
+                        )
+                    gpu_results = Array(gpu_results)
+
+                    for f in (:shf, :lhf, :ustar, :ζ, :Cd, :g_h, :T_sfc, :L_MO, :L_eff)
+                        cpu = getfield.(cpu_results, f)
+                        gpu = getfield.(gpu_results, f)
+                        @test all(isfinite, gpu)
+                        @test isapprox(gpu, cpu; rtol = FT(1e-4), atol = FT(1e-5))
+                    end
+                    @test getfield.(gpu_results, :converged) ==
+                          getfield.(cpu_results, :converged)
                 end
             end
         end

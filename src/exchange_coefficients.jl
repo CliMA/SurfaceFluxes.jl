@@ -125,6 +125,9 @@ end
 
 Compute the heat conductance `g_h` (speed * Ch), including any gustiness factor in the wind speed.
 Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables.
+The exchange coefficient is evaluated at the stability parameter capped by any
+stability cap in `inputs` (see [`MaxHeatFluxStabilityCap`](@ref) and
+[`capped_stability`](@ref)).
 
 
 # Arguments
@@ -147,7 +150,16 @@ function heat_conductance(
 )
     # Compute Ch (pass RSL model from inputs)
     Δz_eff = effective_height(inputs)
-    Ch = heat_exchange_coefficient(param_set, ζ, z0m, z0h, Δz_eff, scheme, inputs.rsl_model)
+    ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
+    Ch = heat_exchange_coefficient(
+        param_set,
+        ζ_capped,
+        z0m,
+        z0h,
+        Δz_eff,
+        scheme,
+        inputs.rsl_model,
+    )
 
     # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
     current_speed = windspeed(param_set, ζ, ustar, inputs)

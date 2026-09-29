@@ -14,7 +14,7 @@ Compute the coefficient relating a bulk difference to its similarity scale.
 Returns `ϕ` such that `scale = Δvalue * ϕ`; for example, `u★ = ΔU * ϕ_m`. It is given by
 
 ```math
-ϕ = \\frac{κ}{\\hat{F}(Δz_{eff}, ζ, z_0)}
+ϕ = \\frac{κ}{\\widehat{F}(Δz_{eff}, ζ, z_0)}
 ```
 
 where `κ` is the von Kármán constant and `F̂ = F + P` is the RSL-corrected dimensionless
@@ -52,7 +52,9 @@ end
 Return the friction velocity implied by the Monin-Obukhov solution.
 
 If a friction velocity is prescribed via `inputs.ustar` (in the inputs container),
-it is returned directly; otherwise it is recomputed from the similarity coefficients.
+it is returned directly; otherwise it is recomputed from the similarity coefficients,
+evaluated at the stability parameter capped by any stability cap in `inputs`
+(see [`MaxHeatFluxStabilityCap`](@ref) and [`capped_stability`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -80,7 +82,7 @@ function compute_ustar(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0,
         UF.MomentumTransport(),
         scheme,
@@ -128,7 +130,7 @@ function compute_theta_star(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0h,
         UF.HeatTransport(),
         scheme,
@@ -171,7 +173,7 @@ function compute_q_star(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0h,
         UF.HeatTransport(),
         scheme,

@@ -135,6 +135,11 @@ This calculates the value of a variable at the effective aerodynamic height `Δz
 !!! note "Effective Height"
     Here and throughout, the input argument `Δz_eff` is the effective height above the surface, i.e., $z - d$.
 
+!!! note "Stability caps"
+    With a [stability cap](#Stability-Caps), pass the effective Obukhov length `L_eff`
+    returned in [`SurfaceFluxConditions`](@ref) instead of `L_MO`, so that the recovered
+    profiles are consistent with the capped fluxes. Without a cap, `L_eff == L_MO`.
+
 ### Example
 
 The following figure demonstrates profile recovery using the universal functions (reproducing Figure 6.4 from Bonan (2019)). The profiles are computed with the **Businger-Dyer parameterization** for both stable and unstable conditions and with a displacement height of $d = 19\,\mathrm{m}$.
@@ -232,10 +237,72 @@ computed with [`rsl_corrected_profile`](@ref) for standard MOST, the
 
 ![RSL profiles (Bonan Fig. 6.8)](RSL_profiles.svg)
 
+## Stability Caps
+
+In very stable conditions, the MOST exchange coefficients decrease rapidly with $\zeta$.
+At a fixed wind speed $U$, $u_* = \kappa U / \widehat{F}_m(\zeta)$ and
+$\zeta = \Delta z_{\text{eff}} / L \propto H / u_*^3$, so the sensible heat flux is
+```math
+H \propto u_*^3\, \zeta \propto \frac{\zeta}{\widehat{F}_m(\zeta)^3}.
+```
+This function has a maximum at a stability $\zeta_p$ that depends only on the universal
+functions, the discretization scheme, $\Delta z_{\text{eff}} / z_{0m}$, and the RSL
+correction (the "maximum sustainable heat flux"; Derbyshire 1999; van de Wiel et al. 2012).
+Beyond $\zeta_p$, the MOST heat flux *decreases* as the surface–air temperature difference
+increases. In models, this positive feedback leads to runaway surface cooling and
+decoupling from the atmosphere at low wind speeds, more than is observed: turbulent exchange
+persists, intermittently and driven by submeso motions not represented by MOST (e.g.,
+Mahrt 2014).
+
+A stability cap limits the stability parameter in the flux-profile relations to
+$\min(\zeta, \zeta_{\text{cap}})$. Beyond the cap, the exchange coefficients are held at
+their values at $\zeta_{\text{cap}}$, so the heat flux keeps increasing with the
+temperature difference, and the bulk Richardson number
+$\mathrm{Ri}_b(\zeta) = \zeta\, \widehat{F}_h(\zeta_{\text{cap}}) / \widehat{F}_m(\zeta_{\text{cap}})^2$
+increases linearly with $\zeta$, so the MOST solve always has a root. The returned $\zeta$
+and `L_MO` are the Obukhov stability parameter and length implied by the fluxes; unstable
+conditions are unaffected. Three options are available:
+
+| Cap | $\zeta_{\text{cap}}$ |
+|-----|----------------------|
+| [`NoStabilityCap`](@ref) (default) | none (standard MOST) |
+| [`ConstantStabilityCap`](@ref) | a positive constant, e.g., the limit $z/L \le 0.5$ of Physick & Garratt (1995) |
+| [`MaxHeatFluxStabilityCap`](@ref) | $\zeta_p$, computed per solve by [`max_heat_flux_stability`](@ref) |
+
+For point values, $\zeta_p$ satisfies
+$F_m(\zeta_p) = 3\,[\phi_m(\zeta_p) - \phi_m(\zeta_p z_{0m}/\Delta z_{\text{eff}})]$; for
+log-linear stable functions $\phi_m = 1 + b\zeta$,
+$\zeta_p \approx \ln(\Delta z_{\text{eff}}/z_{0m}) / (2b)$. With the Gryanik et al. (2020)
+functions, $\zeta_p$ ranges from ≈ 0.15 for $\Delta z_{\text{eff}}/z_{0m} = 2$ (tall
+canopies) to ≈ 1.6 for $\Delta z_{\text{eff}}/z_{0m} = 10^5$ (snow). At the cap, the local
+flux Richardson number $\zeta_p / \phi_m(\zeta_p) ≈ 0.09–0.22$ is at or below the critical
+value $R_{f,\text{cr}} ≈ 0.20–0.25$ beyond which local similarity theory ceases to apply
+(Grachev et al. 2013).
+
+The cap is also applied to the diagnostic heat conductance when the fluxes are prescribed
+(through [`FluxSpecs`](@ref)). For profile recovery beyond the cap, use the effective
+Obukhov length `L_eff` returned in [`SurfaceFluxConditions`](@ref) (see
+[`compute_profile_value`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
+
+```julia
+config = SurfaceFluxConfig(
+    ConstantRoughnessParams(0.1, 0.01),
+    ConstantGustinessSpec(1.0),
+    MoistModel(),
+    NoRoughnessSubLayer(),
+    MaxHeatFluxStabilityCap(),
+)
+```
+
 ## References
 
 - Bonan, G. (2019). *Climate Change and Terrestrial Ecosystem Modeling*. Cambridge University Press. ISBN: 978-1-107-04378-7
+- Derbyshire, S. H. (1999). Boundary-layer decoupling over cold surfaces as a physical boundary-instability. *Boundary-Layer Meteorology*, 90, 297–325. [DOI: 10.1023/A:1001710014316](https://doi.org/10.1023/A:1001710014316)
 - Garratt, J. R. (1980). Surface influence upon vertical profiles in the atmospheric near-surface layer. *Quarterly Journal of the Royal Meteorological Society*, 106, 803–819. [DOI: 10.1002/qj.49710645011](https://doi.org/10.1002/qj.49710645011)
 - Physick, W. L., & Garratt, J. R. (1995). Incorporation of a high-roughness lower boundary into a mesoscale model for studies of dry deposition over complex terrain. *Boundary-Layer Meteorology*, 74, 55–71. [DOI: 10.1007/BF00715710](https://doi.org/10.1007/BF00715710)
 - Harman, I. N., & Finnigan, J. J. (2007). A simple unified theory for flow in the canopy and roughness sublayer. *Boundary-Layer Meteorology*, 123, 339–363. [DOI: 10.1007/s10546-006-9145-6](https://doi.org/10.1007/s10546-006-9145-6)
 - Harman, I. N., & Finnigan, J. J. (2008). Scalar concentration profiles in the canopy and roughness sublayer. *Boundary-Layer Meteorology*, 129, 323–351. [DOI: 10.1007/s10546-008-9328-4](https://doi.org/10.1007/s10546-008-9328-4)
+- Grachev, A. A., Andreas, E. L, Fairall, C. W., Guest, P. S., & Persson, P. O. G. (2013). The critical Richardson number and limits of applicability of local similarity theory in the stable boundary layer. *Boundary-Layer Meteorology*, 147, 51–82.
+- Gryanik, V. M., Lüpkes, C., Grachev, A., & Sidorenko, D. (2020). New modified and extended stability functions for the stable boundary layer based on SHEBA and parametrizations of bulk transfer coefficients for climate models. *Journal of the Atmospheric Sciences*, 77, 2687–2716.
+- Mahrt, L. (2014). Stably stratified atmospheric boundary layers. *Annual Review of Fluid Mechanics*, 46, 23–45.
+- van de Wiel, B. J. H., et al. (2012). The minimum wind speed for sustainable turbulence in the nocturnal boundary layer. *Journal of the Atmospheric Sciences*, 69, 3116–3127.

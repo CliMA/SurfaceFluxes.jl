@@ -1,3 +1,27 @@
+[main] Stability caps for stable stratification:
+
+- New `SurfaceFluxConfig` field `stability_cap` (fifth positional argument; default
+  `NoStabilityCap()`, standard MOST). `ConstantStabilityCap(ζ_max)` caps the stability
+  parameter in the flux-profile relations at a constant;
+  `MaxHeatFluxStabilityCap()` caps it at the stability `ζ_p` of maximum sensible heat flux
+  at fixed wind speed (`max_heat_flux_stability`), beyond which MOST predicts a heat flux
+  that decreases with increasing stratification (runaway cooling and decoupling).
+- Beyond the cap, the exchange coefficients and similarity scales are held at their
+  values at the cap, so the bulk Richardson number is linear in `ζ` and the MOST solve
+  has a root (roots beyond `|ζ| = 100` are bracketed by an extended probe). The
+  returned `ζ` and `L_MO` are those implied by the fluxes. The cap also applies to the
+  diagnostic heat conductance when fluxes are prescribed, and to the conductance seen by
+  surface-state callbacks through `heat_conductance`.
+- `SurfaceFluxConditions` has a new field `L_eff` (after `L_MO`), the effective Obukhov
+  length `Δz_eff / min(ζ, ζ_cap)`. Pass it to `compute_profile_value` for profiles
+  consistent with the capped fluxes. It equals `L_MO` without an active cap. The
+  positional constructor accepts the fields with or without `L_eff` (then `L_eff = L_MO`).
+- `ConstantStabilityCap` requires `ζ_max > 0` and is differentiable with respect to
+  `ζ_max`. `heat_conductance`, `compute_ustar`, `compute_theta_star`, and `compute_q_star`
+  compute the cap from `inputs.stability_cap` when `inputs.ζ_cap` is `nothing` (inputs from
+  `build_surface_flux_inputs`), so they agree with `surface_fluxes` for the same
+  configuration.
+
 [main] Roughness sublayer (RSL) corrections reworked (the RSL models have not yet been
 released):
 

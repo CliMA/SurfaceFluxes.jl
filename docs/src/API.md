@@ -95,6 +95,23 @@ SurfaceFluxes.rsl_corrected_profile
 SurfaceFluxes.rsl_profile_correction
 ```
 
+## Stability Cap
+
+Caps on the stability parameter in stable conditions, which hold the exchange
+coefficients at their values at the cap for more stable conditions. Pass the chosen
+cap via `SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model, stability_cap)`.
+
+```@docs
+SurfaceFluxes.NoStabilityCap
+SurfaceFluxes.ConstantStabilityCap
+SurfaceFluxes.MaxHeatFluxStabilityCap
+SurfaceFluxes.max_heat_flux_stability
+SurfaceFluxes.stability_cap_value
+SurfaceFluxes.with_stability_cap
+SurfaceFluxes.resolved_stability_cap
+SurfaceFluxes.capped_stability
+```
+
 ## Universal Functions
 
 The `UniversalFunctions` sub-module defines the stability functions $\phi(\zeta)$ and $\psi(\zeta)$.
