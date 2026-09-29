@@ -59,7 +59,7 @@ Configuration for surface flux calculation components.
 - `roughness`: The roughness length parameterization to use (e.g., [`ConstantRoughnessParams`](@ref)).
 - `gustiness`: The gustiness parameterization to use (e.g., [`ConstantGustinessSpec`](@ref)).
 - `moisture_model`: The moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
-- `rsl_model`: Roughness sublayer correction model (e.g., [`PhysickGarrattRSL`](@ref)).
+- `rsl_model`: Roughness sublayer correction model (e.g., [`ExponentialRSL`](@ref)).
   Defaults to [`NoRoughnessSubLayer`](@ref) (standard MOST, no RSL correction).
 """
 struct SurfaceFluxConfig{

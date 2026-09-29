@@ -18,7 +18,7 @@ Returns `ϕ` such that `scale = Δvalue * ϕ`; for example, `u★ = ΔU * ϕ_m`.
 ```
 
 where `κ` is the von Kármán constant and `F̂ = F + P` is the RSL-corrected dimensionless
-profile (`P ≤ 0` from [`rsl_profile_correction`](@ref), zero when `rsl_model` is
+profile (see [`rsl_corrected_profile`](@ref); `P = 0` when `rsl_model` is
 [`NoRoughnessSubLayer`](@ref)).
 
 # Arguments
@@ -42,9 +42,8 @@ function compute_physical_scale_coeff(
     κ = SFP.von_karman_const(param_set)
     uf = SFP.uf_params(param_set)
 
-    profile = UF.dimensionless_profile(uf, Δz_eff, ζ, z0, transport, scheme)
-    P = rsl_profile_correction(rsl_model, Δz_eff, z0, transport)
-    return κ / (profile + P)
+    F̂ = rsl_corrected_profile(uf, rsl_model, Δz_eff, ζ, z0, transport, scheme)
+    return κ / F̂
 end
 
 """
@@ -133,6 +132,7 @@ function compute_theta_star(
         z0h,
         UF.HeatTransport(),
         scheme,
+        inputs.rsl_model,
     )
     return Δθ * ϕ
 end
@@ -175,6 +175,7 @@ function compute_q_star(
         z0h,
         UF.HeatTransport(),
         scheme,
+        inputs.rsl_model,
     )
     return Δq * ϕ
 end

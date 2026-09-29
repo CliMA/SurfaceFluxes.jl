@@ -117,13 +117,10 @@ end
 
     rsl_models = (
         (
-            "PhysickGarrattRSL",
-            SF.PhysickGarrattRSL{FT}(c_m = FT(0.4), c_h = FT(0.4), z_RSL = FT(20.0)),
+            "LinearRSL",
+            SF.LinearRSL(FT; c_m = 0.4, c_h = 0.4, z_RSL = 20.0),
         ),
-        (
-            "HarmanFinniganRSL",
-            SF.HarmanFinniganRSL{FT}(c1_m = FT(0.5), c1_h = FT(0.5), z_RSL = FT(20.0)),
-        ),
+        ("ExponentialRSL", SF.ExponentialRSL(FT; c_m = 0.5, c_h = 0.5, z_RSL = 20.0)),
     )
 
     for (rsl_name, rsl_model) in rsl_models
@@ -169,39 +166,43 @@ end
         end
     end
 
-    # Direct AD through the HF quadrature kernel (ForwardDiff): exercises
+    # Direct AD through the RSL quadrature kernel (ForwardDiff): exercises
     # gauss_legendre4 + the log-mapped integrand under Dual arithmetic.
-    @testset "HarmanFinniganRSL — rsl_profile_correction dP/dc1" begin
+    uf = SFP.uf_params(param_set)
+    @testset "ExponentialRSL — rsl_profile_correction dP/dc" begin
         Δz_eff = FT(40)
         z0m = FT(0.5)
-        z_RSL = FT(30)
+        z_RSL = FT(60)
         function P_of_c1(c1)
-            rsl = SF.HarmanFinniganRSL(c1_m = c1, c1_h = c1, z_RSL = typeof(c1)(z_RSL))
-            return SF.rsl_profile_correction(rsl, Δz_eff, z0m, UF.MomentumTransport())
+            rsl = SF.ExponentialRSL(c1, c1, typeof(c1)(z_RSL))
+            return SF.rsl_profile_correction(uf, rsl, Δz_eff, FT(-0.5), z0m,
+                UF.MomentumTransport())
         end
         c1_base = FT(0.5)
         dP_ad = ForwardDiff.derivative(P_of_c1, c1_base)
         ϵ = FT(1e-6)
         dP_fd = (P_of_c1(c1_base + ϵ) - P_of_c1(c1_base - ϵ)) / (2ϵ)
         @test isfinite(dP_ad)
-        @test dP_ad < 0  # stronger c1 → more negative P
+        @test dP_ad > 0  # stronger c1 → larger P
         @test isapprox(dP_ad, dP_fd, rtol = FT(1e-4), atol = FT(1e-6))
     end
 
-    @testset "PhysickGarrattRSL — rsl_profile_correction dP/dc" begin
-        Δz_eff = FT(40)
+    @testset "LinearRSL — rsl_profile_correction dP/dc" begin
+        Δz_eff = FT(20)
         z0m = FT(0.5)
         z_RSL = FT(30)
         function P_of_c(c)
-            rsl = SF.PhysickGarrattRSL(c_m = c, c_h = c, z_RSL = typeof(c)(z_RSL))
-            return SF.rsl_profile_correction(rsl, Δz_eff, z0m, UF.MomentumTransport())
+            rsl = SF.LinearRSL(c, c, typeof(c)(z_RSL))
+            return SF.rsl_profile_correction(uf, rsl, Δz_eff, FT(0.2), z0m,
+                UF.MomentumTransport())
         end
         c_base = FT(0.4)
         dP_ad = ForwardDiff.derivative(P_of_c, c_base)
         ϵ = FT(1e-6)
         dP_fd = (P_of_c(c_base + ϵ) - P_of_c(c_base - ϵ)) / (2ϵ)
         @test isfinite(dP_ad)
-        @test dP_ad < 0
+        @test dP_ad > 0
         @test isapprox(dP_ad, dP_fd, rtol = FT(1e-4), atol = FT(1e-6))
     end
 end
+

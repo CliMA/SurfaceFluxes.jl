@@ -541,20 +541,12 @@ else
 
             rsl_cases = (
                 (
-                    "PhysickGarrattRSL",
-                    SF.PhysickGarrattRSL{FT}(
-                        c_m = FT(0.4),
-                        c_h = FT(0.4),
-                        z_RSL = FT(20.0),
-                    ),
+                    "LinearRSL",
+                    SF.LinearRSL(FT; c_m = 0.4, c_h = 0.4, z_RSL = 20.0),
                 ),
                 (
-                    "HarmanFinniganRSL",
-                    SF.HarmanFinniganRSL{FT}(
-                        c1_m = FT(0.5),
-                        c1_h = FT(0.5),
-                        z_RSL = FT(20.0),
-                    ),
+                    "ExponentialRSL",
+                    SF.ExponentialRSL(FT; c_m = 0.5, c_h = 0.5, z_RSL = 20.0),
                 ),
             )
 

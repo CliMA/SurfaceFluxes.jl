@@ -31,7 +31,8 @@ A `NamedTuple` with the following fields:
 - `roughness_model`: Roughness parameterization, e.g. [`ConstantRoughnessParams`](@ref).
 - `gustiness_model`: Gustiness parameterization, e.g. [`ConstantGustinessSpec`](@ref).
 - `moisture_model`: Moisture model, [`MoistModel`](@ref) or [`DryModel`](@ref).
-- `rsl_model`: Roughness sublayer model, e.g. [`PhysickGarrattRSL`](@ref) or [`NoRoughnessSubLayer`](@ref).
+- `rsl_model`: Roughness sublayer model, e.g. [`ExponentialRSL`](@ref) or
+  [`NoRoughnessSubLayer`](@ref).
 - `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values

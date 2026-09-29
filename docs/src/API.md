@@ -83,14 +83,15 @@ SurfaceFluxes.DryModel
 
 ## Roughness Sublayer
 
-Models for the roughness sublayer (RSL) correction, which enhances turbulent exchange
-above rough surfaces beyond standard MOST predictions. Pass the chosen model via
-`SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)`.
+Models for the roughness sublayer (RSL) correction, which accounts for the enhanced
+turbulent mixing above tall roughness elements (plant and urban canopies). Pass the chosen
+model via `SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)`.
 
 ```@docs
 SurfaceFluxes.NoRoughnessSubLayer
-SurfaceFluxes.PhysickGarrattRSL
-SurfaceFluxes.HarmanFinniganRSL
+SurfaceFluxes.LinearRSL
+SurfaceFluxes.ExponentialRSL
+SurfaceFluxes.rsl_corrected_profile
 SurfaceFluxes.rsl_profile_correction
 ```
 

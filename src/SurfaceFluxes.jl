@@ -64,7 +64,11 @@ export SurfaceFluxConditions,
     DryModel
 
 # From roughness_sublayer.jl
-export NoRoughnessSubLayer, PhysickGarrattRSL, HarmanFinniganRSL, rsl_profile_correction
+export NoRoughnessSubLayer,
+    LinearRSL,
+    ExponentialRSL,
+    rsl_profile_correction,
+    rsl_corrected_profile
 
 # From utilities.jl
 export surface_density
@@ -199,6 +203,7 @@ Can operate in four modes depending on inputs:
       roughness length for scalars (`z0s`).
     - `gustiness`: Model for gustiness (e.g., `ConstantGustinessSpec`).
     - `moisture_model`: `DryModel` or `MoistModel`.
+    - `rsl_model`: Roughness sublayer model (e.g., `NoRoughnessSubLayer`, `ExponentialRSL`).
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
@@ -615,7 +620,7 @@ Bulk Richardson number used inside the stability solver residual, including any
 roughness sublayer (RSL) correction.
 
 Computes `ζ · F̂_h / F̂_m²` where `F̂ = F + P` includes the roughness sublayer
-correction from [`rsl_profile_correction`](@ref). Reduces to the standard
+correction (see [`rsl_corrected_profile`](@ref)). Reduces to the standard
 [`UF.bulk_richardson_number`](@ref) when `rsl_model` is [`NoRoughnessSubLayer`](@ref),
 since the correction `P` is then zero for both momentum and heat transport.
 """
@@ -628,12 +633,25 @@ since the correction `P` is then zero for both momentum and heat transport.
     z0h,
     scheme,
 )
-    F_m =
-        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
-    F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0h, UF.HeatTransport(), scheme)
-    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
-    P_h = rsl_profile_correction(rsl_model, Δz_eff, z0h, UF.HeatTransport())
-    return ζ * (F_h + P_h) / (F_m + P_m)^2
+    F̂_m = rsl_corrected_profile(
+        uf_params,
+        rsl_model,
+        Δz_eff,
+        ζ,
+        z0m,
+        UF.MomentumTransport(),
+        scheme,
+    )
+    F̂_h = rsl_corrected_profile(
+        uf_params,
+        rsl_model,
+        Δz_eff,
+        ζ,
+        z0h,
+        UF.HeatTransport(),
+        scheme,
+    )
+    return ζ * F̂_h / F̂_m^2
 end
 
 """
@@ -720,8 +738,15 @@ function evaluate_monin_obukhov_residual(
 
     # 6. Evaluate residual (RSL-corrected theoretical Ri_b)
     Δz_eff = effective_height(inputs)
-    Rib_theory =
-        bulk_richardson_number(uf_params, inputs.rsl_model, Δz_eff, ζ, z0m, z0h, scheme)
+    Rib_theory = bulk_richardson_number(
+        uf_params,
+        inputs.rsl_model,
+        Δz_eff,
+        ζ,
+        z0m,
+        z0h,
+        scheme,
+    )
 
     return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
 end

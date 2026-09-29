@@ -17,7 +17,7 @@ Compute the drag coefficient `Cd` for momentum exchange.
     Cd = (κ / F̂_m)^2
 
 where `F̂_m = F_m + P_m` is the RSL-corrected dimensionless velocity profile
-(`P_m ≤ 0` from [`rsl_profile_correction`](@ref)).
+(see [`rsl_corrected_profile`](@ref); `F̂_m = F_m` without RSL).
 """
 function drag_coefficient(
     param_set::APS,
@@ -30,10 +30,16 @@ function drag_coefficient(
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m =
-        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
-    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
-    Cd = (κ / (F_m + P_m))^2
+    F̂_m = rsl_corrected_profile(
+        uf_params,
+        rsl_model,
+        Δz_eff,
+        ζ,
+        z0m,
+        UF.MomentumTransport(),
+        scheme,
+    )
+    Cd = (κ / F̂_m)^2
     return Cd
 end
 
@@ -65,9 +71,9 @@ Compute the heat exchange coefficient `Ch` for scalar exchange.
     Ch = κ² / (F̂_m · F̂_h),
 
 where `F̂_m = F_m + P_m` and `F̂_h = F_h + P_h` are the RSL-corrected dimensionless
-profiles for momentum and scalars respectively (corrections from
-[`rsl_profile_correction`](@ref)). For the finite-volume case, this corresponds to
-the formulation in Nishizawa & Kitamura (2018), Eqs. 21 & 22 (with Pr_0 absorbed into F_h).
+profiles for momentum and scalars respectively (see [`rsl_corrected_profile`](@ref)).
+For the finite-volume case, this corresponds to the formulation in Nishizawa & Kitamura
+(2018), Eqs. 21 & 22 (with Pr_0 absorbed into F_h).
 
 # Arguments
 - `param_set`: Parameter set
@@ -90,13 +96,27 @@ function heat_exchange_coefficient(
     uf_params = SFP.uf_params(param_set)
     κ = SFP.von_karman_const(param_set)
 
-    F_m =
-        UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0m, UF.MomentumTransport(), scheme)
-    F_h = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0h, UF.HeatTransport(), scheme)
-    P_m = rsl_profile_correction(rsl_model, Δz_eff, z0m, UF.MomentumTransport())
-    P_h = rsl_profile_correction(rsl_model, Δz_eff, z0h, UF.HeatTransport())
+    F̂_m = rsl_corrected_profile(
+        uf_params,
+        rsl_model,
+        Δz_eff,
+        ζ,
+        z0m,
+        UF.MomentumTransport(),
+        scheme,
+    )
+    F̂_h =
+        rsl_corrected_profile(
+            uf_params,
+            rsl_model,
+            Δz_eff,
+            ζ,
+            z0h,
+            UF.HeatTransport(),
+            scheme,
+        )
 
-    Ch = κ^2 / ((F_m + P_m) * (F_h + P_h))
+    Ch = κ^2 / (F̂_m * F̂_h)
     return Ch
 end
 

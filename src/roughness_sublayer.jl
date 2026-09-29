@@ -1,15 +1,28 @@
 # Roughness sublayer (RSL) corrections for surface flux calculations.
 #
-# The roughness sublayer (RSL) is the region immediately above rough surfaces
-# (canopies, urban elements) where standard Monin-Obukhov similarity theory (MOST)
-# overestimates the wind and scalar gradients because turbulent mixing is enhanced
-# by organized eddies shed from the roughness elements.
+# The roughness sublayer is the layer immediately above tall roughness elements
+# (plant canopies, urban canopies) in which turbulent mixing is enhanced by
+# organized eddies shed from the roughness elements, so that the dimensionless
+# gradients are smaller than the Monin-Obukhov similarity theory (MOST) predicts:
 #
-# These models correct the dimensionless profile F (as used in MOST) by adding a
-# negative RSL correction P, so that F̂ = F + P < F. The reduced profile gives
-# larger friction velocity u* = κ ΔU / F̂ and hence larger drag and scalar exchange.
-
-abstract type AbstractRoughnessSubLayerModel end
+#     φ̂(z) = φ(z / L) μ(z),     μ_min ≤ μ(z) ≤ 1,   μ(z) = 1 for z ≥ z_RSL,
+#
+# where z is the height above the displacement height d and z_RSL is the depth of
+# the RSL above d. The RSL-corrected dimensionless profile is
+#
+#     F̂ = F + P,
+#
+# where F is the MOST profile and P ≥ 0 the RSL correction, the integral of
+# φ (1 - μ) / z from z to the top of the RSL, evaluated here by Gauss-Legendre
+# quadrature in ln z. Because it weights the RSL factor with φ(z/L), the correction
+# is consistent with the stability dependence of the MOST profiles and with the
+# neutral Prandtl number (φ_h(0) = Pr_0) for scalars.
+#
+# The corrected profile is anchored at the top of the RSL: it coincides with the
+# MOST profile above the RSL, so z0 and d are the *apparent* roughness length and
+# displacement height, as obtained from standard canopy relations or by fitting
+# MOST profiles above the RSL (Physick & Garratt 1995, Eqs. 7 and 9; Harman &
+# Finnigan 2007, 2008; Bonan 2019, Fig. 6.8).
 
 Base.broadcastable(m::AbstractRoughnessSubLayerModel) = tuple(m)
 
@@ -21,261 +34,329 @@ is applied without modification. This is the default when no RSL model is specif
 """
 struct NoRoughnessSubLayer <: AbstractRoughnessSubLayerModel end
 
+@inline function _check_rsl_parameters(name, c_m, c_h, z_RSL, c_max)
+    (0 <= c_m < c_max && 0 <= c_h < c_max) || throw(
+        ArgumentError(
+            "$name: RSL coefficients must satisfy 0 ≤ c < $c_max (got c_m = $c_m, c_h = $c_h)",
+        ),
+    )
+    z_RSL >= 0 || throw(ArgumentError("$name: z_RSL must be ≥ 0 (got $z_RSL)"))
+    return nothing
+end
+
 """
-    PhysickGarrattRSL{FT} <: AbstractRoughnessSubLayerModel
+    LinearRSL{FT} <: AbstractRoughnessSubLayerModel
+    LinearRSL(; c_m = 0.4, c_h = 0.4, z_RSL = 10.0)
+    LinearRSL(FT; kwargs...)
 
-Roughness sublayer correction following Physick & Garratt (1995), based on the
-Raupach et al. (1991) mixing-layer analogy.
-
-## Physics
-
-Standard MOST assumes homogeneous turbulence throughout the surface layer, but above
-rough surfaces (e.g., forests, urban canopies) a roughness sublayer (RSL) of depth
-`z_RSL` develops where the turbulent diffusivity is enhanced relative to MOST predictions.
-Within the RSL, the non-dimensional gradient function is reduced:
+Roughness sublayer model with a linear RSL factor,
 
 ```
-ϕ̂(z) = ϕ_MOST(ζ) · μ(z)   with μ(z) < 1 for z < d + z_RSL
+μ(z) = 1 - c (1 - z / z_RSL)   for z < z_RSL,     μ(z) = 1   for z ≥ z_RSL,
 ```
 
-This model uses a **linear-ramp enhancement function**:
+where `z` is the height above the displacement height `d`, so that the dimensionless
+gradients are `φ̂(z) = φ(z / L) μ(z)`. The factor increases linearly from `1 - c` at
+the displacement height to 1 at the top of the RSL. It is the first-order (small-`c`)
+approximation of [`ExponentialRSL`](@ref).
+
+The corrected profile coincides with the MOST profile above the RSL, so the roughness
+length `z0` and displacement height `d` are the *apparent* values, as obtained from
+standard canopy relations (e.g., `z0 ≈ 0.1 h`, `d ≈ 0.67 h`, or
+[`RaupachRoughnessParams`](@ref)) or by fitting MOST profiles above the RSL. Within the
+RSL, the wind speed and scalar differences are larger, and the exchange coefficients
+smaller, than those of the MOST profile extrapolated downward with the apparent `z0`
+and `d`.
+
+# Fields
+- `c_m`: RSL strength for momentum, `μ(0) = 1 - c_m`, with `0 ≤ c_m < 1` [-].
+- `c_h`: RSL strength for scalars (heat, moisture), with `0 ≤ c_h < 1` [-].
+- `z_RSL`: RSL depth above the displacement height, `≥ 0` [m].
+
+The RSL top is typically at 2–3 canopy heights `h` above the ground (Garratt 1980;
+Raupach et al. 1991), i.e., `z_RSL ≈ 1.3–2.3 h` for `d ≈ 0.67 h`; Physick & Garratt
+(1995) use a depth of `50 z0`. `z_RSL` is a fixed depth, to be scaled with the canopy
+height when the model is constructed.
+
+`FT` is the floating-point type of the parameters (default `Float64`). Construct the
+model with the floating-point type of the computation (e.g., `LinearRSL(Float32; ...)`),
+so that `Float32` computations remain in `Float32`.
+
+# Examples
+```julia
+h = 30.0  # canopy height [m]
+rsl = LinearRSL(c_m = 0.4, c_h = 0.4, z_RSL = 2h - 0.67h)
+rsl32 = LinearRSL(Float32; z_RSL = 20.0)
 ```
-μ(z) = 1 - c · (1 - (z - d) / z_RSL)   for z - d < z_RSL
-μ(z) = 1                                  for z - d ≥ z_RSL
-```
 
-Integrating from `z₀` to `min(Δz_eff, z_RSL)` yields the closed-form RSL correction
-(negative, reducing the profile):
-```
-P = -c · [ln(z_clip / z₀) - (z_clip - z₀) / z_RSL]
-```
-where `z_clip = min(Δz_eff, z_RSL)`. Separate coefficients `c_m` and `c_h` are used
-for momentum and scalar (heat/humidity) transport respectively.
-
-## Parameters
-
-| Field    | Typical range | Meaning |
-|----------|--------------|---------|
-| `c_m`    | 0.1–0.6      | RSL correction strength for momentum |
-| `c_h`    | 0.1–0.6      | RSL correction strength for scalars  |
-| `z_RSL`  | 2–5 × h_c   | RSL depth above displacement height [m] |
-
-## Effect on fluxes
-
-The RSL correction increases the effective drag coefficient `Cd` and heat exchange
-coefficient `Ch` relative to standard MOST, which is consistent with observations over
-forests and urban surfaces where turbulent exchange is enhanced beyond the MOST prediction.
-
-## References
-
+# References
+- Garratt, J. R. (1980). Surface influence upon vertical profiles in the atmospheric
+    near-surface layer. Quarterly Journal of the Royal Meteorological Society, 106, 803–819.
 - Physick, W. L., & Garratt, J. R. (1995). Incorporation of a high-roughness lower boundary
     into a mesoscale model for studies of dry deposition over complex terrain.
     Boundary-Layer Meteorology, 74, 55–71.
-    [DOI: 10.1007/BF00715710](https://doi.org/10.1007/BF00715710)
-- Raupach, M. R., Finnigan, J. J., & Brunet, Y. (1991). Coherent eddies and turbulence
-    in vegetation canopies: the mixing-layer analogy. Boundary-Layer Meteorology, 60, 375–395.
-    [DOI: 10.1007/BF00155877](https://doi.org/10.1007/BF00155877)
-- Garratt, J. R. (1992). The Atmospheric Boundary Layer. Cambridge University Press.
+- Raupach, M. R., Antonia, R. A., & Rajagopalan, S. (1991). Rough-wall turbulent boundary
+    layers. Applied Mechanics Reviews, 44, 1–25.
+"""
+struct LinearRSL{FT} <: AbstractRoughnessSubLayerModel
+    c_m::FT
+    c_h::FT
+    z_RSL::FT
+    function LinearRSL{FT}(c_m, c_h, z_RSL) where {FT}
+        _check_rsl_parameters("LinearRSL", c_m, c_h, z_RSL, 1)
+        return new{FT}(c_m, c_h, z_RSL)
+    end
+end
+
+LinearRSL(c_m::FT, c_h::FT, z_RSL::FT) where {FT} = LinearRSL{FT}(c_m, c_h, z_RSL)
+LinearRSL(; c_m = 0.4, c_h = 0.4, z_RSL = 10.0) = LinearRSL(c_m, c_h, z_RSL)
+LinearRSL(::Type{FT}; c_m = 0.4, c_h = 0.4, z_RSL = 10.0) where {FT} =
+    LinearRSL(FT(c_m), FT(c_h), FT(z_RSL))
+
+"""
+    ExponentialRSL{FT} <: AbstractRoughnessSubLayerModel
+    ExponentialRSL(; c_m = 0.7, c_h = 0.7, z_RSL = 10.0)
+    ExponentialRSL(FT; kwargs...)
+
+Roughness sublayer model with an exponential RSL factor,
+
+```
+μ(z) = exp(-c (1 - z / z_RSL))   for z < z_RSL,     μ(z) = 1   for z ≥ z_RSL,
+```
+
+where `z` is the height above the displacement height `d`, so that the dimensionless
+gradients are `φ̂(z) = φ(z / L) μ(z)`. The factor increases from `exp(-c)` at the
+displacement height to 1 at the top of the RSL. This is the form of Garratt (1980, 1983),
+used by Physick & Garratt (1995) with `c = 0.7` (their `0.5 exp(0.7 z / z_RSL)`, as
+`ln 2 ≈ 0.7`) and shown in Bonan (2019, Fig. 6.8). Physick & Garratt (1995) also anchor
+the corrected profiles at the RSL top (their Eqs. 7 and 9), as done here.
+
+The RSL factor `μ` is a prescribed function of height; the stability dependence of the
+corrected profiles enters through `φ(z / L)`. As for [`LinearRSL`](@ref), the corrected
+profile coincides with MOST above the RSL, so `z0` and `d` are the apparent roughness
+length and displacement height.
+
+# Fields
+- `c_m`: RSL exponent for momentum, `μ(0) = exp(-c_m)`, with `c_m ≥ 0` [-].
+- `c_h`: RSL exponent for scalars (heat, moisture), with `c_h ≥ 0` [-].
+- `z_RSL`: RSL depth above the displacement height, `≥ 0` [m].
+
+See [`LinearRSL`](@ref) for typical RSL depths and the floating-point type.
+
+# Examples
+```julia
+h = 30.0  # canopy height [m]
+rsl = ExponentialRSL(c_m = 0.7, c_h = 0.7, z_RSL = 2h - 0.67h)
+```
+
+# References
+- Garratt, J. R. (1980). Surface influence upon vertical profiles in the atmospheric
+    near-surface layer. Quarterly Journal of the Royal Meteorological Society, 106, 803–819.
+- Physick, W. L., & Garratt, J. R. (1995). Incorporation of a high-roughness lower boundary
+    into a mesoscale model for studies of dry deposition over complex terrain.
+    Boundary-Layer Meteorology, 74, 55–71.
 - Harman, I. N., & Finnigan, J. J. (2007). A simple unified theory for flow in the canopy
     and roughness sublayer. Boundary-Layer Meteorology, 123, 339–363.
-    [DOI: 10.1007/s10546-006-9145-6](https://doi.org/10.1007/s10546-006-9145-6)
+- Bonan, G. (2019). Climate Change and Terrestrial Ecosystem Modeling. Cambridge University Press.
 """
-Base.@kwdef struct PhysickGarrattRSL{FT} <: AbstractRoughnessSubLayerModel
-    c_m::FT = 0.4
-    c_h::FT = 0.4
-    z_RSL::FT = 10.0
+struct ExponentialRSL{FT} <: AbstractRoughnessSubLayerModel
+    c_m::FT
+    c_h::FT
+    z_RSL::FT
+    function ExponentialRSL{FT}(c_m, c_h, z_RSL) where {FT}
+        _check_rsl_parameters("ExponentialRSL", c_m, c_h, z_RSL, Inf)
+        return new{FT}(c_m, c_h, z_RSL)
+    end
+end
+
+ExponentialRSL(c_m::FT, c_h::FT, z_RSL::FT) where {FT} =
+    ExponentialRSL{FT}(c_m, c_h, z_RSL)
+ExponentialRSL(; c_m = 0.7, c_h = 0.7, z_RSL = 10.0) = ExponentialRSL(c_m, c_h, z_RSL)
+ExponentialRSL(::Type{FT}; c_m = 0.7, c_h = 0.7, z_RSL = 10.0) where {FT} =
+    ExponentialRSL(FT(c_m), FT(c_h), FT(z_RSL))
+
+const ParametricRSL = Union{LinearRSL, ExponentialRSL}
+
+# RSL coefficient for the transport type
+@inline rsl_coefficient(m::ParametricRSL, ::UF.MomentumTransport) = m.c_m
+@inline rsl_coefficient(m::ParametricRSL, ::UF.HeatTransport) = m.c_h
+
+# 1 - μ as a function of x = max(1 - z / z_RSL, 0) ∈ [0, 1]
+@inline rsl_one_minus_mu(::LinearRSL, c, x) = c * x
+@inline rsl_one_minus_mu(::ExponentialRSL, c, x) = -expm1(-c * x)
+
+"""
+    _RSLIntegrand{LOG}(model, uf_params, transport, c, inv_z_RSL, inv_L)
+
+Integrand `φ(z / L) (1 - μ(z))` of the RSL correction, as a function of `u = ln z`
+(`LOG = true`, for integrals with respect to `dz / z = du`) or of `z` (`LOG = false`,
+for integrals with respect to `dz`). Called from [`rsl_profile_correction`](@ref).
+"""
+struct _RSLIntegrand{LOG, M, UFP, TR, C, IZ, IL}
+    model::M
+    uf_params::UFP
+    transport::TR
+    c::C
+    inv_z_RSL::IZ
+    inv_L::IL
+end
+# The numeric fields keep their own types: the RSL coefficient and depth carry the
+# model's type, and `inv_L` that of the inputs (a dual number under AD).
+_RSLIntegrand{LOG}(model::M, uf_params::UFP, transport::TR, c::C, inv_z_RSL::IZ,
+    inv_L::IL) where {LOG, M, UFP, TR, C, IZ, IL} =
+    _RSLIntegrand{LOG, M, UFP, TR, C, IZ, IL}(model, uf_params, transport, c,
+        inv_z_RSL, inv_L)
+@inline function (f::_RSLIntegrand{LOG})(v) where {LOG}
+    z = LOG ? exp(v) : v
+    x = max(1 - z * f.inv_z_RSL, zero(z))
+    return UF.phi(f.uf_params, z * f.inv_L, f.transport) * rsl_one_minus_mu(f.model, f.c, x)
+end
+
+# Two-panel 4-point Gauss-Legendre quadrature on [a, b]
+@inline function _gl4_2panel(f::F, a, b) where {F}
+    m = (a + b) / 2
+    return gauss_legendre4(f, a, m) + gauss_legendre4(f, m, b)
+end
+
+# ∫_{z_lo}^{z_hi} φ (1 - μ) dz / z  (≥ 0), by quadrature in ln z
+@inline function _rsl_integral(m, uf_params, transport, c, inv_z_RSL, inv_L, z_lo, z_hi)
+    f = _RSLIntegrand{true}(m, uf_params, transport, c, inv_z_RSL, inv_L)
+    return _gl4_2panel(f, log(z_lo), log(z_hi))
+end
+
+# ∫_{z_lo}^{z_hi} φ (1 - μ) dz  (≥ 0), by quadrature in z
+@inline function _rsl_integral_linear(
+    m,
+    uf_params,
+    transport,
+    c,
+    inv_z_RSL,
+    inv_L,
+    z_lo,
+    z_hi,
+)
+    f = _RSLIntegrand{false}(m, uf_params, transport, c, inv_z_RSL, inv_L)
+    return _gl4_2panel(f, z_lo, z_hi)
 end
 
 """
-    HarmanFinniganRSL{FT} <: AbstractRoughnessSubLayerModel
+    rsl_profile_correction(uf_params, rsl_model, Δz_eff, ζ, z0, transport, scheme = PointValueScheme())
 
-Roughness sublayer correction following Harman & Finnigan (2007), based on the
-mixing-layer analogy with an exponential modification to the dimensionless gradient.
+Return the roughness sublayer correction `P = F̂ - F ≥ 0` to the MOST dimensionless
+profile `F` for the given transport type, stability parameter `ζ = Δz_eff / L`, and
+discretization scheme, where `F̂` is the RSL-corrected profile
+(see [`rsl_corrected_profile`](@ref)).
 
-## Physics
-
-Within the roughness sublayer (depth `z_RSL` above the displacement height `d`), the
-local non-dimensional gradient function is multiplied by an exponential correction:
-
+For point values, with `z_c = min(Δz_eff, z_RSL)` (limited to `[z0, max(z_RSL, z0)]`),
 ```
-ϕ̂(z) = ϕ_MOST(ζ) · exp(-c₁ · (1 - (z - d) / z_RSL))   for z - d ≤ z_RSL
-ϕ̂(z) = ϕ_MOST(ζ)                                          for z - d > z_RSL
+P = ∫_{z_c}^{z_RSL} φ(z/L) (1 - μ(z)) dz/z,
 ```
-
-This gives an RSL correction factor that is exp(−c₁) at the surface and increases to 1
-at the top of the RSL (z = d + z_RSL), consistent with enhanced turbulent diffusion near
-the canopy and a smooth transition to standard MOST above.
-
-Integrating from `z₀` to `z_clip = min(Δz_eff, z_RSL)` gives the RSL profile correction:
-
-```
-P = ∫_{z₀}^{z_clip} expm1(-c₁ + c₁·z/z_RSL) / z  dz   (≤ 0)
-```
-
-This integral has no elementary closed form (it involves the exponential integral Ei).
-A change of variables `u = ln z` removes the `1/z` factor,
-```
-P = ∫_{ln z₀}^{ln z_clip} expm1(-c₁ + c₁·eᵘ/z_RSL) du,
-```
-and the result is evaluated by **4-point Gauss-Legendre quadrature** with the exact
-algebraic nodes and weights (nested radicals). No tabulated constants or extra
-dependencies are required; the evaluation is GPU-compatible and branch-free.
-
-For small `c₁` the exponential reduces to a linear ramp (`exp(-x) ≈ 1 - x`), and the HF
-correction converges to the Physick-Garratt (1995) correction with the same coefficient.
-For any `c₁ > 0`, the HF correction is weaker than PG (less negative P) for the same
-parameter value, because `exp(-x) > 1 - x` for `x > 0`.
-
-Separate parameters `c1_m` and `c1_h` allow independent tuning for momentum and scalar
-(heat/humidity) transport.
-
-## Parameters
-
-| Field    | Typical range  | Meaning |
-|----------|----------------|---------|
-| `c1_m`   | 0.3 – 0.7      | Exponential correction exponent for momentum |
-| `c1_h`   | 0.3 – 0.7      | Exponential correction exponent for scalars  |
-| `z_RSL`  | 0.5 – 1.5 h_c  | RSL depth above displacement height [m]      |
-
-## References
-
-- Harman, I. N., & Finnigan, J. J. (2007). A simple unified theory for flow in the canopy
-    and roughness sublayer. Boundary-Layer Meteorology, 123, 339–363.
-    [DOI: 10.1007/s10546-006-9145-6](https://doi.org/10.1007/s10546-006-9145-6)
-- Raupach, M. R., Finnigan, J. J., & Brunet, Y. (1996). Coherent eddies and turbulence in
-    vegetation canopies: the mixing-layer analogy. Boundary-Layer Meteorology, 78, 351–382.
-    [DOI: 10.1007/BF00120941](https://doi.org/10.1007/BF00120941)
-"""
-Base.@kwdef struct HarmanFinniganRSL{FT} <: AbstractRoughnessSubLayerModel
-    c1_m::FT = 0.5
-    c1_h::FT = 0.5
-    z_RSL::FT = 10.0
-end
-
-"""
-    rsl_profile_correction(rsl_model, Δz_eff, z0, transport) -> P
-
-Compute the roughness sublayer correction `P` (≤ 0) to the MOST dimensionless profile
-`F` for the given transport type. The corrected profile is `F̂ = F + P`.
-
-The correction is negative (enhances exchange) and saturates above the RSL height.
+which vanishes above the RSL. For layer averages ([`LayerAverageScheme`](@ref)), `P` is
+the layer average `(1/Δz_eff) ∫_{z0}^{Δz_eff} P_point(z) dz` of the point-value
+correction, consistent with the layer-averaged MOST profile. The integrals are evaluated
+by Gauss-Legendre quadrature in `ln z` (in `z` for the part of the layer average that is
+an integral with respect to `z`).
 
 # Arguments
-- `rsl_model`: RSL model (e.g. [`PhysickGarrattRSL`](@ref) or [`NoRoughnessSubLayer`](@ref)).
-- `Δz_eff`: Effective height `z - d` above displacement height [m].
+- `uf_params`: Universal function parameters.
+- `rsl_model`: RSL model ([`LinearRSL`](@ref), [`ExponentialRSL`](@ref), or
+  [`NoRoughnessSubLayer`](@ref)).
+- `Δz_eff`: Effective height `Δz - d` above the displacement height [m].
+- `ζ`: Stability parameter `Δz_eff / L` [-].
 - `z0`: Roughness length for the transported quantity [m].
 - `transport`: [`UF.MomentumTransport`](@ref) or [`UF.HeatTransport`](@ref).
+- `scheme`: [`PointValueScheme`](@ref) (default) or [`LayerAverageScheme`](@ref).
+
+# Returns
+The correction `P` [-], zero for [`NoRoughnessSubLayer`](@ref) and above the RSL.
 """
-@inline function rsl_profile_correction(
+@inline rsl_profile_correction(
+    uf_params,
     ::NoRoughnessSubLayer,
     Δz_eff,
+    ζ,
     z0,
     transport,
-)
-    return zero(Δz_eff)
-end
+    scheme = UF.PointValueScheme(),
+) = zero(ζ)
 
 @inline function rsl_profile_correction(
-    rsl_model::PhysickGarrattRSL,
+    uf_params,
+    m::ParametricRSL,
     Δz_eff,
+    ζ,
     z0,
-    ::UF.MomentumTransport,
+    transport,
+    scheme = UF.PointValueScheme(),
 )
-    return pg_rsl_correction(rsl_model.c_m, Δz_eff, z0, rsl_model.z_RSL)
-end
-
-@inline function rsl_profile_correction(
-    rsl_model::PhysickGarrattRSL,
-    Δz_eff,
-    z0,
-    ::UF.HeatTransport,
-)
-    return pg_rsl_correction(rsl_model.c_h, Δz_eff, z0, rsl_model.z_RSL)
-end
-
-@inline function rsl_profile_correction(
-    rsl_model::HarmanFinniganRSL,
-    Δz_eff,
-    z0,
-    ::UF.MomentumTransport,
-)
-    return hf_rsl_correction(rsl_model.c1_m, Δz_eff, z0, rsl_model.z_RSL)
-end
-
-@inline function rsl_profile_correction(
-    rsl_model::HarmanFinniganRSL,
-    Δz_eff,
-    z0,
-    ::UF.HeatTransport,
-)
-    return hf_rsl_correction(rsl_model.c1_h, Δz_eff, z0, rsl_model.z_RSL)
-end
-
-"""
-    pg_rsl_correction(c, Δz_eff, z0, z_RSL) -> P
-
-Physick-Garratt (1995) RSL correction (shared kernel for momentum and scalar).
-
-For the linear-ramp RSL enhancement μ(z) = 1 - c(1 - z/z_RSL), integrating from
-z₀ to z_clip = min(Δz_eff, z_RSL) gives:
-```
-P = -c · [ln(z_clip / z₀) - (z_clip - z₀) / z_RSL]
-```
-
-Properties:
-- P = 0 at Δz_eff = z₀ (no correction at the roughness length)
-- P is negative (reduces F̂ below F, enhancing exchange)
-- P saturates at z_clip = z_RSL for Δz_eff > z_RSL
-"""
-@inline function pg_rsl_correction(c, Δz_eff, z0, z_RSL)
-    FT = typeof(c)
+    FT = eltype(ζ)
+    c = rsl_coefficient(m, transport)
+    z_RSL = m.z_RSL
     z0_safe = max(z0, eps(FT))
-    z_clip = min(Δz_eff, z_RSL)
-    # Clamp ratio to ≥ 1 so the logarithm is non-negative (physical bound)
-    z_ratio = max(z_clip / z0_safe, FT(1))
-    lin_term = max(z_clip - z0_safe, FT(0)) / z_RSL
-    return -c * (log(z_ratio) - lin_term)
+    z_top = max(z_RSL, z0_safe)                      # RSL top (≥ z0)
+    z_c = max(min(Δz_eff, z_top), z0_safe)           # z_c ∈ [z0, z_top]
+    inv_z_RSL = 1 / z_RSL                            # Inf for z_RSL = 0 (then μ ≡ 1)
+    inv_L = ζ / Δz_eff
+    P = _rsl_correction(scheme, m, uf_params, transport, c, inv_z_RSL, inv_L,
+        Δz_eff, z0_safe, z_c, z_top)
+    # The exact correction is ≥ 0 (μ ≤ 1); the bound guards against quadrature error
+    return max(P, zero(P))
 end
 
 """
-Functor for the log-mapped Harman-Finnigan RSL integrand.
+    rsl_corrected_profile(uf_params, rsl_model, Δz_eff, ζ, z0, transport, scheme = PointValueScheme())
 
-With `u = ln z`, the profile correction becomes
-`∫ expm1(-c₁ + c₁·eᵘ/z_RSL) du`, so the `1/z` factor is absorbed into `du`.
+Return the RSL-corrected dimensionless profile `F̂ = F + P`, where `F` is the MOST
+profile `UF.dimensionless_profile` and `P` the roughness sublayer correction
+(see [`rsl_profile_correction`](@ref), also for the arguments). All exchange
+coefficients, similarity scales, the bulk Richardson number, and profile recovery use
+this function, so that the RSL correction is applied consistently.
+
+Since `φ̂ = φ μ` with `μ ≤ 1`, the exact corrected profile satisfies `F̂ ≥ F`; this bound
+is enforced (`P ≥ 0`) to guard against quadrature error, so `F̂ > 0` whenever `F > 0`.
 """
-struct _HFLogIntegrand{FT}
-    c1::FT
-    c1_over_z_RSL::FT
+@inline rsl_corrected_profile(
+    uf_params,
+    ::NoRoughnessSubLayer,
+    Δz_eff,
+    ζ,
+    z0,
+    transport,
+    scheme = UF.PointValueScheme(),
+) = UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0, transport, scheme)
+
+@inline rsl_corrected_profile(
+    uf_params,
+    m::ParametricRSL,
+    Δz_eff,
+    ζ,
+    z0,
+    transport,
+    scheme = UF.PointValueScheme(),
+) =
+    UF.dimensionless_profile(uf_params, Δz_eff, ζ, z0, transport, scheme) +
+    rsl_profile_correction(uf_params, m, Δz_eff, ζ, z0, transport, scheme)
+
+# Point values: P = ∫_{z_c}^{z_top} φ (1 - μ) dz/z
+@inline function _rsl_correction(::UF.PointValueScheme, m,
+    uf_params, transport, c, inv_z_RSL, inv_L, Δz_eff, z0, z_c, z_top)
+    return _rsl_integral(m, uf_params, transport, c, inv_z_RSL, inv_L, z_c, z_top)
 end
-@inline (∫::_HFLogIntegrand)(u) = expm1(-∫.c1 + ∫.c1_over_z_RSL * exp(u))
 
-"""
-    hf_rsl_correction(c1, Δz_eff, z0, z_RSL) -> P
-
-Harman-Finnigan (2007) RSL correction via log-mapped 4-point Gauss-Legendre quadrature.
-
-Computes
-```
-P = ∫_{z₀}^{z_clip} expm1(-c₁ + c₁·z/z_RSL) / z  dz
-  = ∫_{ln z₀}^{ln z_clip} expm1(-c₁ + c₁·eᵘ/z_RSL) du   (≤ 0)
-```
-where `z_clip = min(Δz_eff, z_RSL)`. The log map removes the `1/z` singularity
-structure; `expm1` avoids cancellation near the RSL top. Uses
-[`gauss_legendre4`](@ref).
-
-Properties:
-- P = 0 when c₁ = 0 (no correction)
-- P ≤ 0 for c₁ > 0 (enhances exchange, reduces F̂)
-- P saturates when Δz_eff ≥ z_RSL (integrand is zero above RSL top)
-- |P| < |P_PG(c₁)| for the same parameter value (since exp(-x) > 1-x for x > 0)
-"""
-@inline function hf_rsl_correction(c1, Δz_eff, z0, z_RSL)
-    FT = typeof(c1)
-    z0_safe = max(z0, eps(FT))
-    z_clip = max(min(Δz_eff, z_RSL), z0_safe)
-    return gauss_legendre4(
-        _HFLogIntegrand(c1, c1 / z_RSL),
-        log(z0_safe),
-        log(z_clip),
-    )
+# Layer averages:
+# P = (1/Δz) ∫_{z0}^{Δz} ∫_{min(z, z_top)}^{z_top} φ (1 - μ) dz'/z' dz
+#   = ∫_{z0}^{z_c} φ (1 - μ) (z' - z0)/Δz dz'/z'
+#     + ∫_{z_c}^{z_top} φ (1 - μ) (Δz - z0)/Δz dz'/z'
+# The weight (z' - z0)/z' of the first integral varies like exp(u) in u = ln z', which
+# the quadrature in ln z' resolves poorly when z_c/z0 is large. It is therefore split
+# into (1/Δz) ∫ φ (1 - μ) dz' (quadrature in z') and -(z0/Δz) ∫ φ (1 - μ) dz'/z'
+# (quadrature in ln z'), whose integrands are smooth in their quadrature variables.
+@inline function _rsl_correction(::UF.LayerAverageScheme, m,
+    uf_params, transport, c, inv_z_RSL, inv_L, Δz_eff, z0, z_c, z_top)
+    inv_Δz = 1 / Δz_eff
+    lower_lin = _rsl_integral_linear(m, uf_params, transport, c, inv_z_RSL, inv_L, z0, z_c)
+    lower_log = _rsl_integral(m, uf_params, transport, c, inv_z_RSL, inv_L, z0, z_c)
+    upper = _rsl_integral(m, uf_params, transport, c, inv_z_RSL, inv_L, z_c, z_top)
+    return (lower_lin - z0 * lower_log) * inv_Δz +
+           max(Δz_eff - z0, zero(z0)) * inv_Δz * upper
 end

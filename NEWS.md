@@ -1,3 +1,25 @@
+[main] Roughness sublayer (RSL) corrections reworked (the RSL models have not yet been
+released):
+
+- `PhysickGarrattRSL` and `HarmanFinniganRSL` are renamed `LinearRSL` and
+  `ExponentialRSL` (fields `c_m`, `c_h`, `z_RSL`). The exponential RSL factor
+  `exp(-c(1 - z/z_RSL))` is the form of Garratt (1980) and Physick & Garratt (1995).
+- The RSL correction is now the integral of `φ(z/L) (1 - μ(z))/z`, consistent with
+  `φ̂ = φ μ`: it depends on stability, includes the neutral Prandtl number for scalars, and
+  is layer-averaged for `LayerAverageScheme`. The corrected profiles satisfy `F̂ ≥ F`, so
+  exchange coefficients stay positive and finite over tall canopies and in strongly
+  unstable conditions (previously `F̂` could become negative).
+- The corrected profiles are now anchored at the RSL top: they coincide with MOST above
+  the RSL, so `z0` and `d` are the apparent canopy values (e.g., `z0 ≈ 0.1h`,
+  `d ≈ 0.67h`). Previously, the profiles were anchored at `z0`, which double-counted the
+  RSL effect when combined with apparent roughness lengths.
+- `compute_theta_star`, `compute_q_star`, and `compute_profile_value` now include the RSL
+  correction. `rsl_profile_correction(uf_params, rsl_model, Δz_eff, ζ, z0, transport, scheme)`
+  has a new signature; `rsl_corrected_profile` returns the corrected profile `F̂`.
+- Parameters are validated (`0 ≤ c < 1` for `LinearRSL`, `c ≥ 0`, `z_RSL ≥ 0`), and
+  floating-point parameters are converted to the type of the inputs.
+
+
 - When `update_T_sfc` or `update_q_vap_sfc` callbacks are supplied, the solver is routed through a `solve_stability_param_cb` function. On each solver call the `inputs`
   argument received by the callback will have `inputs.T_sfc_guess` and
   `inputs.q_vap_sfc_guess` set to the **previous iteration's returned values**,
