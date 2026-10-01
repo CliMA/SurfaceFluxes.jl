@@ -317,8 +317,8 @@ end
 function default_surface_flux_config(::Type{FT}) where {FT}
     # Generic fallback used when the caller omits `config`. The roughness lengths come from
     # the `ConstantRoughnessParams` keyword defaults (z0m = 2e-4 m, z0s = 2e-5 m), which is
-    # the single source of truth for the default roughness. Real applications pass an explicit
-    # `config` or load roughness lengths from ClimaParams.
+    # the single source of truth for the default roughness. Real applications pass an
+    # explicit `config` or load roughness lengths from ClimaParams.
     return SurfaceFluxConfig(
         ConstantRoughnessParams{FT}(),
         ConstantGustinessSpec(FT(1)),
@@ -802,26 +802,34 @@ end
 # The residual at neutral stability,
 # `f(0) = -Ri_b_state`, indicates the branch: stable (ζ > 0) for `f(0) <= 0`,
 # unstable (ζ < 0) otherwise. Returns the four probe points `(p1, m1, p2, p3)`:
-# `±1` on both branches and `|ζ| = 10, ζ_max` on the indicated branch. `sgn`
+# `±1` on both branches and `|ζ| = p2, ζ_max` on the indicated branch, where the mid
+# probe `p2 = 10` moves out to a stability cap that lies in `(10, ζ_max)` on the stable
+# branch, so that the far probe extrapolates from the linear regime beyond the cap
+# (see `monin_obukhov_far_probe`). `sgn`
 # inherits the numeric type of the residual (e.g., Dual) so all iterates
 # promote consistently under automatic differentiation.
-@inline function monin_obukhov_probe_points(r0, ζ_max::FT) where {FT}
+@inline function monin_obukhov_probe_points(r0, ζ_max::FT, ζ_cap = nothing) where {FT}
     sgn = ifelse(r0 <= zero(r0), one(r0), -one(r0))
-    return sgn, -sgn, FT(10) * sgn, ζ_max * sgn
+    p2 = monin_obukhov_mid_probe(ζ_cap, ζ_max)
+    p2 = ifelse(sgn > zero(sgn), p2, oftype(p2, 10))  # the cap acts on the stable branch
+    return sgn, -sgn, p2 * sgn, ζ_max * sgn
 end
+@inline monin_obukhov_mid_probe(::Nothing, ζ_max::FT) where {FT} = FT(10)
+@inline monin_obukhov_mid_probe(ζ_cap, ζ_max::FT) where {FT} =
+    max(FT(10), min(ζ_cap, ζ_max))
 
 # Far probe on the stable branch with a stability cap. Beyond the cap, the theoretical
 # Ri_b is linear in ζ, so a root always exists, but it can exceed ζ_max (strong
 # stratification at low wind speed). Without a cap, the far probe stays at ±ζ_max
 # (the supercritical saturation limit). With a cap, the secant through the probes at
-# ζ = 0 and ζ = 10 extrapolates the root. Beyond the cap,
-# Ri_b(ζ) = ζ Ri_b(ζ_cap)/ζ_cap is a line through the origin, so for a fixed surface
-# state the extrapolation is exact
-# if the cap is ≤ 10, and underestimates the root otherwise (Ri_b is concave below the
-# cap for the stable universal functions, so the secant slope Ri_b(10)/10 is at least
-# Ri_b(ζ_cap)/ζ_cap). The probe is moved to twice the extrapolated root (margin for
-# callbacks and caps above 10) only if the extrapolated root exceeds ζ_max, so other
-# solves are unchanged.
+# ζ = 0 and ζ = p2 extrapolates the root. Beyond the cap,
+# Ri_b(ζ) = ζ Ri_b(ζ_cap)/ζ_cap is a line through the origin, and p2 ≥ ζ_cap for caps
+# within the solver's range (see `monin_obukhov_probe_points`), so for a fixed surface
+# state the extrapolation is exact. (Ri_b is concave below the cap for the stable
+# universal functions, so a secant ending below the cap would underestimate the root.)
+# The probe is moved to twice the extrapolated root (margin for the dependence of the
+# surface state on ζ through callbacks, gustiness, and roughness) only if the
+# extrapolated root exceeds ζ_max.
 @inline monin_obukhov_far_probe(::Nothing, p3, p2, r0, r2) = p3
 @inline function monin_obukhov_far_probe(ζ_cap, p3, p2, r0, r2)
     s = (r2 - r0) / p2
@@ -913,12 +921,13 @@ For a fixed surface state, this indication is exact: `Ri_b(ζ)` is monotonic wit
 of the state Richardson number. With surface-state callbacks
 (`update_T_sfc`/`update_q_vap_sfc`), however, `Ri_b_state` itself varies with
 ζ, and in transitional (near-neutral) conditions, its sign can differ between
-the neutral evaluation and evaluations on the branch; therefore, the root can lie 
+the neutral evaluation and evaluations on the branch; therefore, the root can lie
 on the opposite branch from what `f(0)` indicates. To cover this, the residual is
 probed at `ζ = ±1` on *both* branches, and at `|ζ| = 10, ζ_max` on the
-indicated branch. The bracketing interval is selected from the sign changes in
-priority order, innermost first: `(0, ±1)` on the indicated branch, `(0, ∓1)` 
-on the opposite branch, then `(±1, ±10)` and `(±10, ±ζ_max)` on the indicated 
+indicated branch (with a stability cap in `(10, ζ_max)`, the stable mid probe lies at
+the cap). The bracketing interval is selected from the sign changes in
+priority order, innermost first: `(0, ±1)` on the indicated branch, `(0, ∓1)`
+on the opposite branch, then `(±1, ±10)` and `(±10, ±ζ_max)` on the indicated
 branch. (For a fixed surface state, the opposite-branch interval can never bracket, 
 so this probe changes nothing in callback-free solves; an opposite-branch root 
 at `|ζ| > 1` would require the callbacks to swing the state Richardson number 
@@ -933,9 +942,9 @@ indicated branch limit; this preserves the expected stability regime with
 With a stability cap (`ζ_cap !== nothing`), the theoretical `Ri_b` is linear in `ζ`
 beyond the cap, so a stable root always exists, but it can exceed `ζ_max` (strong
 stratification at low wind speed). The far stable probe is then moved from `ζ_max` to
-twice the root extrapolated from the probes at `ζ = 0` and `ζ = 10` (exact for a fixed
-surface state if the cap is ≤ 10), if that extrapolated root exceeds `ζ_max` (see
-`monin_obukhov_far_probe`).
+twice the root extrapolated from the probes at `ζ = 0` and the mid probe, which lies at
+or beyond the cap (exact for a fixed surface state), if that extrapolated root exceeds
+`ζ_max` (see `monin_obukhov_far_probe`).
 
 # Stage 2: fixed-count refinement (`options.maxiter` evaluations)
 The refinement is delegated to RootSolvers' `RegulaFalsiMethod` (safeguarded
@@ -973,7 +982,7 @@ function solve_stability_param(
     # innermost first; for a fixed surface state the branch indication is exact,
     # while callbacks make it a heuristic (see the docstring and `monin_obukhov_bracket`).
     r0 = root_function(zero(FT))
-    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max)
+    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max, ζ_cap)
     r1 = root_function(p1)
     rm1 = root_function(m1)
     r2 = root_function(p2)
@@ -1065,13 +1074,14 @@ function solve_stability_param_cb(
     # Stage 1: branch detection and bracketing — same 5 probes as
     # solve_stability_param (shared helpers), with the surface state threaded
     # sequentially through each evaluation.
+    ζ_cap = get(inputs, :ζ_cap, nothing)
     r0, T_curr, q_curr = eval_cb(zero(FT), T_sfc_init, q_vap_init)
-    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max)
+    p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max, ζ_cap)
 
     r1, T_curr, q_curr = eval_cb(p1, T_curr, q_curr)
     rm1, T_curr, q_curr = eval_cb(m1, T_curr, q_curr)
     r2, T_curr, q_curr = eval_cb(p2, T_curr, q_curr)
-    p3 = monin_obukhov_far_probe(get(inputs, :ζ_cap, nothing), p3, p2, r0, r2)
+    p3 = monin_obukhov_far_probe(ζ_cap, p3, p2, r0, r2)
     r3, T_curr, q_curr = eval_cb(p3, T_curr, q_curr)
 
     # Save the surface state after the last bracketing probe. In the no-root
@@ -1148,8 +1158,8 @@ the root with log-spaced probes within the physical range `|ζ| <= ζ_max = 100`
 it with a fixed number of safeguarded regula falsi iterations. When no
 root exists in the physical range (supercritical `Ri_b`), `ζ` saturates at the
 limit of the appropriate stability branch (± ζ_max) and `converged = false` is reported.
-With a stability cap, a stable root always exists; if it lies beyond `ζ_max`, the far
-probe is extended to bracket it (see `solve_stability_param`).
+With a stability cap within the physical range, a stable root always exists; if it lies
+beyond `ζ_max`, the far probe is extended to bracket it (see `solve_stability_param`).
 """
 function solve_monin_obukhov(
     param_set::APS,

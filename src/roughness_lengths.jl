@@ -401,7 +401,12 @@ Computes friction velocity `ustar` and roughness lengths `z0m`, `z0h` for a give
   [`depends_on_ustar`](@ref)), `z0m`, `z0h`, and `ustar` follow directly from `ζ`.
 - Otherwise, three iterations of Brent's method on `ustar ∈ [1e-4, 4]` m/s find the
   `ustar` consistent with the roughness and gustiness models; the result lies in this
-  bracket.
+  bracket. If no consistent `ustar` lies in the bracket, the endpoint on the side of the
+  root is returned: `4` m/s when the friction velocity implied by `ζ` and the gustiness it
+  generates exceeds the bracket for every `ustar`, and `1e-4` m/s in calm conditions.
+  With [`DeardorffGustinessSpec`](@ref), the gustiness at fixed `ζ` is proportional to
+  `ustar`, and no consistent `ustar` exists for `ζ` more unstable than the free-convection
+  limit; the solve for `ζ` then settles where a consistent `ustar` exists.
 """
 function compute_ustar_and_roughness(
     param_set::APS,
@@ -454,11 +459,32 @@ function compute_ustar_and_roughness(
     sol = RS.find_zero(
         rf,
         RS.BrentsMethod(ustar_min, ustar_max),
-        RS.CompactSolution(),
+        RS.TwoPointSolution(),
         RS.RelativeSolutionTolerance(rtol),
         maxiter,
     )
-    ustar = sol.root
+    # Without a sign change in the bracket, the residual `ustar - ustar_calc` has one sign
+    # throughout: negative when the friction velocity implied by ζ (with the gustiness it
+    # generates) exceeds `ustar_max` for every `ustar`, positive when it stays below
+    # `ustar_min` (calm). The endpoint on the side of the root is returned, so that the
+    # effective wind seen by the ζ solve varies continuously. With Deardorff gustiness at
+    # fixed ζ, the gustiness is proportional to ustar, and the first case occurs for ζ
+    # more unstable than the free-convection limit, where the consistent ustar diverges;
+    # the large ustar then gives a small state Richardson number and a negative ζ
+    # residual, which steers the ζ solve back to the region with a consistent ustar.
+    # `sol.root` alone is the endpoint of smaller residual, `ustar_min`, which lets the ζ
+    # solve converge to roots with a vanishing friction velocity over rough surfaces.
+    # The candidates are promoted to the type of the residual, which carries the
+    # derivative information under AD; the endpoints, and `sol.root` without a sign
+    # change, are plain floats. The type comes from inference of the residual (the
+    # solution's field types are a union over the two cases).
+    RT = Base.promote_op(rf, FT)
+    no_sign_change = sol.y0 * sol.y1 > 0
+    ustar = ifelse(
+        no_sign_change,
+        ifelse(sol.y1 < 0, convert(RT, ustar_max), convert(RT, ustar_min)),
+        convert(RT, sol.root),
+    )
 
     z0m, z0s = momentum_and_scalar_roughness(
         inputs.roughness_model,

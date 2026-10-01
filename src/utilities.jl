@@ -10,6 +10,18 @@ Ensure that `v` is not zero, returning `eps(v)` (preserving sign) if `v` is too 
 end
 
 """
+    float_parameter(FT, x)
+
+Return the model parameter `x` in the floating-point type `FT` of the inputs. Plain
+floating-point and integer parameters are converted, so that models constructed with the
+default `Float64` parameters (e.g., `ExponentialRSL()`, `ConstantStabilityCap(0.5)`) keep
+`Float32` computations in `Float32`. Other numbers (e.g., dual numbers for differentiation
+with respect to the parameter) are returned unchanged.
+"""
+@inline float_parameter(::Type{FT}, x::Union{AbstractFloat, Integer}) where {FT} = FT(x)
+@inline float_parameter(::Type{FT}, x) where {FT} = x
+
+"""
     interior_geopotential(param_set, inputs)
 
 Compute the geopotential at the interior (atmospheric) reference level.
@@ -85,8 +97,8 @@ Returns `ρ_sfc` [kg/m^3].
     # Take average of R_m * T (correspondong to average virtual temperature)
     R_m_T_avg = (R_m_int * T_int + R_m_sfc * T_sfc) / 2
 
-    # Using hydrostatic balance: p_sfc = p_int * exp(g * Δz / (R_m_T_avg)) together with ideal 
-    # gas law ρ = p / (R_m * T), we get:
+    # Using hydrostatic balance: p_sfc = p_int * exp(g * Δz / (R_m_T_avg)) together with
+    # ideal gas law ρ = p / (R_m * T), we get:
     ρ_sfc = ρ_int * (R_m_int * T_int) / (R_m_sfc * T_sfc) * exp(grav * Δz / R_m_T_avg)
 
     # Surface density
