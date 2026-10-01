@@ -13,6 +13,7 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import ClimaParams as CP
+import ForwardDiff
 
 @testset "Deardorff Gustiness Integration" begin
     FT = Float64
@@ -208,6 +209,14 @@ end
         @test F_m(FT(-10), z0m) / κ < gust_bound(FT(-10))
         @test (@inferred SF.compute_ustar_and_roughness(param_set, FT(-10), inp, pv))[1] ==
               FT(4)
+        # Type stable with a dual ζ (AD through the solve), with and without a sign change
+        for ζ in (FT(-0.2), FT(-10))
+            ζd = ForwardDiff.Dual(ζ, one(FT))
+            ustar_d = (@inferred SF.compute_ustar_and_roughness(param_set, ζd, inp, pv))[1]
+            @test ustar_d isa ForwardDiff.Dual
+            @test ForwardDiff.value(ustar_d) ==
+                  SF.compute_ustar_and_roughness(param_set, ζ, inp, pv)[1]
+        end
         # Calm and neutral: ustar below the bracket, the lower end is returned
         @test SF.compute_ustar_and_roughness(param_set, FT(0), inputs(z0m, 0, 0), pv)[1] ==
               FT(1e-4)

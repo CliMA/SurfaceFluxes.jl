@@ -474,8 +474,17 @@ function compute_ustar_and_roughness(
     # residual, which steers the ζ solve back to the region with a consistent ustar.
     # `sol.root` alone is the endpoint of smaller residual, `ustar_min`, which lets the ζ
     # solve converge to roots with a vanishing friction velocity over rough surfaces.
+    # The candidates are promoted to the type of the residual, which carries the
+    # derivative information under AD; the endpoints, and `sol.root` without a sign
+    # change, are plain floats. The type comes from inference of the residual (the
+    # solution's field types are a union over the two cases).
+    RT = Base.promote_op(rf, FT)
     no_sign_change = sol.y0 * sol.y1 > 0
-    ustar = ifelse(no_sign_change, ifelse(sol.y1 < 0, ustar_max, ustar_min), sol.root)
+    ustar = ifelse(
+        no_sign_change,
+        ifelse(sol.y1 < 0, convert(RT, ustar_max), convert(RT, ustar_min)),
+        convert(RT, sol.root),
+    )
 
     z0m, z0s = momentum_and_scalar_roughness(
         inputs.roughness_model,
