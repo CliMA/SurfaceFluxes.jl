@@ -14,11 +14,11 @@ Compute the coefficient relating a bulk difference to its similarity scale.
 Returns `ϕ` such that `scale = Δvalue * ϕ`; for example, `u★ = ΔU * ϕ_m`. It is given by
 
 ```math
-ϕ = \\frac{κ}{\\hat{F}(Δz_{eff}, ζ, z_0)}
+ϕ = \\frac{κ}{\\widehat{F}(Δz_{eff}, ζ, z_0)}
 ```
 
 where `κ` is the von Kármán constant and `F̂ = F + P` is the RSL-corrected dimensionless
-profile (`P ≤ 0` from [`rsl_profile_correction`](@ref), zero when `rsl_model` is
+profile (see [`rsl_corrected_profile`](@ref); `P = 0` when `rsl_model` is
 [`NoRoughnessSubLayer`](@ref)).
 
 # Arguments
@@ -42,9 +42,8 @@ function compute_physical_scale_coeff(
     κ = SFP.von_karman_const(param_set)
     uf = SFP.uf_params(param_set)
 
-    profile = UF.dimensionless_profile(uf, Δz_eff, ζ, z0, transport, scheme)
-    P = rsl_profile_correction(rsl_model, Δz_eff, z0, transport)
-    return κ / (profile + P)
+    F̂ = rsl_corrected_profile(uf, rsl_model, Δz_eff, ζ, z0, transport, scheme)
+    return κ / F̂
 end
 
 """
@@ -53,7 +52,9 @@ end
 Return the friction velocity implied by the Monin-Obukhov solution.
 
 If a friction velocity is prescribed via `inputs.ustar` (in the inputs container),
-it is returned directly; otherwise it is recomputed from the similarity coefficients.
+it is returned directly; otherwise it is recomputed from the similarity coefficients,
+evaluated at the stability parameter capped by any stability cap in `inputs`
+(see [`MaxHeatFluxStabilityCap`](@ref) and [`capped_stability`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -81,7 +82,7 @@ function compute_ustar(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0,
         UF.MomentumTransport(),
         scheme,
@@ -129,10 +130,11 @@ function compute_theta_star(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0h,
         UF.HeatTransport(),
         scheme,
+        inputs.rsl_model,
     )
     return Δθ * ϕ
 end
@@ -171,10 +173,11 @@ function compute_q_star(
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
-        ζ,
+        capped_stability(param_set, inputs, scheme, ζ),
         z0h,
         UF.HeatTransport(),
         scheme,
+        inputs.rsl_model,
     )
     return Δq * ϕ
 end

@@ -22,59 +22,40 @@ z0h = FT(0.0816)        # scalar roughness length [m]
 L_MO = FT(-20)          # Monin-Obukhov length [m]
 z_star = FT(49)         # height of RSL top above ground [m]
 z_RSL = z_star - d      # RSL depth above displacement height [m]
-c_rsl = FT(0.7)         # RSL strength (Bonan supplemental programs use 0.7)
+c_rsl = FT(0.7)         # RSL strength (Garratt 1980; Physick & Garratt 1995)
 
-# φ(ζ) with Businger–Dyer (same universal functions as the solver)
-phi(δz, transport) = UF.phi(uf_params, δz / L_MO, transport)
+# RSL models anchored at the RSL top, so that the profiles coincide with MOST for
+# z ≥ z_* (as drawn in Bonan Fig. 6.8). The exponential RSL factor with c = 0.7 is the
+# form of Garratt (1980) and Physick & Garratt (1995).
+rsl_exp = SurfaceFluxes.ExponentialRSL(FT; c_m = c_rsl, c_h = c_rsl, z_RSL = z_RSL)
+rsl_lin = SurfaceFluxes.LinearRSL(FT; c_m = c_rsl, c_h = c_rsl, z_RSL = z_RSL)
+no_rsl = SurfaceFluxes.NoRoughnessSubLayer()
 
-# RSL enhancement μ(δz): 1 above the RSL; model-specific form within.
-mu_most(δz) = one(FT)
-function mu_pg(δz)  # Physick & Garratt (1995) linear ramp
-    ifelse(δz >= z_RSL, one(FT), one(FT) - c_rsl * (one(FT) - δz / z_RSL))
-end
-function mu_hf(δz)  # Harman & Finnigan (2007) / Bonan exponential
-    ifelse(δz >= z_RSL, one(FT), exp(-c_rsl * (one(FT) - δz / z_RSL)))
-end
-
-# Integrate (φ μ / z) / κ from z0 to Δz with a composite midpoint rule.
-function integrate_dimless(Δz, z0, transport, mu)
-    z0_safe = max(z0, eps(FT))
-    Δz_safe = max(Δz, z0_safe)
-    n = 256
-    # log-spaced nodes resolve the near-surface 1/z singularity cleanly
-    ζ_nodes = range(log(z0_safe), log(Δz_safe); length = n + 1)
-    acc = zero(FT)
-    for i in 1:n
-        z_lo = exp(ζ_nodes[i])
-        z_hi = exp(ζ_nodes[i + 1])
-        z_mid = sqrt(z_lo * z_hi)           # geometric midpoint
-        acc += phi(z_mid, transport) * mu(z_mid) * log(z_hi / z_lo)
+# Dimensionless profile F̂(z)/κ = u(z)/u⋆ (or (θ(z) − θₛ)/θ⋆) at heights zs above ground
+profile(z0, zs, transport, rsl) =
+    map(zs) do z
+        Δz_eff = z - d
+        SurfaceFluxes.rsl_corrected_profile(
+            uf_params,
+            rsl,
+            Δz_eff,
+            Δz_eff / L_MO,
+            z0,
+            transport,
+            UF.PointValueScheme(),
+        ) / κ
     end
-    return acc / κ
-end
 
-# Profile from the roughness length. RSL curves are shifted so they coincide
-# with MOST for z ≥ z_* (as drawn in Bonan Fig. 6.8).
-function profile(z0, zs, transport, mu; match_at_rsl_top = false)
-    vals = map(z -> integrate_dimless(z - d, z0, transport, mu), zs)
-    if match_at_rsl_top
-        most_star = integrate_dimless(z_star - d, z0, transport, mu_most)
-        rsl_star = integrate_dimless(z_star - d, z0, transport, mu)
-        vals = vals .+ (most_star - rsl_star)
-    end
-    return vals
-end
+zs_u = collect(range(d + FT(1.05) * z0m, FT(50); length = 200))
+zs_θ = collect(range(d + FT(1.05) * z0h, FT(50); length = 200))
 
-zs_u = collect(range(d + z0m, FT(50); length = 200))
-zs_θ = collect(range(d + z0h, FT(50); length = 200))
+u_most = profile(z0m, zs_u, UF.MomentumTransport(), no_rsl)
+u_lin = profile(z0m, zs_u, UF.MomentumTransport(), rsl_lin)
+u_exp = profile(z0m, zs_u, UF.MomentumTransport(), rsl_exp)
 
-u_most = profile(z0m, zs_u, UF.MomentumTransport(), mu_most)
-u_pg = profile(z0m, zs_u, UF.MomentumTransport(), mu_pg; match_at_rsl_top = true)
-u_hf = profile(z0m, zs_u, UF.MomentumTransport(), mu_hf; match_at_rsl_top = true)
-
-θ_most = profile(z0h, zs_θ, UF.HeatTransport(), mu_most)
-θ_pg = profile(z0h, zs_θ, UF.HeatTransport(), mu_pg; match_at_rsl_top = true)
-θ_hf = profile(z0h, zs_θ, UF.HeatTransport(), mu_hf; match_at_rsl_top = true)
+θ_most = profile(z0h, zs_θ, UF.HeatTransport(), no_rsl)
+θ_lin = profile(z0h, zs_θ, UF.HeatTransport(), rsl_lin)
+θ_exp = profile(z0h, zs_θ, UF.HeatTransport(), rsl_exp)
 
 margin_kw = (; bottom_margin = 12Plots.mm, left_margin = 8Plots.mm, top_margin = 4Plots.mm)
 axis_kw = (;
@@ -106,21 +87,21 @@ p1 = Plots.plot(
 )
 Plots.plot!(
     p1,
-    u_pg,
+    u_lin,
     zs_u;
     lw = 2,
     color = :dodgerblue,
     ls = :dash,
-    label = "Physick–Garratt",
+    label = "Linear RSL",
 )
 Plots.plot!(
     p1,
-    u_hf,
+    u_exp,
     zs_u;
     lw = 2,
     color = :crimson,
     ls = :dot,
-    label = "Harman–Finnigan",
+    label = "Exponential RSL (Garratt)",
 )
 
 # --- (b) Potential temperature --------------------------------------------------
@@ -142,21 +123,21 @@ p2 = Plots.plot(
 )
 Plots.plot!(
     p2,
-    θ_pg,
+    θ_lin,
     zs_θ;
     lw = 2,
     color = :dodgerblue,
     ls = :dash,
-    label = "Physick–Garratt",
+    label = "Linear RSL",
 )
 Plots.plot!(
     p2,
-    θ_hf,
+    θ_exp,
     zs_θ;
     lw = 2,
     color = :crimson,
     ls = :dot,
-    label = "Harman–Finnigan",
+    label = "Exponential RSL (Garratt)",
 )
 
 rsl_fig = Plots.plot(p1, p2; layout = (1, 2), size = (900, 480))

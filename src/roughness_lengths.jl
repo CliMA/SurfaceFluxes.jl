@@ -341,6 +341,22 @@ end
     return (z0m, z0m * spec.stanton_number)
 end
 
+"""
+    depends_on_ustar(model)
+
+Whether the roughness lengths of a roughness model, or the gustiness of a gustiness
+model, depend on the friction velocity `u★`. [`compute_ustar_and_roughness`](@ref) finds
+`u★` by root-finding when either model does; otherwise, the roughness lengths, the
+gustiness, and `u★` follow directly from the stability parameter. The models independent
+of `u★` are [`ConstantRoughnessParams`](@ref), [`RaupachRoughnessParams`](@ref), and
+[`ConstantGustinessSpec`](@ref).
+"""
+@inline depends_on_ustar(::AbstractRoughnessParams) = true
+@inline depends_on_ustar(::ConstantRoughnessParams) = false
+@inline depends_on_ustar(::RaupachRoughnessParams) = false
+@inline depends_on_ustar(::AbstractGustinessSpec) = true
+@inline depends_on_ustar(::ConstantGustinessSpec) = false
+
 # =========================================================================================
 # Iterative Solver for combined ustar and roughness
 # =========================================================================================
@@ -368,8 +384,8 @@ function (ur::UstarResidual)(ustar)
         inputs.roughness_inputs,
     )
 
-    b_flux = buoyancy_flux(param_set, ζ, ustar_safe, inputs)
-    gustiness_val = gustiness_value(inputs.gustiness_model, param_set, b_flux)
+    gustiness_val =
+        gustiness_value(inputs.gustiness_model, param_set, ζ, ustar_safe, inputs)
     ustar_calc = compute_ustar(param_set, ζ, z0m, inputs, scheme, gustiness_val)
 
     return ustar - ustar_calc
@@ -381,8 +397,11 @@ end
 Computes friction velocity `ustar` and roughness lengths `z0m`, `z0h` for a given stability `ζ`.
 
 - If `inputs.ustar` is prescribed, it is returned directly.
-- Uses a root solver to find `ustar` consistent with the roughness model.
-- Converges in 1 iteration if roughness and gustiness are fixed (independent of `ustar`).
+- If the roughness and gustiness models are independent of `ustar` (see
+  [`depends_on_ustar`](@ref)), `z0m`, `z0h`, and `ustar` follow directly from `ζ`.
+- Otherwise, three iterations of Brent's method on `ustar ∈ [1e-4, 4]` m/s find the
+  `ustar` consistent with the roughness and gustiness models; the result lies in this
+  bracket.
 """
 function compute_ustar_and_roughness(
     param_set::APS,
@@ -400,6 +419,25 @@ function compute_ustar_and_roughness(
             param_set,
             inputs.roughness_inputs,
         )
+        return ustar, z0m, z0s
+    end
+
+    # For roughness and gustiness independent of ustar, the residual below is linear in
+    # ustar, and its root is the friction velocity implied by ζ. The branch condition is
+    # known at compile time from the model types.
+    if !(
+        depends_on_ustar(inputs.roughness_model) ||
+        depends_on_ustar(inputs.gustiness_model)
+    )
+        z0m, z0s = momentum_and_scalar_roughness(
+            inputs.roughness_model,
+            zero(FT),
+            param_set,
+            inputs.roughness_inputs,
+        )
+        gustiness_val =
+            gustiness_value(inputs.gustiness_model, param_set, ζ, zero(FT), inputs)
+        ustar = compute_ustar(param_set, ζ, z0m, inputs, scheme, gustiness_val)
         return ustar, z0m, z0s
     end
 

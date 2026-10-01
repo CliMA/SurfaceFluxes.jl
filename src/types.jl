@@ -5,6 +5,7 @@
 abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
 abstract type AbstractRoughnessSubLayerModel end
+abstract type AbstractStabilityCap end
 
 
 
@@ -59,27 +60,41 @@ Configuration for surface flux calculation components.
 - `roughness`: The roughness length parameterization to use (e.g., [`ConstantRoughnessParams`](@ref)).
 - `gustiness`: The gustiness parameterization to use (e.g., [`ConstantGustinessSpec`](@ref)).
 - `moisture_model`: The moisture model (e.g., [`MoistModel`](@ref) or [`DryModel`](@ref)).
-- `rsl_model`: Roughness sublayer correction model (e.g., [`PhysickGarrattRSL`](@ref)).
+- `rsl_model`: Roughness sublayer correction model (e.g., [`ExponentialRSL`](@ref)).
   Defaults to [`NoRoughnessSubLayer`](@ref) (standard MOST, no RSL correction).
+- `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
+  [`MaxHeatFluxStabilityCap`](@ref)). Defaults to [`NoStabilityCap`](@ref) (standard MOST).
 """
 struct SurfaceFluxConfig{
     R <: AbstractRoughnessParams,
     G <: AbstractGustinessSpec,
     M <: AbstractMoistureModel,
     RSL <: AbstractRoughnessSubLayerModel,
+    SC <: AbstractStabilityCap,
 }
     roughness::R
     gustiness::G
     moisture_model::M
     rsl_model::RSL
+    stability_cap::SC
 end
 
 function SurfaceFluxConfig(roughness, gustiness)
-    return SurfaceFluxConfig(roughness, gustiness, MoistModel(), NoRoughnessSubLayer())
+    return SurfaceFluxConfig(roughness, gustiness, MoistModel())
 end
 
 function SurfaceFluxConfig(roughness, gustiness, moisture_model)
     return SurfaceFluxConfig(roughness, gustiness, moisture_model, NoRoughnessSubLayer())
+end
+
+function SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)
+    return SurfaceFluxConfig(
+        roughness,
+        gustiness,
+        moisture_model,
+        rsl_model,
+        NoStabilityCap(),
+    )
 end
 
 
@@ -130,7 +145,8 @@ Options for the Monin-Obukhov similarity theory solver.
 
 # Fields
 - `tol`: Absolute tolerance on the stability parameter: the `converged` flag requires the
-  final bracket width to satisfy it, and in tolerance-checked mode it also bounds the step
+  final bracket width, or the step from the last iterate to the final regula falsi
+  interpolant, to satisfy it, and in tolerance-checked mode it also bounds the step
   between iterates for the early exit.
 - `rtol`: Relative tolerance on the stability parameter, used analogously to `tol`.
 - `maxiter`: Number of bracket-refinement iterations. The ζ-solve performs
@@ -139,7 +155,7 @@ Options for the Monin-Obukhov similarity theory solver.
 - `forced_fixed_iters`: If true (default), disables the early tolerance exit and runs
   exactly `maxiter` refinement iterations (via `RootSolvers.NoTolerance`), so every point
   performs identical work (uniform control flow on GPUs). The `converged` flag is still
-  evaluated from the final bracket width and the tolerances.
+  evaluated from the final bracket (width and final step) and the tolerances.
 """
 Base.@kwdef struct SolverOptions{FT}
     tol::FT = FT(1e-2)
@@ -171,7 +187,15 @@ with units `[kg/(m·s²)] = [N/m²]`.
 - `T_sfc`: Surface temperature [K].
 - `q_vap_sfc`: Surface air vapor specific humidity [kg/kg].
 - `L_MO`: Monin-Obukhov length [m].
+- `L_eff`: Effective Obukhov length for profile recovery, `Δz_eff / min(ζ, ζ_cap)` [m].
+  It equals `L_MO` unless a stability cap (see [`MaxHeatFluxStabilityCap`](@ref)) is
+  active, in which case the exchange coefficients and similarity scales were evaluated at
+  the capped stability parameter. Pass `L_eff` (not `L_MO`) to
+  [`compute_profile_value`](@ref) to recover profiles consistent with the fluxes.
 - `converged`: Solver convergence status.
+
+The positional constructor accepts the fields in this order, with or without `L_eff`
+(without it, `L_eff = L_MO`).
 """
 struct SurfaceFluxConditions{FT <: Real}
     shf::FT
@@ -186,6 +210,7 @@ struct SurfaceFluxConditions{FT <: Real}
     T_sfc::FT
     q_vap_sfc::FT
     L_MO::FT
+    L_eff::FT
     converged::Bool
 end
 
@@ -202,11 +227,46 @@ SurfaceFluxConditions(
     T_sfc,
     q_vap_sfc,
     L_MO,
+    L_eff,
     converged,
 ) =
-    let vars = promote(shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, g_h, T_sfc, q_vap_sfc, L_MO)
+    let vars =
+            promote(
+                shf,
+                lhf,
+                E,
+                ρτxz,
+                ρτyz,
+                ustar,
+                ζ,
+                Cd,
+                g_h,
+                T_sfc,
+                q_vap_sfc,
+                L_MO,
+                L_eff,
+            )
         SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
+
+# Without an effective Obukhov length (no stability cap): L_eff = L_MO
+SurfaceFluxConditions(
+    shf,
+    lhf,
+    E,
+    ρτxz,
+    ρτyz,
+    ustar,
+    ζ,
+    Cd,
+    g_h,
+    T_sfc,
+    q_vap_sfc,
+    L_MO,
+    converged::Bool,
+) = SurfaceFluxConditions(
+    shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, g_h, T_sfc, q_vap_sfc, L_MO, L_MO, converged,
+)
 
 function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "----------------------- SurfaceFluxConditions")
@@ -222,6 +282,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Surface temperature                 = ", sfc.T_sfc)
     println(io, "Surface air vapor specific humidity = ", sfc.q_vap_sfc)
     println(io, "Monin-Obukhov length                = ", sfc.L_MO)
+    println(io, "Effective Obukhov length            = ", sfc.L_eff)
     println(io, "Converged                           = ", sfc.converged)
     println(io, "-----------------------")
 end

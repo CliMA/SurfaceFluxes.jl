@@ -34,8 +34,7 @@ include("test_deardorff_gustiness_integration.jl")    # Deardorff gustiness thro
 include("test_coare3_literature.jl")                  # COARE3 validation against Fairall et al. (2003)
 include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
-include("test_physick_garratt_rsl.jl")               # Physick-Garratt roughness sublayer model
-include("test_harman_finnigan_rsl.jl")              # Harman-Finnigan (2007) roughness sublayer model
+include("test_roughness_sublayer.jl")                 # Roughness sublayer (RSL) models
 
 @testset "Regression Tests" begin
     # Regression tests with predefined (mostly stable) test cases.
@@ -60,6 +59,7 @@ end
     include("test_energy_budget_closure.jl")
     include("test_profile_recovery_roundtrip.jl")
     include("test_supercritical_stability.jl")
+    include("test_stability_cap.jl")
 end
 
 @testset "Land Use Cases" begin

@@ -79,19 +79,41 @@ SurfaceFluxes.ConstantGustinessSpec
 SurfaceFluxes.DeardorffGustinessSpec
 SurfaceFluxes.MoistModel
 SurfaceFluxes.DryModel
+SurfaceFluxes.gustiness_value
+SurfaceFluxes.depends_on_ustar
+SurfaceFluxes.compute_ustar_and_roughness
 ```
 
 ## Roughness Sublayer
 
-Models for the roughness sublayer (RSL) correction, which enhances turbulent exchange
-above rough surfaces beyond standard MOST predictions. Pass the chosen model via
-`SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)`.
+Models for the roughness sublayer (RSL) correction, which accounts for the enhanced
+turbulent mixing above tall roughness elements (plant and urban canopies). Pass the chosen
+model via `SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)`.
 
 ```@docs
 SurfaceFluxes.NoRoughnessSubLayer
-SurfaceFluxes.PhysickGarrattRSL
-SurfaceFluxes.HarmanFinniganRSL
+SurfaceFluxes.LinearRSL
+SurfaceFluxes.ExponentialRSL
+SurfaceFluxes.rsl_corrected_profile
 SurfaceFluxes.rsl_profile_correction
+```
+
+## Stability Cap
+
+Caps on the stability parameter in stable conditions, which hold the exchange
+coefficients at their values at the cap for more stable conditions. Pass the chosen
+cap via `SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model, stability_cap)`.
+
+```@docs
+SurfaceFluxes.NoStabilityCap
+SurfaceFluxes.ConstantStabilityCap
+SurfaceFluxes.MaxHeatFluxStabilityCap
+SurfaceFluxes.max_heat_flux_stability
+SurfaceFluxes.neutral_momentum_roughness
+SurfaceFluxes.stability_cap_value
+SurfaceFluxes.with_stability_cap
+SurfaceFluxes.resolved_stability_cap
+SurfaceFluxes.capped_stability
 ```
 
 ## Universal Functions

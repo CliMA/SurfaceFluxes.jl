@@ -117,13 +117,10 @@ end
 
     rsl_models = (
         (
-            "PhysickGarrattRSL",
-            SF.PhysickGarrattRSL{FT}(c_m = FT(0.4), c_h = FT(0.4), z_RSL = FT(20.0)),
+            "LinearRSL",
+            SF.LinearRSL(FT; c_m = 0.4, c_h = 0.4, z_RSL = 20.0),
         ),
-        (
-            "HarmanFinniganRSL",
-            SF.HarmanFinniganRSL{FT}(c1_m = FT(0.5), c1_h = FT(0.5), z_RSL = FT(20.0)),
-        ),
+        ("ExponentialRSL", SF.ExponentialRSL(FT; c_m = 0.5, c_h = 0.5, z_RSL = 20.0)),
     )
 
     for (rsl_name, rsl_model) in rsl_models
@@ -169,39 +166,99 @@ end
         end
     end
 
-    # Direct AD through the HF quadrature kernel (ForwardDiff): exercises
+    # Direct AD through the RSL quadrature kernel (ForwardDiff): exercises
     # gauss_legendre4 + the log-mapped integrand under Dual arithmetic.
-    @testset "HarmanFinniganRSL — rsl_profile_correction dP/dc1" begin
+    uf = SFP.uf_params(param_set)
+    @testset "ExponentialRSL — rsl_profile_correction dP/dc" begin
         Δz_eff = FT(40)
         z0m = FT(0.5)
-        z_RSL = FT(30)
+        z_RSL = FT(60)
         function P_of_c1(c1)
-            rsl = SF.HarmanFinniganRSL(c1_m = c1, c1_h = c1, z_RSL = typeof(c1)(z_RSL))
-            return SF.rsl_profile_correction(rsl, Δz_eff, z0m, UF.MomentumTransport())
+            rsl = SF.ExponentialRSL(c1, c1, typeof(c1)(z_RSL))
+            return SF.rsl_profile_correction(uf, rsl, Δz_eff, FT(-0.5), z0m,
+                UF.MomentumTransport())
         end
         c1_base = FT(0.5)
         dP_ad = ForwardDiff.derivative(P_of_c1, c1_base)
         ϵ = FT(1e-6)
         dP_fd = (P_of_c1(c1_base + ϵ) - P_of_c1(c1_base - ϵ)) / (2ϵ)
         @test isfinite(dP_ad)
-        @test dP_ad < 0  # stronger c1 → more negative P
+        @test dP_ad > 0  # stronger c1 → larger P
         @test isapprox(dP_ad, dP_fd, rtol = FT(1e-4), atol = FT(1e-6))
     end
 
-    @testset "PhysickGarrattRSL — rsl_profile_correction dP/dc" begin
-        Δz_eff = FT(40)
+    @testset "LinearRSL — rsl_profile_correction dP/dc" begin
+        Δz_eff = FT(20)
         z0m = FT(0.5)
         z_RSL = FT(30)
         function P_of_c(c)
-            rsl = SF.PhysickGarrattRSL(c_m = c, c_h = c, z_RSL = typeof(c)(z_RSL))
-            return SF.rsl_profile_correction(rsl, Δz_eff, z0m, UF.MomentumTransport())
+            rsl = SF.LinearRSL(c, c, typeof(c)(z_RSL))
+            return SF.rsl_profile_correction(uf, rsl, Δz_eff, FT(0.2), z0m,
+                UF.MomentumTransport())
         end
         c_base = FT(0.4)
         dP_ad = ForwardDiff.derivative(P_of_c, c_base)
         ϵ = FT(1e-6)
         dP_fd = (P_of_c(c_base + ϵ) - P_of_c(c_base - ϵ)) / (2ϵ)
         @test isfinite(dP_ad)
-        @test dP_ad < 0
+        @test dP_ad > 0
         @test isapprox(dP_ad, dP_fd, rtol = FT(1e-4), atol = FT(1e-6))
+    end
+end
+
+@testset verbose = true "AD Compatibility - Stability Cap" begin
+    FT = Float64
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.GryanikParams)
+    T_int = FT(300)
+    q_int = FT(0.005)
+    ρ_int = FT(1.2)
+    u_int = (FT(2), FT(0))
+    u_sfc = (FT(0), FT(0))
+    roughness = SF.ConstantRoughnessParams(FT(0.1), FT(0.01))
+    gustiness = SF.ConstantGustinessSpec(FT(1))
+    opts = SF.SolverOptions{FT}(maxiter = 30, tol = FT(1e-10), rtol = FT(1e-10),
+        forced_fixed_iters = false)
+
+    caps = (
+        ("ConstantStabilityCap", SF.ConstantStabilityCap(FT(0.5))),
+        ("MaxHeatFluxStabilityCap", SF.MaxHeatFluxStabilityCap()),
+    )
+    for (cap_name, cap) in caps
+        config = SF.SurfaceFluxConfig(roughness, gustiness, SF.MoistModel(),
+            SF.NoRoughnessSubLayer(), cap)
+        compute_shf_cap(T_sfc_val) =
+            SF.surface_fluxes(param_set, T_int, q_int, FT(0), FT(0), ρ_int, T_sfc_val,
+                q_int, FT(0), FT(10), FT(0), u_int, u_sfc, nothing, config,
+                SF.PointValueScheme(), opts).shf
+        # Height derivative: for MaxHeatFluxStabilityCap, the cap ζ_p itself depends on
+        # Δz, so this exercises AD through `max_heat_flux_stability`
+        compute_shf_dz(Δz) =
+            SF.surface_fluxes(param_set, T_int, q_int, FT(0), FT(0), ρ_int, FT(290),
+                q_int, FT(0), Δz, FT(0), u_int, u_sfc, nothing, config,
+                SF.PointValueScheme(), opts).shf
+
+        @testset "$cap_name — d(SHF)/d(T_sfc) and d(SHF)/d(Δz)" begin
+            for (backend_name, backend) in ad_backends()
+                @testset "AD backend: $backend_name" begin
+                    # Capped (T_sfc = 290 K) and uncapped weakly stable states
+                    for T_sfc_base in FT[290, 299.8]
+                        d_ad = DI.derivative(compute_shf_cap, backend, T_sfc_base)
+                        ϵ = FT(1e-4)
+                        d_fd =
+                            (
+                                compute_shf_cap(T_sfc_base + ϵ) -
+                                compute_shf_cap(T_sfc_base - ϵ)
+                            ) / (2ϵ)
+                        @test isfinite(d_ad)
+                        @test isapprox(d_ad, d_fd, rtol = FT(1e-4), atol = FT(1e-6))
+                    end
+                    d_ad = DI.derivative(compute_shf_dz, backend, FT(10))
+                    ϵ = FT(1e-4)
+                    d_fd = (compute_shf_dz(FT(10) + ϵ) - compute_shf_dz(FT(10) - ϵ)) / (2ϵ)
+                    @test isfinite(d_ad)
+                    @test isapprox(d_ad, d_fd, rtol = FT(1e-3), atol = FT(1e-6))
+                end
+            end
+        end
     end
 end

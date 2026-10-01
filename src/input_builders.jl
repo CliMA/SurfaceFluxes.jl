@@ -31,7 +31,14 @@ A `NamedTuple` with the following fields:
 - `roughness_model`: Roughness parameterization, e.g. [`ConstantRoughnessParams`](@ref).
 - `gustiness_model`: Gustiness parameterization, e.g. [`ConstantGustinessSpec`](@ref).
 - `moisture_model`: Moisture model, [`MoistModel`](@ref) or [`DryModel`](@ref).
-- `rsl_model`: Roughness sublayer model, e.g. [`PhysickGarrattRSL`](@ref) or [`NoRoughnessSubLayer`](@ref).
+- `rsl_model`: Roughness sublayer model, e.g. [`ExponentialRSL`](@ref) or
+  [`NoRoughnessSubLayer`](@ref).
+- `stability_cap`: Stability cap specification, e.g. [`MaxHeatFluxStabilityCap`](@ref) or
+  [`NoStabilityCap`](@ref).
+- `ζ_cap`: Numerical value of the stability cap, or `nothing`. It is `nothing` here and is
+  set by the MOST solver from `stability_cap` (see [`with_stability_cap`](@ref)); functions
+  that read the cap from the inputs compute it from `stability_cap` when it is `nothing`
+  (see [`resolved_stability_cap`](@ref)).
 - `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values
@@ -80,6 +87,8 @@ function build_surface_flux_inputs(
         gustiness_model = config.gustiness,
         moisture_model = config.moisture_model,
         rsl_model = config.rsl_model,
+        stability_cap = config.stability_cap,
+        ζ_cap = nothing,
         roughness_inputs,
         update_T_sfc,
         update_q_vap_sfc,
