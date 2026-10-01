@@ -90,12 +90,13 @@ which local similarity theory ceases to apply (Grachev et al. 2013); the bulk ra
 The cap is computed once per surface flux solve from the momentum roughness
 length at neutral stability, by golden-section maximization of ``ζ / F̂_m(ζ)^3``
 in ``\\log ζ`` over ``ζ ∈ [10^{-2}, 20]`` with a fixed number of iterations, refined
-by one parabolic step (see [`max_heat_flux_stability`](@ref)). This costs a neutral
-solve for the roughness length and 15 evaluations of the dimensionless momentum
-profile per solve. Since ``ζ_p`` depends only on the geometry `Δz_eff / z0m`, the scheme,
-and the RSL parameters, it is constant in time for fixed roughness lengths; for such
-surfaces, [`ConstantStabilityCap`](@ref)`(`[`max_heat_flux_stability`](@ref)`(...))`
-computed once per column gives the same fluxes at no recurring cost.
+by one parabolic step (see [`max_heat_flux_stability`](@ref)). The maximization evaluates
+the dimensionless momentum profile 15 times per solve; when `z0m` depends on the friction
+velocity (e.g., [`COARE3RoughnessParams`](@ref)), a neutral solve for the roughness length
+precedes it. Since ``ζ_p`` depends only on the geometry `Δz_eff / z0m`, the scheme, and
+the RSL parameters, it is constant in time for fixed roughness lengths; for such surfaces,
+[`ConstantStabilityCap`](@ref)`(`[`max_heat_flux_stability`](@ref)`(...))`
+computed once per column gives the same fluxes, with the maximization done once.
 
 # Examples
 ```julia
@@ -146,12 +147,12 @@ similarity scales computed from builder inputs agree with those of the solve.
 Return the numerical value of the stability cap for `inputs`, or `nothing`:
 `inputs.ζ_cap` if set (inside the MOST solver and the prescribed-flux paths, see
 [`with_stability_cap`](@ref)), otherwise computed from `inputs.stability_cap` with
-[`stability_cap_value`](@ref). The
-computation is free for [`NoStabilityCap`](@ref) and [`ConstantStabilityCap`](@ref); for
-[`MaxHeatFluxStabilityCap`](@ref) it costs a neutral solve for the roughness length and
-the maximization in [`max_heat_flux_stability`](@ref) on each call, so callers that
-evaluate several quantities from the same inputs should set the cap once with
-[`with_stability_cap`](@ref).
+[`stability_cap_value`](@ref). [`NoStabilityCap`](@ref) and
+[`ConstantStabilityCap`](@ref) return their value directly;
+[`MaxHeatFluxStabilityCap`](@ref) runs the maximization in
+[`max_heat_flux_stability`](@ref) (and, when `z0m` depends on the friction velocity, a
+neutral solve for the roughness length) on each call, so callers that evaluate several
+quantities from the same inputs should set the cap once with [`with_stability_cap`](@ref).
 """
 @inline resolved_stability_cap(param_set, inputs, scheme) =
     _resolved_stability_cap(get(inputs, :ζ_cap, nothing), param_set, inputs, scheme)
@@ -164,29 +165,56 @@ evaluate several quantities from the same inputs should set the cap once with
 )
 
 """
+    neutral_momentum_roughness(roughness_model, param_set, inputs, scheme)
+
+Return the momentum roughness length `z0m` [m] at neutral stability. For a roughness
+model independent of the friction velocity (see [`depends_on_ustar`](@ref)), this is the
+model's roughness length; for the others (e.g., [`COARE3RoughnessParams`](@ref)), it comes
+from a neutral solve with [`compute_ustar_and_roughness`](@ref).
+"""
+@inline function neutral_momentum_roughness(roughness_model, param_set, inputs, scheme)
+    FT = eltype(param_set)
+    if depends_on_ustar(roughness_model)
+        # The cap is irrelevant at ζ = 0 and is disabled here, so that `compute_ustar`
+        # (which resolves the cap from the inputs) does not recurse into
+        # `stability_cap_value`.
+        inputs_uncapped = (; inputs..., stability_cap = NoStabilityCap(), ζ_cap = nothing)
+        _, z0m, _ =
+            compute_ustar_and_roughness(param_set, zero(FT), inputs_uncapped, scheme)
+        return z0m
+    else
+        return momentum_roughness(
+            roughness_model,
+            zero(FT),
+            param_set,
+            inputs.roughness_inputs,
+        )
+    end
+end
+
+"""
     stability_cap_value(stability_cap, param_set, inputs, scheme[, z0m])
 
 Return the numerical value of the cap on the stability parameter (or
 `nothing` for [`NoStabilityCap`](@ref)) for the given inputs. For
-[`MaxHeatFluxStabilityCap`](@ref), the momentum roughness length `z0m` is computed at
-neutral stability unless it is given (e.g., from a prescribed friction velocity).
+[`MaxHeatFluxStabilityCap`](@ref), the momentum roughness length `z0m` is evaluated at
+neutral stability with [`neutral_momentum_roughness`](@ref) unless it is given (e.g., from
+a prescribed friction velocity).
 """
 @inline stability_cap_value(::NoStabilityCap, param_set, inputs, scheme) = nothing
 @inline stability_cap_value(c::ConstantStabilityCap, param_set, inputs, scheme) = c.ζ_max
-@inline function stability_cap_value(
+@inline stability_cap_value(
     c::MaxHeatFluxStabilityCap,
     param_set,
     inputs,
     scheme,
+) = stability_cap_value(
+    c,
+    param_set,
+    inputs,
+    scheme,
+    neutral_momentum_roughness(inputs.roughness_model, param_set, inputs, scheme),
 )
-    FT = eltype(param_set)
-    # Momentum roughness at neutral stability (exact for fixed roughness). The cap is
-    # irrelevant at ζ = 0 and is disabled here, so that `compute_ustar` (which resolves
-    # the cap from the inputs) does not recurse into this function.
-    inputs_uncapped = (; inputs..., stability_cap = NoStabilityCap(), ζ_cap = nothing)
-    _, z0m, _ = compute_ustar_and_roughness(param_set, zero(FT), inputs_uncapped, scheme)
-    return stability_cap_value(c, param_set, inputs, scheme, z0m)
-end
 @inline stability_cap_value(c::AbstractStabilityCap, param_set, inputs, scheme, z0m) =
     stability_cap_value(c, param_set, inputs, scheme)
 @inline stability_cap_value(::MaxHeatFluxStabilityCap, param_set, inputs, scheme, z0m) =

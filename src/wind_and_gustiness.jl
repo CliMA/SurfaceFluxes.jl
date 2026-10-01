@@ -102,13 +102,26 @@ Computes the effective wind speed magnitude [m/s], including any gustiness facto
 end
 
 """
+    gustiness_value(spec, param_set, ζ, ustar, inputs)
+
+Returns the gustiness velocity scale [m/s] from the solver variables `ζ` and `ustar`.
+[`ConstantGustinessSpec`](@ref) returns its value; the other models evaluate the buoyancy
+flux first (see [`depends_on_ustar`](@ref)).
+"""
+@inline gustiness_value(spec::ConstantGustinessSpec, param_set, ζ, ustar, inputs) =
+    spec.value
+@inline function gustiness_value(spec::AbstractGustinessSpec, param_set, ζ, ustar, inputs)
+    b_flux = buoyancy_flux(param_set, ζ, ustar, inputs)
+    return gustiness_value(spec, param_set, b_flux)
+end
+
+"""
     windspeed(param_set, ζ, ustar, inputs)
 
-Computes the effective wind speed magnitude [m/s] from solver variables.
-Calculates buoyancy flux and gustiness internally from Monin-Obukhov variables.
+Computes the effective wind speed magnitude [m/s] from the solver variables `ζ` and
+`ustar`, with the gustiness from [`gustiness_value`](@ref).
 """
 @inline function windspeed(param_set::APS, ζ, ustar, inputs)
-    b_flux = buoyancy_flux(param_set, ζ, ustar, inputs)
-    gustiness = gustiness_value(inputs.gustiness_model, param_set, b_flux)
+    gustiness = gustiness_value(inputs.gustiness_model, param_set, ζ, ustar, inputs)
     return windspeed(inputs, gustiness)
 end

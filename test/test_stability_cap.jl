@@ -365,6 +365,36 @@ end
                 pv,
             )
         end
+        # neutral_momentum_roughness: the model's roughness length for roughness independent
+        # of ustar (ConstantRoughnessParams, RaupachRoughnessParams) and the neutral solve
+        # otherwise (COARE3RoughnessParams)
+        @test !SF.depends_on_ustar(rough) && !SF.depends_on_ustar(gust)
+        @test !SF.depends_on_ustar(SF.RaupachRoughnessParams{FT}())
+        @test SF.depends_on_ustar(SF.COARE3RoughnessParams{FT}())
+        @test SF.depends_on_ustar(SF.DeardorffGustinessSpec())
+        args = (300.0, 0.005, 0.0, 0.0, 1.2, 290.0, 0.005, 0.0, 10.0, 0.0, (5.0, 0.0),
+            (0.0, 0.0))
+        for (rm, ri) in (
+            (rough, nothing),
+            (SF.RaupachRoughnessParams{FT}(), (; LAI = 3.0, h = 10.0)),
+            (SF.COARE3RoughnessParams{FT}(), nothing),
+        )
+            cfg_rm = SF.SurfaceFluxConfig(
+                rm, gust, SF.MoistModel(), SF.NoRoughnessSubLayer(),
+                SF.MaxHeatFluxStabilityCap(),
+            )
+            inp = SF.build_surface_flux_inputs(
+                args..., cfg_rm, ri, SF.FluxSpecs{FT}(), nothing, nothing,
+            )
+            z0m_n = @inferred SF.neutral_momentum_roughness(rm, param_set, inp, pv)
+            inp_uncapped =
+                (; inp..., stability_cap = SF.NoStabilityCap(), ζ_cap = nothing)
+            _, z0m_ref, _ =
+                SF.compute_ustar_and_roughness(param_set, 0.0, inp_uncapped, pv)
+            @test z0m_n ≈ z0m_ref rtol = 1e-6
+            @test SF.stability_cap_value(SF.MaxHeatFluxStabilityCap(), param_set, inp, pv) ≈
+                  SF.max_heat_flux_stability(param_set, 10.0, z0m_ref, pv)
+        end
         # ζ_max of a ConstantStabilityCap is differentiable (e.g., for calibration)
         opts = SF.SolverOptions{FT}(maxiter = 40, tol = 1e-10, rtol = 1e-10,
             forced_fixed_iters = false)

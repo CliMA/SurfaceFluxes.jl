@@ -79,6 +79,9 @@ SurfaceFluxes.ConstantGustinessSpec
 SurfaceFluxes.DeardorffGustinessSpec
 SurfaceFluxes.MoistModel
 SurfaceFluxes.DryModel
+SurfaceFluxes.gustiness_value
+SurfaceFluxes.depends_on_ustar
+SurfaceFluxes.compute_ustar_and_roughness
 ```
 
 ## Roughness Sublayer
@@ -106,6 +109,7 @@ SurfaceFluxes.NoStabilityCap
 SurfaceFluxes.ConstantStabilityCap
 SurfaceFluxes.MaxHeatFluxStabilityCap
 SurfaceFluxes.max_heat_flux_stability
+SurfaceFluxes.neutral_momentum_roughness
 SurfaceFluxes.stability_cap_value
 SurfaceFluxes.with_stability_cap
 SurfaceFluxes.resolved_stability_cap
