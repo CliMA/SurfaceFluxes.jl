@@ -78,9 +78,10 @@ Raupach et al. 1991), i.e., `z_RSL ≈ 1.3–2.3 h` for `d ≈ 0.67 h`; Physick 
 (1995) use a depth of `50 z0`. `z_RSL` is a fixed depth, to be scaled with the canopy
 height when the model is constructed.
 
-`FT` is the floating-point type of the parameters (default `Float64`). Construct the
-model with the floating-point type of the computation (e.g., `LinearRSL(Float32; ...)`),
-so that `Float32` computations remain in `Float32`.
+`FT` is the floating-point type of the parameters (default `Float64`). In the flux
+computation, the parameters are converted to the floating-point type of the inputs, so
+`Float32` computations remain in `Float32` with the default constructors;
+`LinearRSL(Float32; ...)` constructs a model with `Float32` parameters.
 
 # Examples
 ```julia
@@ -200,8 +201,10 @@ struct _RSLIntegrand{LOG, M, UFP, TR, C, IZ, IL}
     inv_z_RSL::IZ
     inv_L::IL
 end
-# The numeric fields keep their own types: the RSL coefficient and depth carry the
-# model's type, and `inv_L` that of the inputs (a dual number under AD).
+# The numeric fields keep their own types: the RSL coefficient and depth are in the type
+# of the inputs, or dual numbers when differentiating with respect to the model
+# parameters (see `float_parameter`), and `inv_L` is in the type of the inputs (a dual
+# number under AD).
 _RSLIntegrand{LOG}(model::M, uf_params::UFP, transport::TR, c::C, inv_z_RSL::IZ,
     inv_L::IL) where {LOG, M, UFP, TR, C, IZ, IL} =
     _RSLIntegrand{LOG, M, UFP, TR, C, IZ, IL}(model, uf_params, transport, c,
@@ -290,8 +293,9 @@ The correction `P` [-], zero for [`NoRoughnessSubLayer`](@ref) and above the RSL
     scheme = UF.PointValueScheme(),
 )
     FT = eltype(ζ)
-    c = rsl_coefficient(m, transport)
-    z_RSL = m.z_RSL
+    # Model parameters in the type of the inputs; dual parameters are kept
+    c = float_parameter(FT, rsl_coefficient(m, transport))
+    z_RSL = float_parameter(FT, m.z_RSL)
     z0_safe = max(z0, eps(FT))
     z_top = max(z_RSL, z0_safe)                      # RSL top (≥ z0)
     z_c = max(min(Δz_eff, z_top), z0_safe)           # z_c ∈ [z0, z_top]

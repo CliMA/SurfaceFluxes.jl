@@ -99,6 +99,11 @@ end
             rough, gust, SF.MoistModel(), SF.NoRoughnessSubLayer(),
             SF.MaxHeatFluxStabilityCap(),
         )
+        # A cap above the mid probe at ζ = 10 (the mid probe then moves to the cap)
+        cfg_50 = SF.SurfaceFluxConfig(
+            rough, gust, SF.MoistModel(), SF.NoRoughnessSubLayer(),
+            SF.ConstantStabilityCap(FT(50)),
+        )
         Δz, d = FT(10), FT(0)
         ζ_p = SF.max_heat_flux_stability(param_set, Δz - d, FT(0.1))
 
@@ -198,7 +203,9 @@ end
             # linear in ζ and the root lies beyond ζ_max = 100. It must be bracketed and
             # found (not saturated at ζ_max), with default and tight solver options.
             thermo_params = SFP.thermodynamics_params(param_set)
-            for cfg in (cfg_const, cfg_max), (Δz_d, ΔT) in ((50, 10), (50, 30), (20, 30))
+            for cfg in (cfg_const, cfg_max, cfg_50),
+                (Δz_d, ΔT) in ((50, 10), (50, 30), (20, 30))
+
                 inputs = SF.build_surface_flux_inputs(
                     FT(300), FT(0.005), FT(0), FT(0), FT(1.2), FT(300 - ΔT), FT(0.005),
                     FT(0), FT(Δz_d), FT(0), (FT(1), FT(0)), (FT(0), FT(0)), cfg,
@@ -333,6 +340,42 @@ end
         @test SF.monin_obukhov_far_probe(0.5, 100.0, 10.0, r0, r2) ≈ 2 * Ri_state / k
         @test SF.monin_obukhov_far_probe(0.5, 100.0, 10.0, r0, 10k - 1.0) == 100.0  # root < ζ_max
         @test SF.monin_obukhov_far_probe(nothing, 100.0, 10.0, r0, r2) == 100.0
+        # Mid probe: at the cap when the cap lies in (10, ζ_max), on the stable branch only
+        @test SF.monin_obukhov_probe_points(-1.0, 100.0) == (1.0, -1.0, 10.0, 100.0)
+        @test SF.monin_obukhov_probe_points(-1.0, 100.0, 0.5) == (1.0, -1.0, 10.0, 100.0)
+        @test SF.monin_obukhov_probe_points(-1.0, 100.0, 50.0) == (1.0, -1.0, 50.0, 100.0)
+        @test SF.monin_obukhov_probe_points(-1.0, 100.0, 500.0) == (1.0, -1.0, 100.0, 100.0)
+        @test SF.monin_obukhov_probe_points(1.0, 100.0, 50.0) == (-1.0, 1.0, -10.0, -100.0)
+        # Caps above 10 with roots below and beyond ζ_max (Gryanik, 10 m, z0m = 1 cm)
+        rough_s = SF.ConstantRoughnessParams(0.01, 0.001)
+        for (U, ΔT) in ((2.0, 10.0), (1.0, 2.0), (0.3, 30.0))
+            cfg = SF.SurfaceFluxConfig(rough_s, SF.ConstantGustinessSpec(0.0),
+                SF.DryModel(), SF.NoRoughnessSubLayer(), SF.ConstantStabilityCap(50.0))
+            inp = SF.build_surface_flux_inputs(300.0, 0.0, 0.0, 0.0, 1.2, 300.0 - ΔT, 0.0,
+                0.0, 10.0, 0.0, (U, 0.0), (0.0, 0.0), cfg, nothing, SF.FluxSpecs{FT}(),
+                nothing, nothing)
+            inp = SF.with_stability_cap(inp, param_set, pv)
+            residual = SF.ResidualFunction(param_set, inp, pv, SFP.uf_params(param_set),
+                SFP.thermodynamics_params(param_set))
+            out = SF.surface_fluxes(param_set, inp, pv, SF.SolverOptions{FT}())
+            @test out.converged
+            @test abs(residual(out.ζ)) <= 1e-6 * abs(residual(0.0))
+        end
+        # Float64 cap parameters (the default constructors) keep Float32 solves in Float32
+        ps32 = SFP.SurfaceFluxesParameters(Float32, UF.GryanikParams)
+        rough32 = SF.ConstantRoughnessParams(0.1f0, 0.01f0)
+        for cap in (SF.ConstantStabilityCap(0.5), SF.ConstantStabilityCap(1))
+            cfg = SF.SurfaceFluxConfig(rough32, SF.ConstantGustinessSpec(1.0f0),
+                SF.DryModel(), SF.NoRoughnessSubLayer(), cap)
+            inp =
+                SF.build_surface_flux_inputs(300.0f0, 0.0f0, 0.0f0, 0.0f0, 1.2f0, 285.0f0,
+                    0.0f0, 0.0f0, 10.0f0, 0.0f0, (2.0f0, 0.0f0), (0.0f0, 0.0f0), cfg,
+                    nothing,
+                    SF.FluxSpecs{Float32}(), nothing, nothing)
+            out = @inferred SF.surface_fluxes(ps32, inp, pv, SF.SolverOptions{Float32}())
+            @test out isa SF.SurfaceFluxConditions{Float32}
+            @test out.ζ > 1  # the cap is active
+        end
         # Helpers called with builder inputs (ζ_cap = nothing) agree with the solve
         rough = SF.ConstantRoughnessParams(0.1, 0.01)
         gust = SF.ConstantGustinessSpec(1.0)

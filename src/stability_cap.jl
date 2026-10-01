@@ -35,7 +35,9 @@ struct NoStabilityCap <: AbstractStabilityCap end
 Cap on the stability parameter entering the flux-profile relations at the constant
 `ζ_max > 0`. Physick & Garratt (1995) limit `z/L` to 0.5 in their mesoscale model; caps
 between 0.5 and 2 are common in land models. The cap must be positive, so that unstable
-conditions are unaffected.
+conditions are unaffected. In the flux computation, the cap is converted to the
+floating-point type of the parameter set. The MOST solve brackets the root for caps
+within its stability range `ζ ≤ 100` (see [`surface_fluxes`](@ref)).
 
 # Fields
 - `ζ_max`: Maximum stability parameter entering the flux-profile relations [-].
@@ -202,7 +204,8 @@ neutral stability with [`neutral_momentum_roughness`](@ref) unless it is given (
 a prescribed friction velocity).
 """
 @inline stability_cap_value(::NoStabilityCap, param_set, inputs, scheme) = nothing
-@inline stability_cap_value(c::ConstantStabilityCap, param_set, inputs, scheme) = c.ζ_max
+@inline stability_cap_value(c::ConstantStabilityCap, param_set, inputs, scheme) =
+    float_parameter(eltype(param_set), c.ζ_max)
 @inline stability_cap_value(
     c::MaxHeatFluxStabilityCap,
     param_set,

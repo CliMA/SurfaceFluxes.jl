@@ -284,10 +284,11 @@ models(zR) = (
         ps32 = SFP.SurfaceFluxesParameters(Float32, UF.BusingerParams)
         uf32 = SFP.uf_params(ps32)
         for m in (SF.ExponentialRSL(Float32), SF.LinearRSL(Float32),
-                SF.LinearRSL(Float32; c_m = 0.8)),
+                SF.LinearRSL(Float32; c_m = 0.8), SF.ExponentialRSL(), SF.LinearRSL()),
             sch in (PV, LA)
 
-            # Float32 models and inputs give Float32 results
+            # Float32 inputs give Float32 results, for Float32 and for the default
+            # Float64 model parameters
             @test SF.rsl_corrected_profile(uf32, m, 8.0f0, -0.5f0, 1.0f0, HT, sch) isa
                   Float32
             @test SF.drag_coefficient(ps32, 0.2f0, 1.0f0, 8.0f0, sch, m) isa Float32
@@ -297,7 +298,7 @@ models(zR) = (
             r = SF.surface_fluxes(ps32, 290.0f0, 0.0f0, 0.0f0, 0.0f0, 1.2f0, 292.0f0, 0.0f0,
                 0.0f0, 40.0f0, 20.0f0, (5.0f0, 0.0f0), (0.0f0, 0.0f0), nothing, cfg32,
                 sch)
-            @test r.shf isa Float32 && r.Cd isa Float32 && r.ustar isa Float32
+            @test r isa SF.SurfaceFluxConditions{Float32}
             @test r.converged
         end
     end

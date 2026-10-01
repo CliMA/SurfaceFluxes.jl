@@ -179,4 +179,51 @@ import ClimaParams as CP
     end
 end
 
+@testset "Deardorff gustiness at fixed ζ without a consistent ustar" begin
+    # At fixed ζ, the Deardorff gustiness is proportional to ustar, so the inner ustar
+    # equation has a root only where F_m/κ > β (-ζ z_i / (κ Δz))^(1/3). Beyond this
+    # (more unstable than the free-convection limit) the inner solve returns the upper
+    # bracket end, and the ζ solve settles where a consistent ustar exists.
+    FT = Float64
+    param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+    uf = SFP.uf_params(param_set)
+    pv = UF.PointValueScheme()
+    κ = SFP.von_karman_const(param_set)
+    β = SFP.gustiness_coeff(param_set)
+    zi = SFP.gustiness_zi(param_set)
+    Δz = FT(10)
+    gust_bound(ζ) = β * cbrt(-ζ * zi / (κ * Δz))
+    F_m(ζ, z0m) = UF.dimensionless_profile(uf, Δz, ζ, z0m, UF.MomentumTransport(), pv)
+    inputs(z0m, U, ΔT) = SF.build_surface_flux_inputs(
+        FT(300), FT(0), FT(0), FT(0), FT(1.2), FT(300 + ΔT), FT(0), FT(0), Δz, FT(0),
+        (FT(U), FT(0)), (FT(0), FT(0)),
+        SF.SurfaceFluxConfig(SF.ConstantRoughnessParams(z0m, z0m / 10),
+            SF.DeardorffGustinessSpec(), SF.DryModel()),
+        nothing, SF.FluxSpecs{FT}(), nothing, nothing,
+    )
+    opts = SF.SolverOptions{FT}(maxiter = 40)
+    for z0m in (FT(0.01), FT(1))
+        # No consistent ustar at ζ = -10: the upper bracket end is returned
+        inp = inputs(z0m, 2, 10)
+        @test F_m(FT(-10), z0m) / κ < gust_bound(FT(-10))
+        @test (@inferred SF.compute_ustar_and_roughness(param_set, FT(-10), inp, pv))[1] ==
+              FT(4)
+        # Calm and neutral: ustar below the bracket, the lower end is returned
+        @test SF.compute_ustar_and_roughness(param_set, FT(0), inputs(z0m, 0, 0), pv)[1] ==
+              FT(1e-4)
+        # The ζ solve ends with a consistent ustar inside the bracket, including near the
+        # free-convection limit (low wind), where the ζ residual is steep
+        for U in (0.1, 0.5, 2, 5)
+            inp = inputs(z0m, U, 10)
+            out = @inferred SF.surface_fluxes(param_set, inp, pv, opts)
+            @test out.converged
+            @test FT(1e-2) < out.ustar < FT(4)
+            @test F_m(out.ζ, z0m) / κ > gust_bound(out.ζ)
+            rf = SF.UstarResidual(param_set, inp, pv, out.ζ)
+            @test rf(FT(1e-4)) < 0 < rf(FT(4))
+            @test 0 < out.shf < 2000
+        end
+    end
+end
+
 end # module
