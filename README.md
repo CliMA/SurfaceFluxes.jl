@@ -4,9 +4,9 @@
 
 # SurfaceFluxes.jl
 
-A package for computing surface fluxes between the atmosphere, ocean, and land using Monin-Obukhov Similarity Theory (MOST).
+A package for computing turbulent surface fluxes of momentum, heat, and moisture between the atmosphere and land, ocean, and sea ice surfaces using Monin-Obukhov Similarity Theory (MOST).
 
-SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent surface fluxes of momentum, heat, and moisture. It supports GPU broadcasting, automatic differentiation, and multiple universal function parameterizations (Businger, Gryanik, Grachev), making it ideal for high-performance climate modeling.
+SurfaceFluxes.jl solves the MOST equations with a fixed number of residual evaluations and no data-dependent control flow, so it broadcasts over heterogeneous surfaces on CPUs and GPUs and differentiates with automatic differentiation. It is used in the [CliMA](https://github.com/CliMA) atmosphere, land, and ocean models.
 
 |||
 |------------------:|:------------------------------------------------------------|
@@ -23,8 +23,8 @@ SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent su
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://CliMA.github.io/SurfaceFluxes.jl/dev/
 
-[version-img]: https://juliahub.com/docs/General/SurfaceFluxes/stable/version.svg
-[version-url]: https://juliahub.com/ui/Packages/General/SurfaceFluxes
+[version-img]: https://img.shields.io/github/v/release/CliMA/SurfaceFluxes.jl
+[version-url]: https://github.com/CliMA/SurfaceFluxes.jl/releases
 
 [license-img]: https://img.shields.io/badge/license-Apache%202.0-blue.svg
 [license-url]: https://github.com/CliMA/SurfaceFluxes.jl/blob/main/LICENSE
@@ -41,15 +41,32 @@ SurfaceFluxes.jl provides robust, efficient methods for calculating turbulent su
 [dlt-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FSurfaceFluxes&query=total_requests&label=Downloads
 [dlt-url]: https://juliapkgstats.com/pkg/SurfaceFluxes
 
+## Installation
+
+SurfaceFluxes.jl is a registered Julia package:
+
+```julia
+using Pkg
+Pkg.add("SurfaceFluxes")
+```
+
+The parameter constructors used below load default values from
+[ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl), which is a weak dependency:
+add it to your environment and `import ClimaParams` before constructing a parameter set.
+
 ## Features
 
-- **Monin-Obukhov Similarity Theory**: Robust iterative solver for stability-dependent surface fluxes
-- **Universal Function Parameterizations**: [Businger et al. (1971)](https://doi.org/10.1175/1520-0469(1971)028%3C0181:FPRITA%3E2.0.CO;2), [Gryanik et al. (2020)](https://doi.org/10.1175/JAS-D-19-0255.1), and [Grachev et al. (2007)](https://doi.org/10.1007/s10546-007-9177-6) formulations
-- **GPU Support**: Full GPU acceleration with CUDA.jl and other GPU array types
-- **Land and Ocean Parameterizations**: Support for parameterizations for land and ocean surfaces, including roughness lengths that depend on wind speed (ocean) and vegetation characteristics (land)
-- **Dynamic Skin States**: Supports dynamic calculations of skin temperatures and humidities via user-supplied functions
-- **Finite-Difference and Finite-Volume Schemes**: Supports both finite-difference (point-wise) and finite-volume (layer-averaged) formulations following [Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534)
-- **AD Compatible**: Works with automatic differentiation frameworks for integration into differentiable models
+- **MOST solver**: A bracketed, branch-free solve for the stability parameter ζ with a fixed number of residual evaluations, reporting a convergence flag. States beyond the critical bulk Richardson number saturate at the stable limit.
+- **Universal functions**: [Businger et al. (1971)](https://doi.org/10.1175/1520-0469(1971)028%3C0181:FPRITA%3E2.0.CO;2), [Gryanik et al. (2020)](https://doi.org/10.1175/JAS-D-19-0255.1), and [Grachev et al. (2007)](https://doi.org/10.1007/s10546-007-9177-6).
+- **Discretization schemes**: Point values (finite differences) or layer averages (finite volumes) following [Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534).
+- **Surface models**: Constant roughness lengths, wind-dependent roughness over the ocean ([COARE 3.0](https://doi.org/10.1175/1520-0442(2003)016%3C0571:BPOASF%3E2.0.CO;2)), and canopy roughness from height and leaf area index ([Raupach 1994](https://doi.org/10.1007/BF00709229)); constant or convective ([Deardorff](https://doi.org/10.1175/1520-0469(1970)027%3C1211:CVATSF%3E2.0.CO;2)) gustiness.
+- **Roughness sublayer corrections**: Exponential ([Garratt 1980](https://doi.org/10.1002/qj.49710645011); [Physick & Garratt 1995](https://doi.org/10.1007/BF00715710)) or linear corrections to the MOST profiles above tall canopies, consistent with their stability dependence.
+- **Stability caps**: A constant cap on the stability parameter in stable stratification, or a cap at the stability of maximum sensible heat flux, which keeps the heat flux increasing with the surface–air temperature difference and prevents runaway surface cooling.
+- **Dynamic skin states**: Surface temperature and humidity updated inside the solve through user-supplied callbacks (e.g., a surface energy balance).
+- **Prescribed conditions**: Fluxes and diagnostics from prescribed exchange coefficients, fully prescribed fluxes, or prescribed heat fluxes with a drag coefficient, in place of the iterative solve.
+- **Profile recovery**: Wind, temperature, and humidity at arbitrary heights from the computed fluxes, including the roughness sublayer and stability cap corrections.
+- **GPU and AD compatibility**: Type-stable kernels that broadcast over arrays of heterogeneous surfaces with [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl), and derivatives with [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl) and Enzyme.
+- **Thermodynamics**: Moist-air properties from [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl).
 
 ## Quick Example
 
@@ -91,15 +108,37 @@ result.Cd       # Drag coefficient [-]
 result.g_h      # Heat conductance Ch * U_eff [m/s]
 result.T_sfc    # Surface temperature [K] (final)
 result.q_vap_sfc # Surface vapor specific humidity [kg/kg] (final)
+result.ζ        # Stability parameter (Δz - d) / L_MO [-]
 result.L_MO     # Monin-Obukhov length [m]
+result.L_eff    # Obukhov length at which the (capped) coefficients were evaluated [m]
 result.converged # Solver convergence status
+```
+
+The surface model is set with a `SurfaceFluxConfig`, whose positional fields are the
+roughness model, the gustiness model, the moisture model, the roughness sublayer model,
+and the stability cap (the last three default to `MoistModel()`, `NoRoughnessSubLayer()`,
+and `NoStabilityCap()`):
+
+```julia
+h = 20.0  # canopy height [m]
+config = SurfaceFluxConfig(
+    ConstantRoughnessParams(0.1h, 0.01h),       # apparent z0m, z0s [m]
+    ConstantGustinessSpec(1.0),                 # gustiness [m/s]
+    MoistModel(),
+    ExponentialRSL(c_m = 0.7, c_h = 0.7, z_RSL = 2h - 0.67h),
+    MaxHeatFluxStabilityCap(),
+)
+result = surface_fluxes(param_set, T_int, q_tot, q_liq, q_ice, ρ_int, T_sfc, q_sfc,
+    Φ_sfc, Δz, 0.67h, u_int, u_sfc, nothing, config)
 ```
 
 ## Documentation
 
 The full documentation, including the mathematical formulation of MOST, the universal
-function parameterizations, and the API reference, is available at the
-[stable docs](https://CliMA.github.io/SurfaceFluxes.jl/stable/).
+function parameterizations, the roughness sublayer and stability cap formulations, the
+prescribed-condition modes, and the API reference, is available at the
+[stable docs](https://CliMA.github.io/SurfaceFluxes.jl/stable/). Release notes are in
+[NEWS.md](NEWS.md).
 
 ## Contributing
 
