@@ -294,8 +294,8 @@ Key features:
     sqrt_c_lambda = sqrt(c_d1 * λ_safe)
     d_over_h = FT(1) - (FT(1) - exp(-sqrt_c_lambda)) / sqrt_c_lambda
 
-    # u_star / U(h) (Eq 8 in Raupach 1994)
-    ustar_over_Uh = sqrt(C_S + C_R * λ)
+    # u_star / U(h) (Eq 8 in Raupach 1994, with (u_star / U(h))_max = 0.3)
+    ustar_over_Uh = min(sqrt(C_S + C_R * λ), FT(0.3))
     Uh_over_ustar = FT(1) / ustar_over_Uh
 
     # Psi_h (roughness sublayer influence function), approximated by fixed value 0.193
