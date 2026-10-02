@@ -32,20 +32,25 @@ import ClimaParams as CP
     @testset "LAI Dependence" begin
         h = FT(10.0)
 
-        # Raupach formula is non-monotonic in LAI due to exponential term
-        # At low LAI, z0m increases with LAI
-        inputs_low = (LAI = FT(0.5), h = h)
+        # Raupach formula is non-monotonic in LAI: z0m increases with LAI at low
+        # LAI (λ < 0.29, LAI < 0.58) and decreases at higher LAI once u_star/U(h)
+        # reaches its sheltering cap of 0.3 (Eq. 8 in Raupach 1994)
+        inputs_sparse = (LAI = FT(0.1), h = h)
+        inputs_peak = (LAI = FT(0.6), h = h)
         inputs_mid = (LAI = FT(2.0), h = h)
+        inputs_dense = (LAI = FT(4.0), h = h)
 
-        z0m_low = SF.momentum_roughness(spec, u_star, param_set, inputs_low)
+        z0m_sparse = SF.momentum_roughness(spec, u_star, param_set, inputs_sparse)
+        z0m_peak = SF.momentum_roughness(spec, u_star, param_set, inputs_peak)
         z0m_mid = SF.momentum_roughness(spec, u_star, param_set, inputs_mid)
+        z0m_dense = SF.momentum_roughness(spec, u_star, param_set, inputs_dense)
 
-        # At low-to-mid LAI range, z0m increases
-        @test z0m_mid > z0m_low
+        @test z0m_peak > z0m_sparse
+        @test z0m_peak > z0m_mid > z0m_dense
 
         # All values should be reasonable fractions of canopy height
-        @test z0m_low < h
-        @test z0m_mid < h
+        @test z0m_sparse < h
+        @test z0m_peak < h
     end
 
 

@@ -250,7 +250,9 @@ substrate (soil) and the roughness elements (plants).
 Key features:
 - **Displacement height (`d`)**: The height at which the mean drag appears to act.
 - **Roughness density (`λ`)**: Characterized by the Frontal Area Index (FAI), approximated here as `LAI / 2`.
-- **Wind attenuation**: Estimates `u★ / U(h)` (friction velocity ratio at canopy top).
+- **Wind attenuation**: Estimates `u★ / U(h)` (friction velocity ratio at canopy top) as
+  `min((C_S + C_R λ)^(1/2), 0.3)` (Eq. 8); the cap is the sheltering limit, beyond
+  which `z0m / h` decreases with `λ` (for `λ > 0.29`, i.e., `LAI > 0.58`).
 
 # Dependencies
 - `roughness_inputs.LAI`: Leaf Area Index [m^2/m^2]. Used to approximate frontal area index `λ`.
@@ -294,8 +296,8 @@ Key features:
     sqrt_c_lambda = sqrt(c_d1 * λ_safe)
     d_over_h = FT(1) - (FT(1) - exp(-sqrt_c_lambda)) / sqrt_c_lambda
 
-    # u_star / U(h) (Eq 8 in Raupach 1994)
-    ustar_over_Uh = sqrt(C_S + C_R * λ)
+    # u_star / U(h) (Eq 8 in Raupach 1994, with (u_star / U(h))_max = 0.3)
+    ustar_over_Uh = min(sqrt(C_S + C_R * λ), FT(0.3))
     Uh_over_ustar = FT(1) / ustar_over_Uh
 
     # Psi_h (roughness sublayer influence function), approximated by fixed value 0.193

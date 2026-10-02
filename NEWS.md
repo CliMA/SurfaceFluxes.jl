@@ -1,3 +1,7 @@
+[v1.3.0] Raupach (1994) momentum roughness: `u★ / U(h)` is capped at 0.3, the sheltering
+limit of Eq. 8. `z0m / h` now peaks at `λ ≈ 0.29` (`LAI ≈ 0.58`, `z0m / h ≈ 0.11`) and
+decreases for denser canopies; the uncapped form kept increasing with `LAI`.
+
 [v1.3.0] Friction velocity solve with `ustar`-dependent gustiness or roughness:
 
 - When the bracket `ustar ∈ [1e-4, 4]` m/s of the inner Brent solve contains no
