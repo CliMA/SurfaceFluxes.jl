@@ -30,6 +30,53 @@ where ``w_* = (B z_i)^{1/3}``.
 """
 struct DeardorffGustinessSpec <: AbstractGustinessSpec end
 
+"""
+    FlooredDeardorffGustinessSpec{FT <: Real}
+
+The larger of a constant minimum wind speed `u_min` [m/s] and the convective
+gustiness ``β w_*`` of [`DeardorffGustinessSpec`](@ref), with the convective velocity
+scale ``w_* = (B z_i)^{1/3}`` of Deardorff (1970) for a positive surface buoyancy flux
+``B``, the boundary layer depth ``z_i`` (`gustiness_zi`) and coefficient ``β``
+(`gustiness_coeff`). The convective part vanishes in stable conditions, where the floor
+applies; `FlooredDeardorffGustinessSpec(zero(FT))` is the pure convective gustiness.
+
+Within the stability solve, the convective part is evaluated in closed form from the
+surface and atmospheric state (see [`free_convection_wind_speed`](@ref)): at a stability
+parameter ``ζ``, the bulk relations ``u_* = κ U / F_m`` and ``θ_{v*} = κ Δθ_v / F_h``
+make the buoyancy flux ``B = (g/θ_v) u_* θ_{v*}`` linear in the effective wind speed
+``U``, so that ``U = β w_*`` has the solution
+
+```math
+U^2 = β^3 κ^2 \\frac{g}{θ_v} z_i \\frac{Δθ_v}{F_m(ζ) F_h(ζ)}.
+```
+
+The effective wind speed is the fixed point of ``U = \\max(|Δu|, u_{min}, β w_*(U))``,
+and the gustiness is independent of ``u_*`` (see [`depends_on_ustar`](@ref)), so the
+friction velocity follows from ``ζ`` in closed form and the free-convection limit is well
+posed at every ``ζ``. [`DeardorffGustinessSpec`](@ref) evaluates the gustiness from the
+buoyancy flux implied by ``ζ`` and the current ``u_*``; at fixed ``ζ`` that gustiness is
+proportional to ``u_*``, and a consistent ``u_*`` exists only up to the free-convection
+limit.
+
+# Fields
+- `u_min`: Minimum wind speed [m/s].
+
+# Examples
+```julia
+gustiness = FlooredDeardorffGustinessSpec(0.5)  # floor of 0.5 m/s
+config = SurfaceFluxConfig(ConstantRoughnessParams(0.01, 0.001), gustiness)
+```
+
+# References
+- Deardorff, J. W. (1970). Convective velocity and temperature scales for the unstable
+  planetary boundary layer and for Rayleigh convection. J. Atmos. Sci., 27, 1211-1213.
+- Beljaars, A. C. M. (1995). The parametrization of surface fluxes in large-scale models
+  under free convection. Q. J. R. Meteorol. Soc., 121, 255-270.
+"""
+struct FlooredDeardorffGustinessSpec{FT <: Real} <: AbstractGustinessSpec
+    u_min::FT
+end
+
 Base.broadcastable(p::AbstractRoughnessParams) = tuple(p)
 Base.broadcastable(p::AbstractGustinessSpec) = tuple(p)
 

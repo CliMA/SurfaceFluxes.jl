@@ -31,6 +31,7 @@ include("test_displacement_height.jl")                # Displacement height veri
 include("test_coare3.jl")                             # COARE 3.0 roughness tests
 include("test_gustiness.jl")                          # Gustiness parameterization tests
 include("test_deardorff_gustiness_integration.jl")    # Deardorff gustiness through full solver
+include("test_floored_deardorff_gustiness.jl")        # Closed-form Deardorff gustiness with a floor
 include("test_coare3_literature.jl")                  # COARE3 validation against Fairall et al. (2003)
 include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests

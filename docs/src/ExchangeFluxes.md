@@ -187,7 +187,21 @@ where:
 - The boundary layer height is $z_i$.
 - The scaling coefficient is $\beta$ (typically $\approx 1.0$).
 
-Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and thus $B$), this introduces a nonlinear coupling that is resolved by an iterative solver.
+Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and thus $B$), this introduces a nonlinear coupling that is resolved by an iterative solver. Within the stability solve, $B$ is evaluated from the current friction velocity, $B = -u_*^3 \zeta / (\kappa \Delta z)$, so that at fixed $\zeta$ the gustiness is proportional to $u_*$. Beyond the free-convection limit, no $u_*$ is consistent with this gustiness, and the solve settles where one exists.
+
+#### 3. Floored Deardorff Gustiness
+
+```julia
+FlooredDeardorffGustinessSpec(u_min)
+```
+
+The larger of a minimum wind speed $u_{\min}$ and the Deardorff gustiness, with the convective part evaluated in closed form from the surface and atmospheric state. At a stability parameter $\zeta$, the bulk relations $u_* = \kappa U_{\text{eff}} / F_m(\zeta)$ and $\theta_{v*} = \kappa \Delta\theta_v / F_h(\zeta)$ make the buoyancy flux $B = (g/\theta_v) u_* \theta_{v*}$ linear in $U_{\text{eff}}$, so that $U_{\text{eff}} = \beta w_*(U_{\text{eff}})$ has the solution
+
+```math
+U_{\text{eff}}^2 = \beta^3 \kappa^2 \frac{g}{\theta_v} z_i \frac{\Delta\theta_v}{F_m(\zeta) F_h(\zeta)},
+```
+
+where $\Delta\theta_v$ is the virtual potential temperature excess of the surface over the air and $F_m$, $F_h$ are the dimensionless profile integrals of momentum and heat. The convective part vanishes when the surface is not warmer than the air, where the floor applies. Because this gustiness does not depend on $u_*$, the friction velocity follows from $\zeta$ in closed form, and the free-convection limit is well posed at every $\zeta$. `FlooredDeardorffGustinessSpec(0)` is the pure convective gustiness in this form. This model is suited to land surfaces, where the surface temperature responds quickly to the fluxes and a small floor keeps the exchange from vanishing in calm, stable conditions.
 
 ## Reference
 

@@ -102,26 +102,162 @@ Computes the effective wind speed magnitude [m/s], including any gustiness facto
 end
 
 """
-    gustiness_value(spec, param_set, ζ, ustar, inputs)
+    gustiness_value(spec, param_set, ζ, ustar, inputs, scheme = PointValueScheme())
 
-Returns the gustiness velocity scale [m/s] from the solver variables `ζ` and `ustar`.
-[`ConstantGustinessSpec`](@ref) returns its value; the other models evaluate the buoyancy
-flux first (see [`depends_on_ustar`](@ref)).
+Return the gustiness velocity scale [m/s] from the solver variables `ζ` and `ustar`.
+[`ConstantGustinessSpec`](@ref) returns its value; [`FlooredDeardorffGustinessSpec`](@ref)
+evaluates its convective part in closed form with the profile integrals of `scheme`; the
+other models evaluate the buoyancy flux first (see [`depends_on_ustar`](@ref)).
 """
-@inline gustiness_value(spec::ConstantGustinessSpec, param_set, ζ, ustar, inputs) =
-    spec.value
-@inline function gustiness_value(spec::AbstractGustinessSpec, param_set, ζ, ustar, inputs)
+@inline gustiness_value(
+    spec::ConstantGustinessSpec,
+    param_set,
+    ζ,
+    ustar,
+    inputs,
+    scheme = PointValueScheme(),
+) = spec.value
+@inline function gustiness_value(
+    spec::AbstractGustinessSpec,
+    param_set,
+    ζ,
+    ustar,
+    inputs,
+    scheme = PointValueScheme(),
+)
     b_flux = buoyancy_flux(param_set, ζ, ustar, inputs)
     return gustiness_value(spec, param_set, b_flux)
 end
 
 """
-    windspeed(param_set, ζ, ustar, inputs)
+    gustiness_value(spec::FlooredDeardorffGustinessSpec, param_set, buoyancy_flux)
 
-Computes the effective wind speed magnitude [m/s] from the solver variables `ζ` and
-`ustar`, with the gustiness from [`gustiness_value`](@ref).
+Return the larger of the floor `spec.u_min` and the convective gustiness ``β w_*`` of
+[`DeardorffGustinessSpec`](@ref) for the surface buoyancy flux `buoyancy_flux` [m²/s³]
+(zero for a non-positive buoyancy flux). The post-solve fluxes use this form, with the
+buoyancy flux implied by the converged `ζ` and friction velocity.
 """
-@inline function windspeed(param_set::APS, ζ, ustar, inputs)
-    gustiness = gustiness_value(inputs.gustiness_model, param_set, ζ, ustar, inputs)
+@inline gustiness_value(spec::FlooredDeardorffGustinessSpec, param_set, buoyancy_flux) =
+    max(
+        spec.u_min,
+        gustiness_value(DeardorffGustinessSpec(), param_set, buoyancy_flux),
+    )
+
+"""
+    gustiness_value(
+        spec::FlooredDeardorffGustinessSpec, param_set, ζ, ustar, inputs,
+        scheme = PointValueScheme(),
+    )
+
+Return the larger of the floor `spec.u_min` and the free-convection wind speed
+[`free_convection_wind_speed`](@ref) at the stability parameter `ζ`, with the profile
+integrals of `scheme`. The friction velocity `ustar` enters only through the roughness
+lengths.
+"""
+@inline function gustiness_value(
+    spec::FlooredDeardorffGustinessSpec,
+    param_set,
+    ζ,
+    ustar,
+    inputs,
+    scheme = PointValueScheme(),
+)
+    return max(
+        spec.u_min,
+        free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme),
+    )
+end
+
+"""
+    free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme = PointValueScheme())
+
+Return the effective wind speed ``U`` [m/s] at which the convective gustiness ``β w_*``
+equals ``U`` itself, for the Monin-Obukhov stability parameter `ζ` and the surface and
+atmospheric state in `inputs`:
+
+```math
+U^2 = β^3 κ^2 \\frac{g}{θ_v} z_i \\frac{Δθ_v}{F_m(ζ) F_h(ζ)},
+```
+
+where ``Δθ_v`` is the virtual potential temperature excess of the surface over the air,
+``θ_v`` the air value, ``F_m`` and ``F_h`` the dimensionless profile integrals of momentum
+and heat (so that ``u_* = κ U / F_m`` and ``θ_{v*} = κ Δθ_v / F_h``), and ``β``, ``z_i``,
+``κ``, ``g`` the parameters `gustiness_coeff`, `gustiness_zi`, `von_karman_const`, and
+`grav`. The result follows from ``w_*^3 = B z_i`` with ``B = (g / θ_v) u_* θ_{v*}`` and
+``U = β w_*``. It is zero when the surface is not warmer than the air (``Δθ_v ≤ 0``).
+The profile integrals are evaluated with the discretization `scheme` of the solve
+([`PointValueScheme`](@ref) or [`LayerAverageScheme`](@ref)), the roughness sublayer
+model, and the stability cap of `inputs`, with the roughness lengths of the roughness
+model at `ustar`. The surface temperature and humidity are the guesses the stability
+solve uses in its bulk Richardson number, so the closed form is the exact fixed point of
+the solver's bulk relations at `ζ`.
+"""
+@inline function free_convection_wind_speed(
+    param_set::APS,
+    ζ,
+    ustar,
+    inputs,
+    scheme = PointValueScheme(),
+)
+    FT = eltype(param_set)
+    β = SFP.gustiness_coeff(param_set)
+    z_i = SFP.gustiness_zi(param_set)
+    g = SFP.grav(param_set)
+    T_sfc = safe_T_sfc_guess(inputs)
+    q_vap_sfc = safe_q_vap_sfc_guess(inputs)
+    ρ_sfc = surface_density(
+        param_set,
+        inputs.T_int,
+        inputs.ρ_int,
+        T_sfc,
+        inputs.Δz,
+        inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
+    )
+    θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
+    Δθ_v = θ_v_sfc - θ_v_int
+    Δz_eff = effective_height(inputs)
+    z0m, z0h = momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        ustar,
+        param_set,
+        inputs.roughness_inputs,
+    )
+    ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
+    # κ / F_m and κ / F_h
+    ϕ_m = compute_physical_scale_coeff(
+        param_set,
+        Δz_eff,
+        ζ_capped,
+        z0m,
+        UF.MomentumTransport(),
+        scheme,
+        inputs.rsl_model,
+    )
+    ϕ_h = compute_physical_scale_coeff(
+        param_set,
+        Δz_eff,
+        ζ_capped,
+        z0h,
+        UF.HeatTransport(),
+        scheme,
+        inputs.rsl_model,
+    )
+    U² = β^3 * (g / θ_v_int) * z_i * Δθ_v * ϕ_m * ϕ_h
+    return sqrt(max(U², FT(0)))
+end
+
+"""
+    windspeed(param_set, ζ, ustar, inputs, scheme = PointValueScheme())
+
+Compute the effective wind speed magnitude [m/s] from the solver variables `ζ` and
+`ustar`, with the gustiness from [`gustiness_value`](@ref) at the profile integrals of
+`scheme`.
+"""
+@inline function windspeed(param_set::APS, ζ, ustar, inputs, scheme = PointValueScheme())
+    gustiness =
+        gustiness_value(inputs.gustiness_model, param_set, ζ, ustar, inputs, scheme)
     return windspeed(inputs, gustiness)
 end

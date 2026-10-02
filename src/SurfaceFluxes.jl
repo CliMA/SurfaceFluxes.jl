@@ -60,6 +60,7 @@ export SurfaceFluxConditions,
     RaupachRoughnessParams,
     ConstantGustinessSpec,
     DeardorffGustinessSpec,
+    FlooredDeardorffGustinessSpec,
     MoistModel,
     DryModel
 
@@ -742,7 +743,7 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 4. Compute gustiness and ΔU
-    current_ΔU = windspeed(param_set, ζ, u_star, inputs)
+    current_ΔU = windspeed(param_set, ζ, u_star, inputs, scheme)
 
     # 5. Calculate state bulk Richardson number
     Rib_state = state_bulk_richardson_number(
