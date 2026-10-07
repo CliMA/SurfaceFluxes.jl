@@ -77,9 +77,12 @@ SurfaceFluxes.COARE3RoughnessParams
 SurfaceFluxes.RaupachRoughnessParams
 SurfaceFluxes.ConstantGustinessSpec
 SurfaceFluxes.DeardorffGustinessSpec
+SurfaceFluxes.FlooredDeardorffGustinessSpec
 SurfaceFluxes.MoistModel
 SurfaceFluxes.DryModel
 SurfaceFluxes.gustiness_value
+SurfaceFluxes.free_convection_wind_speed
+SurfaceFluxes.virtual_pottemps
 SurfaceFluxes.depends_on_ustar
 SurfaceFluxes.compute_ustar_and_roughness
 ```

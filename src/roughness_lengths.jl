@@ -350,14 +350,15 @@ Whether the roughness lengths of a roughness model, or the gustiness of a gustin
 model, depend on the friction velocity `u★`. [`compute_ustar_and_roughness`](@ref) finds
 `u★` by root-finding when either model does; otherwise, the roughness lengths, the
 gustiness, and `u★` follow directly from the stability parameter. The models independent
-of `u★` are [`ConstantRoughnessParams`](@ref), [`RaupachRoughnessParams`](@ref), and
-[`ConstantGustinessSpec`](@ref).
+of `u★` are [`ConstantRoughnessParams`](@ref), [`RaupachRoughnessParams`](@ref),
+[`ConstantGustinessSpec`](@ref), and [`FlooredDeardorffGustinessSpec`](@ref).
 """
 @inline depends_on_ustar(::AbstractRoughnessParams) = true
 @inline depends_on_ustar(::ConstantRoughnessParams) = false
 @inline depends_on_ustar(::RaupachRoughnessParams) = false
 @inline depends_on_ustar(::AbstractGustinessSpec) = true
 @inline depends_on_ustar(::ConstantGustinessSpec) = false
+@inline depends_on_ustar(::FlooredDeardorffGustinessSpec) = false
 
 # =========================================================================================
 # Iterative Solver for combined ustar and roughness
@@ -386,8 +387,14 @@ function (ur::UstarResidual)(ustar)
         inputs.roughness_inputs,
     )
 
-    gustiness_val =
-        gustiness_value(inputs.gustiness_model, param_set, ζ, ustar_safe, inputs)
+    gustiness_val = gustiness_value(
+        inputs.gustiness_model,
+        param_set,
+        ζ,
+        ustar_safe,
+        inputs,
+        scheme,
+    )
     ustar_calc = compute_ustar(param_set, ζ, z0m, inputs, scheme, gustiness_val)
 
     return ustar - ustar_calc
@@ -442,8 +449,14 @@ function compute_ustar_and_roughness(
             param_set,
             inputs.roughness_inputs,
         )
-        gustiness_val =
-            gustiness_value(inputs.gustiness_model, param_set, ζ, zero(FT), inputs)
+        gustiness_val = gustiness_value(
+            inputs.gustiness_model,
+            param_set,
+            ζ,
+            zero(FT),
+            inputs,
+            scheme,
+        )
         ustar = compute_ustar(param_set, ζ, z0m, inputs, scheme, gustiness_val)
         return ustar, z0m, z0s
     end

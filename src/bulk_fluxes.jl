@@ -477,8 +477,34 @@ Returns the bulk Richardson number.
     ΔU,
     q_vap_sfc = 0,
 )
-    FT = eltype(param_set)
     grav = SFP.grav(param_set)
+    theta_v_sfc, theta_v_int =
+        virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
+
+    Δtheta_v = theta_v_int - theta_v_sfc
+    theta_v_ref = theta_v_int
+    Δz_eff = effective_height(inputs)
+
+    Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
+    return Rib_state
+end
+
+"""
+    virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc = 0)
+
+Return the virtual potential temperatures `(θ_v_sfc, θ_v_int)` [K] of the surface and
+of the interior air. Called from [`state_bulk_richardson_number`](@ref) and
+[`free_convection_wind_speed`](@ref), so both evaluate the same ``Δθ_v``. The condensate
+concentration is taken to be the same at the surface and in the interior.
+
+# Arguments
+- `param_set`: Parameter set.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+- `T_sfc`: Surface temperature [K].
+- `ρ_sfc`: Surface air density [kg/m³].
+- `q_vap_sfc`: Surface vapor specific humidity [kg/kg]. Default: 0.
+"""
+@inline function virtual_pottemps(param_set::APS, inputs, T_sfc, ρ_sfc, q_vap_sfc = 0)
     thermo_params = SFP.thermodynamics_params(param_set)
 
     q_tot_int = inputs.q_tot_int
@@ -497,11 +523,5 @@ Returns the bulk Richardson number.
         q_liq_int,
         q_ice_int,
     )
-
-    Δtheta_v = theta_v_int - theta_v_sfc
-    theta_v_ref = theta_v_int
-    Δz_eff = effective_height(inputs)
-
-    Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
-    return Rib_state
+    return theta_v_sfc, theta_v_int
 end

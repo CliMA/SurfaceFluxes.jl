@@ -124,7 +124,8 @@ end
     heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
 Compute the heat conductance `g_h` (speed * Ch), including any gustiness factor in the wind speed.
-Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables.
+Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables;
+the gustiness uses the profile integrals of `scheme` (see [`gustiness_value`](@ref)).
 The exchange coefficient is evaluated at the stability parameter capped by any
 stability cap in `inputs` (see [`MaxHeatFluxStabilityCap`](@ref) and
 [`capped_stability`](@ref)).
@@ -162,7 +163,7 @@ function heat_conductance(
     )
 
     # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
-    current_speed = windspeed(param_set, ζ, ustar, inputs)
+    current_speed = windspeed(param_set, ζ, ustar, inputs, scheme)
 
     return Ch * current_speed
 end

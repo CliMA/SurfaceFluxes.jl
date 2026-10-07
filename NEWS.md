@@ -1,3 +1,18 @@
+[v1.4.0] New gustiness model `FlooredDeardorffGustinessSpec(u_min)`: the larger of a minimum
+wind speed and the Deardorff convective gustiness `β w*`, with the convective part
+evaluated in closed form within the stability solve. At a stability parameter `ζ`, the
+bulk relations `u* = κ U / F_m(ζ)` and `θv* = κ Δθv / F_h(ζ)` make the buoyancy flux
+linear in the effective wind speed `U`, so `U = β w*(U)` has the solution
+`U² = β³ κ² (g/θv) z_i Δθv / (F_m F_h)` (`free_convection_wind_speed`), with the profile
+integrals of the solver's discretization scheme. The gustiness
+does not depend on `u*` (`depends_on_ustar` is `false`), so the friction velocity follows
+from `ζ` without the inner Brent solve, and the free-convection limit is well posed at
+every `ζ`; `DeardorffGustinessSpec` evaluates the gustiness from the buoyancy flux
+implied by `ζ` and the current `u*`, which has no consistent `u*` beyond the
+free-convection limit. New helper `virtual_pottemps` returns the surface and interior
+virtual potential temperatures used by `state_bulk_richardson_number` and the closed
+form.
+
 [v1.3.0] Raupach (1994) momentum roughness: `u★ / U(h)` is capped at 0.3, the sheltering
 limit of Eq. 8. `z0m / h` now peaks at `λ ≈ 0.29` (`LAI ≈ 0.58`, `z0m / h ≈ 0.11`) and
 decreases for denser canopies; the uncapped form kept increasing with `LAI`.
