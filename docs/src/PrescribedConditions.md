@@ -26,6 +26,8 @@ The solver detects which combination of parameters is provided and dispatches to
 
 ## Operating Modes
 
+In every mode, the reference level must lie above the apparent sinks for momentum and for scalars, $\Delta z - d > \max(z_{0m}, z_{0h})$; otherwise all returned fields are `NaN` and `converged = false` (see [Reference Level](SurfaceFluxes.md#Reference-Level)).
+
 ### 1. Iterative Solver (Standard MOST)
 - **Inputs:** Surface state ($T_s, q_s, \mathbf{u}_s$) and Atmospheric state ($T_a, q_a, \mathbf{u}_a, z, d$).
 - **Unknowns:** Fluxes ($H, LE, \boldsymbol{\tau}$), Coefficients ($C_d, C_h$), Stability ($\zeta$).

@@ -133,8 +133,8 @@ end
     gustiness_value(spec::FlooredDeardorffGustinessSpec, param_set, buoyancy_flux)
 
 Return the larger of the floor `spec.u_min` and the convective gustiness ``β w_*`` of
-[`DeardorffGustinessSpec`](@ref) for the surface buoyancy flux `buoyancy_flux` [m²/s³]
-(zero for a non-positive buoyancy flux). The post-solve fluxes use this form, with the
+[`DeardorffGustinessSpec`](@ref) for the surface buoyancy flux `buoyancy_flux` [m²/s³],
+zero for a non-positive buoyancy flux. The post-solve fluxes use this form, with the
 buoyancy flux implied by the converged `ζ` and friction velocity.
 """
 @inline gustiness_value(spec::FlooredDeardorffGustinessSpec, param_set, buoyancy_flux) =
@@ -188,9 +188,13 @@ and heat (so that ``u_* = κ U / F_m`` and ``θ_{v*} = κ Δθ_v / F_h``), and `
 The profile integrals are evaluated with the discretization `scheme` of the solve
 ([`PointValueScheme`](@ref) or [`LayerAverageScheme`](@ref)), the roughness sublayer
 model, and the stability cap of `inputs`, with the roughness lengths of the roughness
-model at `ustar`. The surface temperature and humidity are the guesses the stability
-solve uses in its bulk Richardson number, so the closed form is the exact fixed point of
-the solver's bulk relations at `ζ`.
+model at `ustar`. The surface temperature and humidity are the guesses `T_sfc_guess` and
+`q_vap_sfc_guess` of `inputs`. Without surface callbacks these are the values the
+stability solve uses in its bulk Richardson number, so the closed form is the exact
+fixed point of the solver's bulk relations at `ζ`. With callbacks, the solve advances the
+guesses between residual evaluations, so the gustiness lags the surface state of the
+bulk Richardson number by one evaluation, as the friction velocity does; the two agree
+once the surface state has converged.
 """
 @inline function free_convection_wind_speed(
     param_set::APS,
@@ -261,3 +265,35 @@ Compute the effective wind speed magnitude [m/s] from the solver variables `ζ` 
         gustiness_value(inputs.gustiness_model, param_set, ζ, ustar, inputs, scheme)
     return windspeed(inputs, gustiness)
 end
+
+"""
+    minimum_wind_speed(spec::AbstractGustinessSpec, param_set)
+
+Return the minimum effective wind speed [m/s] that a gustiness model imposes in all
+conditions, in the floating-point type of `param_set`: the value of a
+[`ConstantGustinessSpec`](@ref), the floor `u_min` of a
+[`FlooredDeardorffGustinessSpec`](@ref), and zero for models whose gustiness vanishes in
+stable conditions, such as [`DeardorffGustinessSpec`](@ref). A model that folds this
+floor into the wind speed it passes to the solve (for example, a canopy model that
+attenuates the wind above the canopy to the ground below it) pairs the attenuated wind
+with [`without_floor`](@ref).
+"""
+@inline minimum_wind_speed(spec::ConstantGustinessSpec, param_set::APS) =
+    float_parameter(eltype(param_set), spec.value)
+@inline minimum_wind_speed(spec::FlooredDeardorffGustinessSpec, param_set::APS) =
+    float_parameter(eltype(param_set), spec.u_min)
+@inline minimum_wind_speed(::AbstractGustinessSpec, param_set::APS) =
+    zero(eltype(param_set))
+
+"""
+    without_floor(spec::AbstractGustinessSpec)
+
+Return the gustiness model `spec` with its minimum wind speed set to zero: a
+[`ConstantGustinessSpec`](@ref) becomes a zero gustiness, a
+[`FlooredDeardorffGustinessSpec`](@ref) keeps its convective part only, and models with
+no floor are returned as they are. See [`minimum_wind_speed`](@ref).
+"""
+@inline without_floor(spec::ConstantGustinessSpec) = ConstantGustinessSpec(zero(spec.value))
+@inline without_floor(spec::FlooredDeardorffGustinessSpec) =
+    FlooredDeardorffGustinessSpec(zero(spec.u_min))
+@inline without_floor(spec::AbstractGustinessSpec) = spec

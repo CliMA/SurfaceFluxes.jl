@@ -1,3 +1,56 @@
+[v1.5.0] Raupach (1994) canopy roughness: `displacement_height(spec, roughness_inputs)` returns
+the zero-plane displacement height `d` of the canopy from the same inputs as the roughness
+length, for callers to pass as the input `d` of the solve and to place sub-canopy and
+screen-level diagnostics. The roughness input `LAI` is the plant area index `Λ` (leaves plus
+stems), and the drag partition uses the frontal area index `λ`, the area facing the wind
+per unit ground area. `RaupachRoughnessParams` has the new fields `frontal_area_ratio`
+(`λ / Λ`, 0.5 for isotropically oriented elements; previously fixed), `λ_min` (floor on `λ`,
+zero by default; a positive floor stands in for stems and branches when `LAI` counts
+leaves only), and the constants `ustar_Uh_max` (0.3) and `c_w` (2, the roughness-sublayer
+depth ratio, which sets the influence function `Ψ_h = ln c_w - 1 + 1 / c_w = 0.193`).
+`RaupachRoughnessParams(toml_dict)` reads all coefficients from ClimaParams (v1.3.1 or
+later), as the `raupach_*` parameters. The momentum
+roughness length is bounded below by `z0m_fixed`. `frontal_area_ratio` enters the drag partition (Eq. 7) only; the displacement
+height (Eq. 8) is an empirical fit in the plant area index. The scalar helpers
+`frontal_area_index`, `canopy_area_index`, `raupach_displacement_fraction`, and
+`raupach_roughness_fraction` expose the closed forms;
+an excess resistance `kB⁻¹` is set through `stanton_number = exp(-kB⁻¹)`.
+
+[v1.5.0] Raupach (1994) correction: the displacement height (Eq. 8) depends on the canopy
+area index `Λ = 2λ`, not on the frontal area index `λ` as before. `d / h` is larger (0.66
+instead of 0.56 at `Λ = 1`, matching Fig. 1b of the paper), and `z0m / h`, proportional to
+`1 - d / h`, is smaller (peak 0.091 instead of 0.114).
+
+[v1.5.0] Screen-level reconstruction `screen_level_values(param_set, sc, inputs, z_screen,
+z_anemometer)`: the air temperature and vapor specific humidity at a height above the
+apparent sink for heat `d + z0h`, and the wind speed at a height above the apparent sink
+for momentum `d + z0m`, from the Monin-Obukhov profiles of a solve. Scalars follow
+`X_sfc + (X_int - X_sfc) F̂_h(z) / F̂_h(Δz_eff)` at the effective Obukhov length `L_eff`, so
+the profile reproduces the fluxes also under a stability cap; the temperature follows the
+dry static energy, which the sensible heat flux is computed from; the wind speed is
+`u* F̂_m(z) / κ`, the effective wind speed of the solve at the reference level. Heights are
+clamped between the roughness length and the reference level (`dimensionless_profile_value`).
+The screen and anemometer values are point values of the profiles; after a layer-average
+solve, the reference profile follows `LayerAverageScheme`.
+
+[v1.5.0] `SurfaceFluxConditions` has the new field `ζ_eff = min(ζ, ζ_cap) = Δz_eff / L_eff`,
+the stability parameter at which the exchange coefficients were evaluated. The positional
+constructors without it derive it from `ζ`, `L_MO`, and `L_eff`.
+
+[v1.5.0] Reference level validity: `surface_fluxes` returns `NaN` in every field with
+`converged = false` when the reference level lies at or below a roughness length
+(`Δz - d <= max(z0m, z0h)`, `reference_height_valid`), in every solver mode and without
+throwing, so that it runs in kernels; `check_reference_height(Δz, d, z0m, z0h)` throws an
+`ArgumentError` for host-side validation of a configuration.
+
+[v1.5.0] Gustiness floor accessors `minimum_wind_speed(spec, param_set)`, the minimum effective wind
+speed a gustiness model imposes (zero for models without a floor), and
+`without_floor(spec)`, the same model with a zero floor, for callers that fold the floor
+into the wind they pass to the solve.
+
+[v1.5.0] New helper `interior_vapor_specific_humidity(inputs)`, the interior total specific
+humidity less the condensate, used by the evaporation and bulk Richardson number.
+
 [v1.4.0] New gustiness model `FlooredDeardorffGustinessSpec(u_min)`: the larger of a minimum
 wind speed and the Deardorff convective gustiness `β w*`, with the convective part
 evaluated in closed form within the stability solve. At a stability parameter `ζ`, the
@@ -14,7 +67,7 @@ virtual potential temperatures used by `state_bulk_richardson_number` and the cl
 form.
 
 [v1.3.0] Raupach (1994) momentum roughness: `u★ / U(h)` is capped at 0.3, the sheltering
-limit of Eq. 8. `z0m / h` now peaks at `λ ≈ 0.29` (`LAI ≈ 0.58`, `z0m / h ≈ 0.11`) and
+limit of Eq. 7. `z0m / h` now peaks at `λ ≈ 0.29` (`LAI ≈ 0.58`, `z0m / h ≈ 0.11`) and
 decreases for denser canopies; the uncapped form kept increasing with `LAI`.
 
 [v1.3.0] Friction velocity solve with `ustar`-dependent gustiness or roughness:

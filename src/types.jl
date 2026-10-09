@@ -239,10 +239,16 @@ with units `[kg/(m·s²)] = [N/m²]`.
   active, in which case the exchange coefficients and similarity scales were evaluated at
   the capped stability parameter. Pass `L_eff` (not `L_MO`) to
   [`compute_profile_value`](@ref) to recover profiles consistent with the fluxes.
-- `converged`: Solver convergence status.
+- `ζ_eff`: Stability parameter at which the exchange coefficients and similarity scales
+  were evaluated, `min(ζ, ζ_cap) = Δz_eff / L_eff` [-]. It equals `ζ` unless a stability
+  cap is active.
+- `converged`: Solver convergence status. It is `false` when the reference level lies at
+  or below a roughness length (see [`reference_height_valid`](@ref)), in which case all
+  other fields are `NaN`.
 
-The positional constructor accepts the fields in this order, with or without `L_eff`
-(without it, `L_eff = L_MO`).
+The positional constructor accepts the fields in this order, with or without `ζ_eff`
+and `L_eff` (without `ζ_eff`, it is derived as `ζ L_MO / L_eff`; without `L_eff`,
+`L_eff = L_MO`).
 """
 struct SurfaceFluxConditions{FT <: Real}
     shf::FT
@@ -258,6 +264,7 @@ struct SurfaceFluxConditions{FT <: Real}
     q_vap_sfc::FT
     L_MO::FT
     L_eff::FT
+    ζ_eff::FT
     converged::Bool
 end
 
@@ -275,26 +282,49 @@ SurfaceFluxConditions(
     q_vap_sfc,
     L_MO,
     L_eff,
+    ζ_eff,
     converged,
 ) =
-    let vars =
-            promote(
-                shf,
-                lhf,
-                E,
-                ρτxz,
-                ρτyz,
-                ustar,
-                ζ,
-                Cd,
-                g_h,
-                T_sfc,
-                q_vap_sfc,
-                L_MO,
-                L_eff,
-            )
+    let vars = promote(
+            shf,
+            lhf,
+            E,
+            ρτxz,
+            ρτyz,
+            ustar,
+            ζ,
+            Cd,
+            g_h,
+            T_sfc,
+            q_vap_sfc,
+            L_MO,
+            L_eff,
+            ζ_eff,
+        )
         SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
+
+# Without the capped stability parameter: ζ_eff = ζ L_MO / L_eff, which is ζ itself when
+# no cap is active or at neutral stability (so infinite lengths stay finite)
+SurfaceFluxConditions(
+    shf,
+    lhf,
+    E,
+    ρτxz,
+    ρτyz,
+    ustar,
+    ζ,
+    Cd,
+    g_h,
+    T_sfc,
+    q_vap_sfc,
+    L_MO,
+    L_eff,
+    converged::Bool,
+) = SurfaceFluxConditions(
+    shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, g_h, T_sfc, q_vap_sfc, L_MO, L_eff,
+    ifelse((L_eff == L_MO) | iszero(ζ), ζ, ζ * L_MO / L_eff), converged,
+)
 
 # Without an effective Obukhov length (no stability cap): L_eff = L_MO
 SurfaceFluxConditions(
@@ -330,6 +360,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Surface air vapor specific humidity = ", sfc.q_vap_sfc)
     println(io, "Monin-Obukhov length                = ", sfc.L_MO)
     println(io, "Effective Obukhov length            = ", sfc.L_eff)
+    println(io, "Capped Obukhov stability ζ_eff      = ", sfc.ζ_eff)
     println(io, "Converged                           = ", sfc.converged)
     println(io, "-----------------------")
 end

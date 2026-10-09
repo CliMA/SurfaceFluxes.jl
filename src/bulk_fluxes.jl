@@ -83,7 +83,7 @@ Useful for computing fluxes from variables available inside the solver loop.
 
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
 
     # Compute evaporation (needed for SHF correction)
     E = evaporation(
@@ -198,7 +198,7 @@ friction velocity `ustar`, roughness lengths, and surface state.
 )
     # Compute conductance
     g_h = heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
 
     return evaporation(
         param_set,
@@ -312,6 +312,11 @@ It is approximated by linearizing the density perturbations with respect to temp
 
     B ≈ (g / ρ_sfc) * ( SHF / (cp_m * T_sfc) + (ε_vd - 1) * LHF / LH_v0 )
 
+This form serves the prescribed-flux modes, where the fluxes are given and `ζ` is not.
+The MOST solve and its outputs use the exact form `B = -u_*^3 ζ / (κ Δz_eff)` of
+[`buoyancy_flux(param_set, ζ, ustar, inputs)`](@ref buoyancy_flux); the linearization
+differs from it by about a percent in strongly convective conditions.
+
 Where:
  - `cp_m` is the specific heat of moist air, calculated using `q_tot_sfc`, `q_liq_sfc`, and `q_ice_sfc`.
  - `ε_vd` is the ratio of gas constants for water vapor and dry air.
@@ -397,6 +402,10 @@ The relationship is derived from the definition of the Obukhov length:
     L = -u_*^3 / (κ * B)
     ζ = Δz / L
     => B = -(u_*^3 * ζ) / (κ * Δz)
+
+This is the buoyancy flux of the stability solve, consistent with its virtual potential
+temperatures; the prescribed-flux modes use the linearized form of
+[`buoyancy_flux(param_set, shf, lhf, T_sfc, ρ_sfc, ...)`](@ref buoyancy_flux) instead.
 
 # Arguments
 - `param_set`: Parameter set.

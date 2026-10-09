@@ -165,7 +165,7 @@ function compute_q_star(
     q_vap_sfc = something(inputs.q_vap_sfc_guess, inputs.q_tot_int),
 )
     # Δq = q_vap_int - q_vap_sfc
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
     Δq = q_vap_int - q_vap_sfc
 
     # Scalars use HeatTransport coefficients in MOST

@@ -12,6 +12,8 @@ SurfaceFluxes.SolverScheme
 SurfaceFluxes.PointValueScheme
 SurfaceFluxes.LayerAverageScheme
 SurfaceFluxes.compute_profile_value
+SurfaceFluxes.screen_level_values
+SurfaceFluxes.dimensionless_profile_value
 ```
 
 ## Inputs Container
@@ -67,6 +69,10 @@ SurfaceFluxes.obukhov_stability_parameter
 
 ```@docs
 SurfaceFluxes.surface_density
+SurfaceFluxes.interior_vapor_specific_humidity
+SurfaceFluxes.reference_height_valid
+SurfaceFluxes.check_reference_height
+SurfaceFluxes.invalidate_unless
 ```
 
 ## Roughness & Gustiness
@@ -75,12 +81,20 @@ SurfaceFluxes.surface_density
 SurfaceFluxes.ConstantRoughnessParams
 SurfaceFluxes.COARE3RoughnessParams
 SurfaceFluxes.RaupachRoughnessParams
+SurfaceFluxes.momentum_roughness
+SurfaceFluxes.displacement_height
+SurfaceFluxes.frontal_area_index
+SurfaceFluxes.canopy_area_index
+SurfaceFluxes.raupach_displacement_fraction
+SurfaceFluxes.raupach_roughness_fraction
 SurfaceFluxes.ConstantGustinessSpec
 SurfaceFluxes.DeardorffGustinessSpec
 SurfaceFluxes.FlooredDeardorffGustinessSpec
 SurfaceFluxes.MoistModel
 SurfaceFluxes.DryModel
 SurfaceFluxes.gustiness_value
+SurfaceFluxes.minimum_wind_speed
+SurfaceFluxes.without_floor
 SurfaceFluxes.free_convection_wind_speed
 SurfaceFluxes.virtual_pottemps
 SurfaceFluxes.depends_on_ustar

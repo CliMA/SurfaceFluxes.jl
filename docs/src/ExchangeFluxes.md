@@ -141,7 +141,8 @@ z_{0m} = 0.11 \frac{\nu}{u_*} + \alpha \frac{u_*^2}{g}
 
 `RaupachRoughnessParams` implements the [Raupach (1994)](https://doi.org/10.1007/BF00709229) model for vegetation canopies.
 
-- Estimates $z_{0m}$ from canopy height ($h$) and Leaf Area Index (LAI). The displacement-height ratio $d/h$ enters the $z_{0m}$ formula internally, but $d$ itself is supplied to [`surface_fluxes`](@ref) as a separate argument.
+- Estimates $z_{0m}$ from the canopy height ($h$) and the plant area index (`LAI`, leaves plus stems). The drag partition uses the frontal area index $\lambda = \max(0.5\,\mathrm{LAI}, \lambda_{min})$, the area of the canopy elements facing the wind per unit ground area (half the plant area index for isotropically oriented elements; Raupach 1994), and the displacement height uses the plant area index itself; the optional floor $\lambda_{min}$ (zero by default) stands in for stems and branches when the input counts leaves only. $z_{0m}$ is bounded below by the fixed roughness length `z0m_fixed`.
+- The displacement height $d$ enters the $z_{0m}$ formula internally, but $d$ itself is supplied to [`surface_fluxes`](@ref) as a separate argument. [`SurfaceFluxes.displacement_height`](@ref) computes it from the same canopy inputs.
 - The scalar roughness $z_{0s}$ is obtained from $z_{0m}$ via a fixed Stanton number.
 - Useful for dynamic vegetation models.
 
@@ -202,6 +203,10 @@ U_{\text{eff}}^2 = \beta^3 \kappa^2 \frac{g}{\theta_v} z_i \frac{\Delta\theta_v}
 ```
 
 where $\Delta\theta_v$ is the virtual potential temperature excess of the surface over the air and $F_m$, $F_h$ are the dimensionless profile integrals of momentum and heat. The convective part vanishes when the surface is not warmer than the air, where the floor applies. Because this gustiness does not depend on $u_*$, the friction velocity follows from $\zeta$ in closed form, and the free-convection limit is well posed at every $\zeta$. `FlooredDeardorffGustinessSpec(0)` is the pure convective gustiness in this form. This model is suited to land surfaces, where the surface temperature responds quickly to the fluxes and a small floor keeps the exchange from vanishing in calm, stable conditions.
+
+#### Minimum Wind Speed
+
+[`minimum_wind_speed`](@ref)`(spec, param_set)` returns the minimum effective wind speed a gustiness model imposes in all conditions: the value of a `ConstantGustinessSpec`, the floor $u_{\min}$ of a `FlooredDeardorffGustinessSpec`, and zero for `DeardorffGustinessSpec`. A model that folds this floor into the wind it passes to the solve, for example a canopy model that attenuates the wind above the canopy to the ground below it, pairs the attenuated wind with [`without_floor`](@ref), the same gustiness model with a zero floor, so that the floor is not applied twice.
 
 ## Reference
 

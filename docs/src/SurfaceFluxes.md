@@ -102,6 +102,17 @@ Supported parameterizations for $U_{\text{gust}}$:
 
 1. **Constant Gustiness**: A fixed minimum wind speed value.
 2. **Deardorff Gustiness**: Proportional to the convective velocity scale $w_*$, capturing gustiness induced by boundary layer eddies.
+3. **Floored Deardorff Gustiness**: The larger of a minimum wind speed and the Deardorff gustiness, with the convective part in closed form (see [Exchange Fluxes](ExchangeFluxes.md)).
+
+## Reference Level
+
+The MOST profiles connect the surface to the reference level only if the reference level lies above the apparent sinks for momentum and for scalars, $\Delta z - d > \max(z_{0m}, z_{0h})$. Otherwise, [`surface_fluxes`](@ref) returns `NaN` in every field of [`SurfaceFluxConditions`](@ref), with `converged = false`, in every operating mode. It does not throw, so that it can run in GPU kernels; [`reference_height_valid`](@ref) evaluates the condition. For host-side validation of a configuration, for example before fluxes are computed in kernels, [`check_reference_height`](@ref) throws an `ArgumentError`:
+
+```julia
+check_reference_height(Δz, d, z0m, z0h)
+```
+
+Over canopies, the displacement height $d$ and the roughness length $z_{0m}$ grow with the canopy height, so a reference level that is valid over short vegetation can fall below $d + z_{0m}$ over a tall forest.
 
 ## Discretization Schemes
 
@@ -139,6 +150,24 @@ This calculates the value of a variable at the effective aerodynamic height `Δz
     With a [stability cap](#Stability-Caps), pass the effective Obukhov length `L_eff`
     returned in [`SurfaceFluxConditions`](@ref) instead of `L_MO`, so that the recovered
     profiles are consistent with the capped fluxes. Without a cap, `L_eff == L_MO`.
+
+### Screen-Level Diagnostics
+
+[`screen_level_values`](@ref) reconstructs, from a solve, the air temperature and vapor specific humidity at a screen height and the wind speed at an anemometer height, such as the WMO standard heights of 2 m and 10 m:
+
+```julia
+sc = surface_fluxes(param_set, inputs)
+(; T, q, u) = screen_level_values(param_set, sc, inputs, 2, 10)
+```
+
+The screen height is measured above the apparent sink for heat, $d + z_{0h}$, and the anemometer height above the apparent sink for momentum, $d + z_{0m}$, where the MOST profiles start. A scalar $X$ that follows the heat profile takes the value
+
+```math
+X(z) = X_{\text{sfc}} + (X_{\text{int}} - X_{\text{sfc}})\,
+\frac{\widehat{F}_h(z)}{\widehat{F}_h(\Delta z_{\text{eff}})},
+```
+
+evaluated at the effective Obukhov length `L_eff`, so that the profile reproduces the fluxes also under a stability cap. The temperature follows this relation in terms of the dry static energy, from which the sensible heat flux is computed, and so includes the adiabatic temperature change between the screen and reference levels. The wind speed is $u_* \widehat{F}_m(z)/\kappa$, gustiness included. Heights are clamped between the roughness length and the reference level. The screen and anemometer values are point values; after a solve with the [`LayerAverageScheme`](@ref), pass that scheme so that the reference profile matches the layer-averaged interior state.
 
 ### Example
 
@@ -280,9 +309,11 @@ value $R_{f,\text{cr}} ≈ 0.20–0.25$ beyond which local similarity theory cea
 (Grachev et al. 2013).
 
 The cap is also applied to the diagnostic heat conductance when the fluxes are prescribed
-(through [`FluxSpecs`](@ref)). For profile recovery beyond the cap, use the effective
-Obukhov length `L_eff` returned in [`SurfaceFluxConditions`](@ref) (see
-[`compute_profile_value`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
+(through [`FluxSpecs`](@ref)). [`SurfaceFluxConditions`](@ref) returns the stability
+parameter at which the exchange coefficients were evaluated,
+`ζ_eff = min(ζ, ζ_cap) = Δz_eff / L_eff`, alongside the uncapped `ζ` and `L_MO`. For
+profile recovery beyond the cap, use the effective Obukhov length `L_eff` (see
+[`compute_profile_value`](@ref) and [`screen_level_values`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
 
 ```julia
 config = SurfaceFluxConfig(

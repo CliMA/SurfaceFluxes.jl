@@ -76,10 +76,14 @@ export NoStabilityCap,
     ConstantStabilityCap, MaxHeatFluxStabilityCap, max_heat_flux_stability
 
 # From utilities.jl
-export surface_density
+export surface_density,
+    interior_vapor_specific_humidity, reference_height_valid, check_reference_height
+
+# From wind_and_gustiness.jl
+export minimum_wind_speed, without_floor
 
 # From profile_recovery.jl
-export compute_profile_value
+export compute_profile_value, screen_level_values
 
 # From UniversalFunctions.jl (solver schemes)
 export PointValueScheme, LayerAverageScheme
@@ -230,7 +234,12 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `g_h`: Heat conductance [m/s].
 - `T_sfc`, `q_vap_sfc`: Final iterated surface temperature [K] and vapor specific humidity [kg/kg].
 - `L_MO`: Monin-Obukhov length [m].
-- `converged`: Convergence status.
+- `L_eff`, `ζ_eff`: Effective Obukhov length [m] and stability parameter [-] at which
+  the exchange coefficients were evaluated (equal to `L_MO` and `ζ` unless a stability
+  cap is active).
+- `converged`: Convergence status; `false`, with all other fields `NaN`, when the
+  reference level lies at or below a roughness length (see
+  [`reference_height_valid`](@ref) and [`check_reference_height`](@ref)).
 """
 function surface_fluxes(
     param_set::APS,
@@ -294,7 +303,18 @@ function surface_fluxes(
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
-    # Dispatching based on availability:
+    sc = surface_fluxes_by_mode(param_set, inputs, scheme, solver_opts)
+    z0m, z0h = momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        sc.ustar,
+        param_set,
+        inputs.roughness_inputs,
+    )
+    return invalidate_unless(sc, reference_height_valid(inputs, z0m, z0h))
+end
+
+# Dispatch to the solver mode that the inputs select
+@inline function surface_fluxes_by_mode(param_set::APS, inputs, scheme, solver_opts)
     # Case A: Coefficients known
     if inputs.Cd !== nothing && inputs.Ch !== nothing
         return compute_fluxes_given_coefficients(param_set, inputs, scheme)
@@ -313,6 +333,34 @@ function surface_fluxes(
     # Case D: Standard MOST solve
     solver_opts_val = normalize_solver_options(param_set, solver_opts)
     return solve_monin_obukhov(param_set, inputs, scheme, solver_opts_val)
+end
+
+"""
+    invalidate_unless(sc::SurfaceFluxConditions, valid::Bool)
+
+Return `sc` when `valid`, and otherwise a copy with every floating-point field set to
+`NaN` and `converged = false`. Written with `ifelse` so that it runs in GPU kernels,
+where the solve cannot throw; see [`reference_height_valid`](@ref).
+"""
+@inline function invalidate_unless(sc::SurfaceFluxConditions{FT}, valid::Bool) where {FT}
+    nan = FT(NaN)
+    return SurfaceFluxConditions{FT}(
+        ifelse(valid, sc.shf, nan),
+        ifelse(valid, sc.lhf, nan),
+        ifelse(valid, sc.evaporation, nan),
+        ifelse(valid, sc.ρτxz, nan),
+        ifelse(valid, sc.ρτyz, nan),
+        ifelse(valid, sc.ustar, nan),
+        ifelse(valid, sc.ζ, nan),
+        ifelse(valid, sc.Cd, nan),
+        ifelse(valid, sc.g_h, nan),
+        ifelse(valid, sc.T_sfc, nan),
+        ifelse(valid, sc.q_vap_sfc, nan),
+        ifelse(valid, sc.L_MO, nan),
+        ifelse(valid, sc.L_eff, nan),
+        ifelse(valid, sc.ζ_eff, nan),
+        sc.converged & valid,
+    )
 end
 
 function default_surface_flux_config(::Type{FT}) where {FT}
@@ -410,7 +458,7 @@ function compute_fluxes_given_coefficients(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_MO,
+        L_MO, L_MO, ζ,
         true,
     )
 end
@@ -497,7 +545,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_eff,
+        L_MO, L_eff, capped_stability(inputs, ζ),
         true,
     )
 end
@@ -591,7 +639,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_eff,
+        L_MO, L_eff, capped_stability(inputs, ζ),
         true,
     )
 end
@@ -615,7 +663,7 @@ given the exchange coefficients and surface state.
     g_h = Ch * windspeed(inputs, param_set, b_flux)
 
     model = inputs.moisture_model
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
     E = evaporation(param_set, inputs, g_h, q_vap_int, qs, ρ_sfc, model)
     lhf = latent_heat_flux(param_set, inputs, E, model)
     shf = sensible_heat_flux(param_set, inputs, g_h, inputs.T_int, Ts, ρ_sfc, E)
@@ -1299,7 +1347,7 @@ function solve_monin_obukhov(
         ρτxz, ρτyz,
         u_star_curr, ζ_final, Cd, g_h,
         T_sfc_val, q_vap_sfc_val,
-        L_MO, L_eff,
+        L_MO, L_eff, ζ_capped,
         converged,
     )
 end

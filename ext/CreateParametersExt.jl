@@ -124,6 +124,13 @@ Construct `RaupachRoughnessParams` from a TOML parameter dictionary.
 function RaupachRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :stanton_number => :stanton_number,
+        :raupach_element_drag_coefficient => :C_R,
+        :raupach_substrate_drag_coefficient => :C_S,
+        :raupach_displacement_coefficient => :c_d1,
+        :raupach_frontal_area_ratio => :frontal_area_ratio,
+        :raupach_minimum_frontal_area_index => :λ_min,
+        :raupach_max_ustar_to_canopy_wind_ratio => :ustar_Uh_max,
+        :raupach_roughness_sublayer_depth_ratio => :c_w,
     )
 
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")

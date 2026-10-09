@@ -120,6 +120,59 @@ Returns `Δz - d` [m].
     return max(inputs.Δz - inputs.d, eps(FT))
 end
 
+"""
+    interior_vapor_specific_humidity(inputs)
+
+Return the vapor specific humidity of the interior air [kg/kg], the total specific
+humidity `q_tot_int` less the condensate `q_liq_int + q_ice_int`.
+
+# Arguments
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline interior_vapor_specific_humidity(inputs) =
+    inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+
+"""
+    reference_height_valid(inputs, z0m, z0h = z0m)
+
+Whether the reference level lies above both roughness lengths, `Δz - d > max(z0m, z0h)`,
+so that the Monin-Obukhov profiles of momentum and of scalars between the surface and
+the reference level are defined. The scalar roughness length matters when it exceeds the
+momentum one, as the COARE 3.0 model gives at low friction velocities.
+[`surface_fluxes`](@ref) returns `NaN` fluxes with `converged = false` for inputs that
+fail this test, since the solve cannot throw inside a GPU kernel;
+[`check_reference_height`](@ref) raises the corresponding error on the host.
+
+# Arguments
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Scalar roughness length [m]; `z0m` by default.
+"""
+@inline reference_height_valid(inputs, z0m, z0h = z0m) =
+    inputs.Δz - inputs.d > max(z0m, z0h)
+
+"""
+    check_reference_height(Δz, d, z0m, z0h = z0m)
+
+Throw an `ArgumentError` unless the reference level lies above both roughness lengths,
+`Δz - d > max(z0m, z0h)` (see [`reference_height_valid`](@ref)). For a host-side check
+of a model's configuration before fluxes are computed in kernels.
+
+# Arguments
+- `Δz`: Height of the reference level above the surface [m].
+- `d`: Displacement height [m].
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Scalar roughness length [m]; `z0m` by default.
+"""
+function check_reference_height(Δz, d, z0m, z0h = z0m)
+    Δz - d > max(z0m, z0h) || throw(
+        ArgumentError(
+            "The reference height Δz = $Δz m must exceed the displacement height d = $d m plus the larger roughness length max(z0m, z0h) = $(max(z0m, z0h)) m",
+        ),
+    )
+    return nothing
+end
+
 # ============================================================================
 # Quadrature
 # ============================================================================
