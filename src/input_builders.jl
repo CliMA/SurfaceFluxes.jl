@@ -20,8 +20,12 @@ A `NamedTuple` with the following fields:
 
 ## Geometry
 - `Φ_sfc`: Surface geopotential [m²/s²]
-- `Δz`: Height difference between interior and surface reference levels [m]
+- `Δz`: Height of the reference level above the surface [m], under the convention
+  `reference_level`
 - `d`: Displacement height [m]
+- `reference_level`: Convention for `Δz`, [`ReferenceAboveSurface`](@ref) or
+  [`ReferenceAboveApparentSink`](@ref); the solver converts the second to the first
+  (see [`reference_above_surface`](@ref))
 
 ## Wind
 - `u_int`: Horizontal wind components `(u, v)` at the interior level, as a tuple [m/s].
@@ -88,6 +92,7 @@ function build_surface_flux_inputs(
         moisture_model = config.moisture_model,
         rsl_model = config.rsl_model,
         stability_cap = config.stability_cap,
+        reference_level = config.reference_level,
         ζ_cap = nothing,
         roughness_inputs,
         update_T_sfc,

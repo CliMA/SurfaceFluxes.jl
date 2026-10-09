@@ -141,8 +141,8 @@ z_{0m} = 0.11 \frac{\nu}{u_*} + \alpha \frac{u_*^2}{g}
 
 `RaupachRoughnessParams` implements the [Raupach (1994)](https://doi.org/10.1007/BF00709229) model for vegetation canopies.
 
-- Estimates $z_{0m}$ from the canopy height ($h$) and the plant area index (`LAI`, leaves plus stems). The drag partition uses the frontal area index $\lambda = \max(0.5\,\mathrm{LAI}, \lambda_{min})$, the area of the canopy elements facing the wind per unit ground area (half the plant area index for isotropically oriented elements; Raupach 1994), and the displacement height uses the plant area index itself; the optional floor $\lambda_{min}$ (zero by default) stands in for stems and branches when the input counts leaves only. $z_{0m}$ is bounded below by the fixed roughness length `z0m_fixed`.
-- The displacement height $d$ enters the $z_{0m}$ formula internally, but $d$ itself is supplied to [`surface_fluxes`](@ref) as a separate argument. [`SurfaceFluxes.displacement_height`](@ref) computes it from the same canopy inputs.
+- Estimates $z_{0m}$ and the displacement height $d$ from the canopy height $h$ and the plant area index `PAI`, the one-sided area of leaves, stems, and branches per unit ground area: the sum of the leaf and stem area indices, LAI + SAI. (The field name `LAI` is accepted as a deprecated alias for `PAI`.) The displacement height depends on `PAI` directly. The split of the drag between the ground and the plants depends on the frontal area index $\lambda = \max(0.5\,\mathrm{PAI}, \lambda_{min})$, the area the canopy presents to the wind per unit ground area, which is half the plant area index for randomly oriented elements. The optional floor $\lambda_{min}$ (zero by default) keeps a canopy rough when the input counts leaves only, as for a leafless deciduous forest. $z_{0m}$ is at least the fixed roughness length `z0m_fixed`.
+- [`surface_fluxes`](@ref) takes $d$ as a separate argument. [`SurfaceFluxes.displacement_height`](@ref) computes it from the same canopy inputs as $z_{0m}$, so that the two are consistent.
 - The scalar roughness $z_{0s}$ is obtained from $z_{0m}$ via a fixed Stanton number.
 - Useful for dynamic vegetation models.
 
@@ -206,7 +206,7 @@ where $\Delta\theta_v$ is the virtual potential temperature excess of the surfac
 
 #### Minimum Wind Speed
 
-[`minimum_wind_speed`](@ref)`(spec, param_set)` returns the minimum effective wind speed a gustiness model imposes in all conditions: the value of a `ConstantGustinessSpec`, the floor $u_{\min}$ of a `FlooredDeardorffGustinessSpec`, and zero for `DeardorffGustinessSpec`. A model that folds this floor into the wind it passes to the solve, for example a canopy model that attenuates the wind above the canopy to the ground below it, pairs the attenuated wind with [`without_floor`](@ref), the same gustiness model with a zero floor, so that the floor is not applied twice.
+[`minimum_wind_speed`](@ref)`(spec, param_set)` returns the lowest effective wind speed a gustiness model allows: the value of a `ConstantGustinessSpec`, the floor $u_{\min}$ of a `FlooredDeardorffGustinessSpec`, and zero for a `DeardorffGustinessSpec`, whose gustiness vanishes in stable conditions. [`without_floor`](@ref)`(spec)` returns the same model with the floor set to zero. A model that applies the floor to the wind before passing it to the solve, for example a canopy model that reduces the wind above the canopy to the wind at the ground, passes `without_floor(spec)` so that the floor is not applied twice.
 
 ## Reference
 

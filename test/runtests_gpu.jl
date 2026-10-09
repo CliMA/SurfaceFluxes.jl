@@ -209,6 +209,7 @@ else
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,
                 SF.NoStabilityCap,
+                SF.ReferenceAboveSurface,
             }
             ConfRaupach = SF.SurfaceFluxConfig{
                 SF.RaupachRoughnessParams{FT},
@@ -216,6 +217,7 @@ else
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,
                 SF.NoStabilityCap,
+                SF.ReferenceAboveSurface,
             }
             ConfigType = Union{ConfCOARE, ConfRaupach}
 
@@ -235,7 +237,7 @@ else
             end
 
             # Define roughness inputs (needed for Raupach)
-            roughness_input = (LAI = FT(0.7), h = FT(8))
+            roughness_input = (PAI = FT(0.7), h = FT(8))
 
             # Displacement height: 0 for COARE, 2.5 for Raupach
             cpu_d = [isodd(i) ? FT(0) : FT(3.5) for i in 1:n]
@@ -326,7 +328,7 @@ else
             # by the ratio of canopy conductance to aerodynamic conductance.
             update_T_sfc =
                 (ζ, ps, thermo_params, inputs, scheme, u_star, z0m, z0h) -> begin
-                    Φ_sfc = SF.surface_geopotential(inputs)
+                    Φ_sfc = SF.surface_geopotential(ps, inputs)
                     Φ_int = SF.interior_geopotential(ps, inputs)
                     g_h = SF.heat_conductance(ps, ζ, u_star, inputs, z0m, z0h, scheme)
                     g_land = leaf_Cd * u_star * AI

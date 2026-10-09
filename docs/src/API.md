@@ -69,6 +69,12 @@ SurfaceFluxes.obukhov_stability_parameter
 
 ```@docs
 SurfaceFluxes.surface_density
+SurfaceFluxes.surface_geopotential
+SurfaceFluxes.interior_geopotential
+SurfaceFluxes.effective_height
+SurfaceFluxes.ReferenceAboveSurface
+SurfaceFluxes.ReferenceAboveApparentSink
+SurfaceFluxes.reference_above_surface
 SurfaceFluxes.interior_vapor_specific_humidity
 SurfaceFluxes.reference_height_valid
 SurfaceFluxes.check_reference_height

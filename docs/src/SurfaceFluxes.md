@@ -102,17 +102,38 @@ Supported parameterizations for $U_{\text{gust}}$:
 
 1. **Constant Gustiness**: A fixed minimum wind speed value.
 2. **Deardorff Gustiness**: Proportional to the convective velocity scale $w_*$, capturing gustiness induced by boundary layer eddies.
-3. **Floored Deardorff Gustiness**: The larger of a minimum wind speed and the Deardorff gustiness, with the convective part in closed form (see [Exchange Fluxes](ExchangeFluxes.md)).
+3. **Floored Deardorff Gustiness**: The larger of a fixed minimum wind speed and the Deardorff gustiness, which is computed in closed form within the solve (see [Exchange Fluxes](ExchangeFluxes.md)).
 
 ## Reference Level
 
-The MOST profiles connect the surface to the reference level only if the reference level lies above the apparent sinks for momentum and for scalars, $\Delta z - d > \max(z_{0m}, z_{0h})$. Otherwise, [`surface_fluxes`](@ref) returns `NaN` in every field of [`SurfaceFluxConditions`](@ref), with `converged = false`, in every operating mode. It does not throw, so that it can run in GPU kernels; [`reference_height_valid`](@ref) evaluates the condition. For host-side validation of a configuration, for example before fluxes are computed in kernels, [`check_reference_height`](@ref) throws an `ArgumentError`:
+### Where the reference height is measured from
+
+The input $\Delta z$ is the height of the atmospheric level where the interior temperature, humidity, and wind are given. The `reference_level` field of [`SurfaceFluxConfig`](@ref) sets where it is measured from:
+
+- [`ReferenceAboveSurface`](@ref) (the default): from the surface, which under a canopy is the ground. With $z_{int}$ the height of the atmospheric level and $z_{sfc}$ that of the surface, $\Delta z = z_{int} - z_{sfc}$.
+- [`ReferenceAboveApparentSink`](@ref): from the apparent sink for momentum, the height $d + z_{0m}$ above the surface at which the logarithmic wind profile extrapolates to zero. To keep the two heights apart, this section writes the input `Δz` under this convention as $\Delta z_{sink} = z_{int} - (z_{sfc} + d + z_{0m})$. The Community Land Model uses this convention, and it suits land models forced by reanalysis or by an atmosphere model whose lowest level is placed above the vegetation. The solver adds $d + z_{0m}$ to obtain the height above the surface, $\Delta z = \Delta z_{sink} + d + z_{0m}$ ([`SurfaceFluxes.reference_above_surface`](@ref)). Because this needs $z_{0m}$ before the solve, the roughness model must be independent of $u_*$ ([`SurfaceFluxes.depends_on_ustar`](@ref)).
+
+Without a subscript, $\Delta z = z_{int} - z_{sfc}$ is the height above the surface, which the solver works with under either convention.
+
+### Where the profiles start
+
+The Monin-Obukhov profiles start at the displacement height $d$ above the surface, the level at which the canopy absorbs momentum and exchanges heat and moisture with the air. The surface temperature and humidity apply there, and the profiles span the distance $\Delta z - d$ from $z_{sfc} + d$ up to $z_{int}$. (The roughness lengths place the apparent sinks slightly above $d$; the surface state neglects this offset.) Three quantities follow:
+
+- the geopotential of the surface state is $\Phi_{sfc} + g d$ ([`SurfaceFluxes.surface_geopotential`](@ref));
+- the dry static energy difference that drives the sensible heat flux is $c_p (T_{int} - T_{sfc}) + g (\Delta z - d)$, so the air column below the canopy does not enter;
+- the surface density is extrapolated hydrostatically over $\Delta z - d$ ([`SurfaceFluxes.surface_density`](@ref)).
+
+The geometry therefore enters the fluxes only through the distance $\Delta z - d$; under [`ReferenceAboveApparentSink`](@ref), that distance is $\Delta z_{sink} + z_{0m}$. Raising $d$ and $\Delta z$ together by $\delta$ leaves the exchange unchanged; the sensible heat flux changes only by $g \delta E$, the potential energy the evaporation $E$ gains at the raised surface.
+
+### Valid reference levels
+
+The profiles exist only if the reference level lies above the apparent sinks for momentum and for scalars: $\Delta z - d > \max(z_{0m}, z_{0h})$. Otherwise, [`surface_fluxes`](@ref) returns `NaN` in every field of [`SurfaceFluxConditions`](@ref) and `converged = false`, in every operating mode. It does not throw, so that it can run inside GPU kernels. [`reference_height_valid`](@ref) evaluates the condition, and [`check_reference_height`](@ref) throws an `ArgumentError`, for checking a configuration on the host before fluxes are computed in kernels:
 
 ```julia
-check_reference_height(Δz, d, z0m, z0h)
+check_reference_height(Δz, d, z0m, z0h)  # Δz is the height above the surface
 ```
 
-Over canopies, the displacement height $d$ and the roughness length $z_{0m}$ grow with the canopy height, so a reference level that is valid over short vegetation can fall below $d + z_{0m}$ over a tall forest.
+The condition matters over tall vegetation, where $d$ and $z_{0m}$ grow with the canopy height $h$. With $d = 0.67\,h$, a forcing level 10 m above the ground lies below the displacement height of any canopy taller than 15 m, and the solve returns `NaN`. Under [`ReferenceAboveApparentSink`](@ref), the same 10 m is $\Delta z_{sink}$, measured from $d + z_{0m}$, and any positive $\Delta z_{sink}$ is valid when $z_{0h} \le z_{0m}$.
 
 ## Discretization Schemes
 
@@ -153,21 +174,25 @@ This calculates the value of a variable at the effective aerodynamic height `Δz
 
 ### Screen-Level Diagnostics
 
-[`screen_level_values`](@ref) reconstructs, from a solve, the air temperature and vapor specific humidity at a screen height and the wind speed at an anemometer height, such as the WMO standard heights of 2 m and 10 m:
+[`screen_level_values`](@ref) gives the air temperature and vapor specific humidity at screen height and the wind speed at anemometer height, as a weather station measures them (the WMO standard heights are 2 m and 10 m):
 
 ```julia
 sc = surface_fluxes(param_set, inputs)
 (; T, q, u) = screen_level_values(param_set, sc, inputs, 2, 10)
 ```
 
-The screen height is measured above the apparent sink for heat, $d + z_{0h}$, and the anemometer height above the apparent sink for momentum, $d + z_{0m}$, where the MOST profiles start. A scalar $X$ that follows the heat profile takes the value
+Both heights are measured from where the profiles start: the screen height from the apparent sink for heat, $d + z_{0h}$, and the anemometer height from the apparent sink for momentum, $d + z_{0m}$. Over short grass, $d$ and the roughness lengths are small, and these are close to heights above the ground; over a forest, they are heights above the canopy's apparent sinks.
+
+The values come from the profiles of the solve. Temperature and humidity lie between their surface and interior values in proportion to the heat profile:
 
 ```math
 X(z) = X_{\text{sfc}} + (X_{\text{int}} - X_{\text{sfc}})\,
 \frac{\widehat{F}_h(z)}{\widehat{F}_h(\Delta z_{\text{eff}})},
 ```
 
-evaluated at the effective Obukhov length `L_eff`, so that the profile reproduces the fluxes also under a stability cap. The temperature follows this relation in terms of the dry static energy, from which the sensible heat flux is computed, and so includes the adiabatic temperature change between the screen and reference levels. The wind speed is $u_* \widehat{F}_m(z)/\kappa$, gustiness included. Heights are clamped between the roughness length and the reference level. The screen and anemometer values are point values; after a solve with the [`LayerAverageScheme`](@ref), pass that scheme so that the reference profile matches the layer-averaged interior state.
+Temperature follows this relation as dry static energy, the variable of the sensible heat flux, so it includes the dry-adiabatic cooling with height. The wind speed is $u_* \widehat{F}_m(z)/\kappa$, gustiness included, relative to the surface velocity. Heights are clamped between the roughness length and the reference level.
+
+The profiles use the effective Obukhov length `L_eff`, so the values match the fluxes also when a stability cap is active. After a solve with the [`LayerAverageScheme`](@ref), pass that scheme: the interior state is then a layer average, and the screen and anemometer values are still point values.
 
 ### Example
 
@@ -309,11 +334,11 @@ value $R_{f,\text{cr}} ≈ 0.20–0.25$ beyond which local similarity theory cea
 (Grachev et al. 2013).
 
 The cap is also applied to the diagnostic heat conductance when the fluxes are prescribed
-(through [`FluxSpecs`](@ref)). [`SurfaceFluxConditions`](@ref) returns the stability
-parameter at which the exchange coefficients were evaluated,
-`ζ_eff = min(ζ, ζ_cap) = Δz_eff / L_eff`, alongside the uncapped `ζ` and `L_MO`. For
-profile recovery beyond the cap, use the effective Obukhov length `L_eff` (see
-[`compute_profile_value`](@ref) and [`screen_level_values`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
+(through [`FluxSpecs`](@ref)). The exchange coefficients use the capped stability
+parameter `ζ_eff = min(ζ, ζ_cap) = Δz_eff / L_eff`, which [`SurfaceFluxConditions`](@ref)
+returns along with the uncapped `ζ` and `L_MO`. Profiles that match the capped fluxes use
+the effective Obukhov length `L_eff` (see [`compute_profile_value`](@ref) and
+[`screen_level_values`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
 
 ```julia
 config = SurfaceFluxConfig(

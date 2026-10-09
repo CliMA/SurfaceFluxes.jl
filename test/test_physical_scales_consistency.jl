@@ -109,7 +109,7 @@ import ClimaParams as CP
             shf_diffusive_scale = -ρ_sfc_calc * cp * ustar * theta_star
 
             # API SHF includes VSE * E term
-            Φ_sfc = SF.surface_geopotential(inputs)
+            Φ_sfc = SF.surface_geopotential(param_set, inputs)
             VSE_sfc = TD.vapor_static_energy(thermo_params, T_sfc, Φ_sfc)
             shf_diffusive_api = result.shf - VSE_sfc * result.evaporation
 
@@ -121,9 +121,9 @@ import ClimaParams as CP
 
             # 3. Geopotential Scale Consistency
             Φ_int = SF.interior_geopotential(param_set, inputs)
-            Φ_sfc_check = SF.surface_geopotential(inputs)
+            Φ_sfc_check = SF.surface_geopotential(param_set, inputs)
             grav = SFP.grav(param_set)
-            @test Φ_sfc_check == inputs.Φ_sfc
+            @test Φ_sfc_check == inputs.Φ_sfc + grav * inputs.d
             @test Φ_int ≈ inputs.Φ_sfc + grav * inputs.Δz
         end
     end

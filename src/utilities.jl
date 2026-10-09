@@ -37,24 +37,45 @@ Returns `Φ_sfc + g * Δz` [m²/s²].
 end
 
 """
-    surface_geopotential(inputs)
+    surface_geopotential(param_set, inputs)
 
-Return the surface geopotential from the inputs.
+Compute the geopotential of the surface state, `Φ_sfc + g * d` [m²/s²]. The surface
+temperature and humidity apply at the apparent sink of the Monin-Obukhov profiles, which
+lies at the displacement height `d` above the surface (the roughness length `z0h` above
+it is neglected). Over a canopy, this is the level of the leaves that exchange heat with
+the air, so the dry static energy difference to the reference level,
+`cp (T_int - T_sfc) + g (Δz - d)`, does not include the air column below the canopy.
 
 # Arguments
+- `param_set`: Parameter set containing gravitational constant.
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline function surface_geopotential(param_set::APS, inputs)
+    return inputs.Φ_sfc + SFP.grav(param_set) * inputs.d
+end
 
-Returns `inputs.Φ_sfc` [m²/s²].
+"""
+    surface_geopotential(inputs)
+
+Return the geopotential of the ground, `inputs.Φ_sfc` [m²/s²]. Deprecated: the surface
+state applies at the displacement height, with the geopotential `Φ_sfc + g d` of
+[`surface_geopotential`](@ref)`(param_set, inputs)`; a surface energy balance that uses
+this form with a displaced canopy is inconsistent with the sensible heat flux by
+`g d / cp`. Kept for callers of the one-argument form; to be removed in the next
+breaking release.
 """
 @inline surface_geopotential(inputs) = inputs.Φ_sfc
 
 """
     surface_density(param_set, T_int, ρ_int, T_sfc, Δz, q_tot_int=0, q_liq_int=0, q_ice_int=0, q_vap_sfc=nothing)
+    surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
 Estimates the surface air density assuming hydrostatic balance between the interior and surface.
 It effectively extrapolates the interior pressure to the surface using the hydrostatic 
 equation with an average virtual temperature, and then computes the surface density using the 
-ideal gas law.
+ideal gas law. The form with the inputs container extrapolates over the effective height
+`Δz - d`, from the reference level to the displacement height where the surface state
+applies (see [`surface_geopotential`](@ref)).
 
 # Arguments
 - `param_set`: AbstractSurfaceFluxesParameters.
@@ -105,10 +126,28 @@ Returns `ρ_sfc` [kg/m^3].
     return ρ_sfc
 end
 
+@inline function surface_density(param_set::APS, inputs, T_sfc, q_vap_sfc)
+    return surface_density(
+        param_set,
+        inputs.T_int,
+        inputs.ρ_int,
+        T_sfc,
+        effective_height(inputs),
+        inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
+    )
+end
+
 """
     effective_height(inputs)
 
-Compute the effective aerodynamic height `z_eff = Δz - d`.
+Compute the effective aerodynamic height `z_eff = Δz - d`, the height of the reference
+level above the displacement height, which the Monin-Obukhov profiles span and over which
+the surface state at `d` (see [`surface_geopotential`](@ref)) is connected to the interior
+state. The inputs follow the [`ReferenceAboveSurface`](@ref) convention (see
+[`reference_above_surface`](@ref)).
 
 # Arguments
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
@@ -118,6 +157,49 @@ Returns `Δz - d` [m].
 @inline function effective_height(inputs)
     FT = typeof(inputs.Δz)
     return max(inputs.Δz - inputs.d, eps(FT))
+end
+
+"""
+    reference_above_surface(param_set, inputs)
+
+Return the inputs with the reference height `Δz` measured from the surface. Under
+[`ReferenceAboveSurface`](@ref), the inputs are returned as they are. Under
+[`ReferenceAboveApparentSink`](@ref), `Δz` is measured from the apparent sink for momentum
+and becomes `Δz + d + z0m`, with the roughness length `z0m` of a roughness model that is
+independent of the friction velocity; the solver and [`screen_level_values`](@ref) apply
+the conversion before reading `Δz`.
+
+# Arguments
+- `param_set`: Parameter set.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline reference_above_surface(param_set::APS, inputs) = reference_above_surface(
+    get(inputs, :reference_level, ReferenceAboveSurface()),
+    param_set,
+    inputs,
+)
+@inline reference_above_surface(::ReferenceAboveSurface, param_set::APS, inputs) = inputs
+@inline function reference_above_surface(
+    ::ReferenceAboveApparentSink,
+    param_set::APS,
+    inputs,
+)
+    depends_on_ustar(inputs.roughness_model) && throw(
+        ArgumentError(
+            "ReferenceAboveApparentSink requires a roughness model independent of the friction velocity",
+        ),
+    )
+    # The roughness model is independent of u★, so any value of u★ serves
+    z0m = momentum_roughness(
+        inputs.roughness_model,
+        zero(inputs.Δz),
+        param_set,
+        inputs.roughness_inputs,
+    )
+    return merge(
+        inputs,
+        (; Δz = inputs.Δz + inputs.d + z0m, reference_level = ReferenceAboveSurface()),
+    )
 end
 
 """
@@ -139,8 +221,10 @@ Whether the reference level lies above both roughness lengths, `Δz - d > max(z0
 so that the Monin-Obukhov profiles of momentum and of scalars between the surface and
 the reference level are defined. The scalar roughness length matters when it exceeds the
 momentum one, as the COARE 3.0 model gives at low friction velocities.
-[`surface_fluxes`](@ref) returns `NaN` fluxes with `converged = false` for inputs that
-fail this test, since the solve cannot throw inside a GPU kernel;
+`Δz` is the height above the surface: inputs under [`ReferenceAboveApparentSink`](@ref)
+are converted first with [`reference_above_surface`](@ref), as [`surface_fluxes`](@ref)
+does. [`surface_fluxes`](@ref) returns `NaN` fluxes with `converged = false` for inputs
+that fail this test, since the solve cannot throw inside a GPU kernel;
 [`check_reference_height`](@ref) raises the corresponding error on the host.
 
 # Arguments

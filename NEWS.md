@@ -1,11 +1,31 @@
+[v1.5.0] The surface state applies at the displacement height: the geopotential of the
+surface temperature and humidity is `Φ_sfc + g d`
+(`surface_geopotential(param_set, inputs)`), so the dry static energy difference that
+drives the sensible heat flux is `cp (T_int - T_sfc) + g (Δz - d)`, and the hydrostatic
+extrapolation of the surface density spans `Δz - d`
+(`surface_density(param_set, inputs, T_sfc, q_vap_sfc)`). Fluxes over a canopy no longer
+include the air column below the displacement height: results change for every `d ≠ 0`
+(by `g d / cp` in the temperature difference, 0.15 K for `d = 15` m), are unchanged for
+`d = 0`, and are unchanged when the displacement height and the reference level are
+raised together. `surface_geopotential` takes the parameter set as its first argument;
+the one-argument form is deprecated and returns the geopotential of the ground.
+
+[v1.5.0] Reference level conventions: `SurfaceFluxConfig` has the new field
+`reference_level`, `ReferenceAboveSurface()` by default (`Δz` measured from the surface)
+or `ReferenceAboveApparentSink()` (`Δz` measured from `d + z0m`, as in the Community Land
+Model). The solver and `screen_level_values` convert the latter to the former with
+`reference_above_surface(param_set, inputs)`, so a forcing height below a tall canopy
+remains valid. The conversion requires a roughness model independent of `u★`.
+
 [v1.5.0] Raupach (1994) canopy roughness: `displacement_height(spec, roughness_inputs)` returns
 the zero-plane displacement height `d` of the canopy from the same inputs as the roughness
 length, for callers to pass as the input `d` of the solve and to place sub-canopy and
-screen-level diagnostics. The roughness input `LAI` is the plant area index `Λ` (leaves plus
-stems), and the drag partition uses the frontal area index `λ`, the area facing the wind
+screen-level diagnostics. The roughness input `PAI` is the plant area index `Λ` (leaves plus
+stems, `LAI + SAI`; the field name `LAI` is a deprecated alias, to be removed in the next
+breaking release), and the drag partition uses the frontal area index `λ`, the area facing the wind
 per unit ground area. `RaupachRoughnessParams` has the new fields `frontal_area_ratio`
 (`λ / Λ`, 0.5 for isotropically oriented elements; previously fixed), `λ_min` (floor on `λ`,
-zero by default; a positive floor stands in for stems and branches when `LAI` counts
+zero by default; a positive floor stands in for stems and branches when the input counts
 leaves only), and the constants `ustar_Uh_max` (0.3) and `c_w` (2, the roughness-sublayer
 depth ratio, which sets the influence function `Ψ_h = ln c_w - 1 + 1 / c_w = 0.193`).
 `RaupachRoughnessParams(toml_dict)` reads all coefficients from ClimaParams (v1.3.1 or

@@ -59,15 +59,15 @@ end
         # Equal dry static energies and humidities leave a small residual stability
         # from the virtual temperature, and the wind profile is logarithmic to that
         # order
-        T_sfc = FT(290) + g * Δz / cp_d
+        T_sfc = FT(290) + g * Δz_eff / cp_d
         sc, inputs = solve(FT, param_set; T_sfc, T_int = 290, q_int = 0.005, q_sfc = 0.005)
         @test abs(sc.ζ) < 1e-3
         s = SF.screen_level_values(param_set, sc, inputs, FT(2), FT(10))
         @test s.u ≈ sc.ustar / κ * log((z0m + 10) / z0m) rtol = 1e-3
         @test s.q ≈ FT(0.005)
-        # The screen temperature follows the dry adiabat between the surface and the
-        # screen level
-        @test s.T ≈ T_sfc - g / cp_d * (z0h + 2 + d) rtol = 1e-6
+        # The screen temperature follows the dry adiabat from the surface state at the
+        # displacement height
+        @test s.T ≈ T_sfc - g / cp_d * (z0h + 2) rtol = 1e-6
     end
 
     @testset "Reference level returns the interior state" begin
@@ -91,16 +91,16 @@ end
             @test above.q ≈ inputs.q_tot_int rtol = 1e-8
             @test above.u ≈ s.u rtol = 1e-8
             # At the roughness lengths, the apparent sinks at d + z0 above the surface,
-            # the dry static energy and humidity are the surface values
+            # the dry static energy and humidity are those of the surface state at d
             dse(T, z) = cp_d * T + g * z
             at_z0 = SF.screen_level_values(param_set, sc, inputs, FT(0), FT(0))
-            @test dse(at_z0.T, z0h + d) ≈ dse(sc.T_sfc, 0)
+            @test dse(at_z0.T, z0h + d) ≈ dse(sc.T_sfc, d)
             @test at_z0.q ≈ sc.q_vap_sfc
             @test at_z0.u == 0
             # Between them, the screen values lie between the surface and interior
             # values of the dry static energy and humidity
             mid = SF.screen_level_values(param_set, sc, inputs, FT(2), FT(10))
-            lo, hi = minmax(dse(sc.T_sfc, 0), dse(inputs.T_int, Δz))
+            lo, hi = minmax(dse(sc.T_sfc, d), dse(inputs.T_int, Δz))
             @test lo - 1e-9 <= dse(mid.T, z0h + 2 + d) <= hi + 1e-9
             lo_q, hi_q = minmax(sc.q_vap_sfc, inputs.q_tot_int)
             @test lo_q <= mid.q <= hi_q

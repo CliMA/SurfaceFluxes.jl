@@ -6,8 +6,37 @@ abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
 abstract type AbstractRoughnessSubLayerModel end
 abstract type AbstractStabilityCap end
+abstract type AbstractReferenceLevel end
 
+"""
+    ReferenceAboveSurface
 
+The reference height `Δz` of the inputs is measured from the surface, and the
+Monin-Obukhov profiles span the effective height `Δz - d` above the displacement height
+`d`. This is the default convention.
+"""
+struct ReferenceAboveSurface <: AbstractReferenceLevel end
+
+"""
+    ReferenceAboveApparentSink
+
+The reference height `Δz` of the inputs is measured from the apparent sink for momentum,
+`d + z0m` above the surface, as in the Community Land Model. The solve converts it to the
+height `Δz + d + z0m` above the surface, so the reference level lies above the sink for
+any displacement height, and the profiles span `Δz + z0m`. Land models forced by
+reanalysis or by an atmosphere model that does not resolve the canopy use this
+convention: their forcing heights are defined relative to the surface the atmosphere
+feels, not to the ground below a canopy.
+
+The conversion uses the roughness length before the solve, so the roughness model must
+be independent of the friction velocity (see [`depends_on_ustar`](@ref)).
+[`surface_fluxes`](@ref) and [`screen_level_values`](@ref) apply it; functions that read
+`Δz` from the inputs directly, such as [`heat_conductance`](@ref) or
+[`compute_ustar`](@ref), expect inputs converted with [`reference_above_surface`](@ref).
+"""
+struct ReferenceAboveApparentSink <: AbstractReferenceLevel end
+
+Base.broadcastable(r::AbstractReferenceLevel) = tuple(r)
 
 """
     ConstantGustinessSpec{TG <: Real}
@@ -111,6 +140,8 @@ Configuration for surface flux calculation components.
   Defaults to [`NoRoughnessSubLayer`](@ref) (standard MOST, no RSL correction).
 - `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
   [`MaxHeatFluxStabilityCap`](@ref)). Defaults to [`NoStabilityCap`](@ref) (standard MOST).
+- `reference_level`: Convention for the reference height `Δz` of the inputs,
+  [`ReferenceAboveSurface`](@ref) (the default) or [`ReferenceAboveApparentSink`](@ref).
 """
 struct SurfaceFluxConfig{
     R <: AbstractRoughnessParams,
@@ -118,12 +149,14 @@ struct SurfaceFluxConfig{
     M <: AbstractMoistureModel,
     RSL <: AbstractRoughnessSubLayerModel,
     SC <: AbstractStabilityCap,
+    RL <: AbstractReferenceLevel,
 }
     roughness::R
     gustiness::G
     moisture_model::M
     rsl_model::RSL
     stability_cap::SC
+    reference_level::RL
 end
 
 function SurfaceFluxConfig(roughness, gustiness)
@@ -141,6 +174,17 @@ function SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)
         moisture_model,
         rsl_model,
         NoStabilityCap(),
+    )
+end
+
+function SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model, stability_cap)
+    return SurfaceFluxConfig(
+        roughness,
+        gustiness,
+        moisture_model,
+        rsl_model,
+        stability_cap,
+        ReferenceAboveSurface(),
     )
 end
 

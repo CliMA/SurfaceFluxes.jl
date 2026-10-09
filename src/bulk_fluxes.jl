@@ -40,7 +40,7 @@ allowing for prescribed sensible heat flux conditions. See the inputs container.
         return shf_in
     end
     thermo_params = SFP.thermodynamics_params(param_set)
-    Φ_sfc = surface_geopotential(inputs)
+    Φ_sfc = surface_geopotential(param_set, inputs)
     Φ_int = interior_geopotential(param_set, inputs)
     DSE_int = TD.dry_static_energy(thermo_params, T_int, Φ_int)
     DSE_sfc = TD.dry_static_energy(thermo_params, T_sfc, Φ_sfc)

@@ -61,6 +61,18 @@ Return the dimensionless Monin-Obukhov profile ``\\widehat{F}(z)`` of
 Obukhov length `L_eff` of a solve at the reference height `Δz_eff`. The height is
 clamped to the range from `z0`, where the profile is zero, to `Δz_eff`, so that the
 profile stays within the levels the solve connected.
+
+# Arguments
+- `param_set`: Parameter set.
+- `L_eff`: Effective Obukhov length of the solve, the field `L_eff` of
+  [`SurfaceFluxConditions`](@ref) [m].
+- `z0`: Roughness length of the transported quantity [m].
+- `z`: Height above the displacement height [m].
+- `Δz_eff`: Height of the reference level above the displacement height [m].
+- `transport`: `UF.MomentumTransport()` or `UF.HeatTransport()`.
+- `scheme`: Discretization scheme ([`PointValueScheme`](@ref) or
+  [`LayerAverageScheme`](@ref)).
+- `rsl_model`: Roughness sublayer model of the solve (e.g., [`NoRoughnessSubLayer`](@ref)).
 """
 @inline function dimensionless_profile_value(
     param_set::APS,
@@ -103,8 +115,9 @@ the value ``X_{sfc} + (X_{int} - X_{sfc}) r(z)`` with
 [`dimensionless_profile_value`](@ref)), evaluated at the effective Obukhov length
 `sc.L_eff`, so that the profile reproduces the fluxes also under a stability cap. The
 temperature follows this relation in terms of the dry static energy, the variable the
-sensible heat flux is computed from, and so includes the adiabatic change ``g / c_{p,d}``
-per meter between the screen and reference levels. The wind speed is
+sensible heat flux is computed from, with the surface state at the displacement height
+(see [`surface_geopotential`](@ref)), and so includes the adiabatic change
+``g / c_{p,d}`` per meter between the screen and reference levels. The wind speed is
 ``u_* \\widehat{F}_m(z) / κ``, gustiness included, relative to the surface velocity
 `u_sfc` of the inputs.
 
@@ -125,6 +138,12 @@ energy and humidity take the surface values and the wind vanishes.
 - `z_screen`: Height of the screen level above the apparent sink for heat [m].
 - `z_anemometer`: Height of the anemometer above the apparent sink for momentum [m].
 - `scheme`: Discretization scheme of the solve (default: [`PointValueScheme`](@ref)).
+
+# Returns
+A NamedTuple `(; T, q, u)`:
+- `T`: Air temperature at the screen height [K].
+- `q`: Vapor specific humidity at the screen height [kg/kg].
+- `u`: Wind speed at the anemometer height, relative to `u_sfc` [m/s].
 """
 @inline function screen_level_values(
     param_set::APS,
@@ -139,6 +158,7 @@ energy and humidity take the surface values and the wind vanishes.
     κ = SFP.von_karman_const(param_set)
     g = SFP.grav(param_set)
     cp_d = TD.Parameters.cp_d(thermo_params)
+    inputs = reference_above_surface(param_set, inputs)
     Δz_eff = effective_height(inputs)
     z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
@@ -180,13 +200,12 @@ energy and humidity take the surface values and the wind vanishes.
     )
     r = ifelse(F̂_h_ref > 0, F̂_h / max(F̂_h_ref, eps(FT)), FT(1))
 
-    # The dry static energy varies linearly with r between the surface and the reference
-    # level; the heights above the surface of the reference level and of the screen level
-    # convert it back to temperature
+    # The dry static energy varies linearly with r between the surface state, at the
+    # displacement height, and the reference level; the heights above the displacement
+    # height of the reference and screen levels convert it back to temperature
     T_sfc = sc.T_sfc
     T_int = inputs.T_int
-    Δz_T = min(z_T, Δz_eff) + inputs.d
-    T = T_sfc + (T_int - T_sfc) * r + g / cp_d * (r * inputs.Δz - Δz_T)
+    T = T_sfc + (T_int - T_sfc) * r + g / cp_d * (r * Δz_eff - min(z_T, Δz_eff))
     q_sfc = sc.q_vap_sfc
     q = q_sfc + (interior_vapor_specific_humidity(inputs) - q_sfc) * r
 

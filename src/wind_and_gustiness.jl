@@ -209,17 +209,7 @@ once the surface state has converged.
     g = SFP.grav(param_set)
     T_sfc = safe_T_sfc_guess(inputs)
     q_vap_sfc = safe_q_vap_sfc_guess(inputs)
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
     θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
     Δθ_v = θ_v_sfc - θ_v_int
     Δz_eff = effective_height(inputs)

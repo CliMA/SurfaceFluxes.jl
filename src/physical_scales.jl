@@ -117,7 +117,7 @@ function compute_theta_star(
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     Φ_int = interior_geopotential(param_set, inputs)
-    Φ_sfc = surface_geopotential(inputs)
+    Φ_sfc = surface_geopotential(param_set, inputs)
 
     DSE_int = TD.dry_static_energy(thermo_params, inputs.T_int, Φ_int)
     DSE_sfc = TD.dry_static_energy(thermo_params, T_sfc, Φ_sfc)

@@ -75,9 +75,15 @@ export NoRoughnessSubLayer,
 export NoStabilityCap,
     ConstantStabilityCap, MaxHeatFluxStabilityCap, max_heat_flux_stability
 
+# From types.jl (reference level conventions)
+export ReferenceAboveSurface, ReferenceAboveApparentSink
+
 # From utilities.jl
 export surface_density,
-    interior_vapor_specific_humidity, reference_height_valid, check_reference_height
+    interior_vapor_specific_humidity,
+    reference_height_valid,
+    check_reference_height,
+    reference_above_surface
 
 # From wind_and_gustiness.jl
 export minimum_wind_speed, without_floor
@@ -201,11 +207,15 @@ Can operate in four modes depending on inputs:
 - `T_sfc_guess`: Initial guess for surface temperature [K], updated via callback if provided.
 - `q_vap_sfc_guess`: Initial guess for surface vapor specific humidity [kg/kg], updated via callback if provided.
 - `Φ_sfc`: Surface geopotential [m^2/s^2].
-- `Δz`: Geometric height difference between the surface and the interior level [m], used for geopotential.
-- `d`: Displacement height [m]. Aerodynamic calculations (MOST) use effective height `Δz - d`.
+- `Δz`: Height of the reference (interior) level [m], measured from the surface under
+  [`ReferenceAboveSurface`](@ref) or from the apparent sink `d + z0m` under
+  [`ReferenceAboveApparentSink`](@ref) (set in `config`).
+- `d`: Displacement height [m]. The Monin-Obukhov profiles span the effective height
+  `Δz - d` above `d`, where the surface state applies (see
+  [`surface_geopotential`](@ref)).
 - `u_int`: Tuple of interior wind components `(u, v)` [m/s].
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
-- `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
+- `roughness_inputs`: Optional container of parameters (e.g., the plant area index `PAI` and canopy height `h`) that are passed
   directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
     - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessParams`).
@@ -216,6 +226,8 @@ Can operate in four modes depending on inputs:
     - `rsl_model`: Roughness sublayer model (e.g., `NoRoughnessSubLayer`, `ExponentialRSL`).
     - `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
       `NoStabilityCap`, `MaxHeatFluxStabilityCap`).
+    - `reference_level`: Convention for `Δz` (`ReferenceAboveSurface` or
+      `ReferenceAboveApparentSink`).
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
@@ -303,6 +315,7 @@ function surface_fluxes(
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
+    inputs = reference_above_surface(param_set, inputs)
     sc = surface_fluxes_by_mode(param_set, inputs, scheme, solver_opts)
     z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
@@ -397,17 +410,7 @@ function compute_fluxes_given_coefficients(
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Coefficients (caller must ensure both are provided)
     FT = eltype(param_set)
@@ -477,17 +480,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Use prescribed flux values directly
     shf = inputs.shf
@@ -568,17 +561,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     T_sfc = inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Use prescribed values
     shf = inputs.shf
@@ -778,17 +761,7 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 3. Update density
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc_new,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc_new,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc_new, q_vap_sfc_new)
 
     # 4. Compute gustiness and ΔU
     current_ΔU = windspeed(param_set, ζ, u_star, inputs, scheme)
@@ -1296,17 +1269,7 @@ function solve_monin_obukhov(
     )
 
     # Update ρ_sfc based on final state
-    ρ_sfc_val = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc_val,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc_val,
-    )
+    ρ_sfc_val = surface_density(param_set, inputs, T_sfc_val, q_vap_sfc_val)
 
     # Consistent gustiness/fluxes
     b_flux = buoyancy_flux(param_set, ζ_final, u_star_curr, inputs)

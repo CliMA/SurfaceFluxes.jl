@@ -164,7 +164,7 @@ import ClimaParams as CP
         # the ratio of canopy conductance g_land to aerodynamic conductance g_h
         function update_T_sfc(ζ, param_set, thermo_params, inputs, scheme,
             u_star, z0m, z0h)
-            Φ_sfc = SF.surface_geopotential(inputs)
+            Φ_sfc = SF.surface_geopotential(param_set, inputs)
             Φ_int = SF.interior_geopotential(param_set, inputs)
             g_h = SF.heat_conductance(param_set, ζ, u_star, inputs, z0m, z0h, scheme)
             g_land = leaf_Cd * u_star * AI

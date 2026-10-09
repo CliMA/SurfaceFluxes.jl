@@ -38,6 +38,7 @@ include("test_raupach_roughness.jl")                  # Raupach canopy roughness
 include("test_roughness_sublayer.jl")                 # Roughness sublayer (RSL) models
 include("test_gustiness_floor.jl")                    # Floor accessors of gustiness models
 include("test_reference_height.jl")                   # Reference level above the roughness length
+include("test_reference_level.jl")                    # Surface state at d and reference level conventions
 
 @testset "Regression Tests" begin
     # Regression tests with predefined (mostly stable) test cases.

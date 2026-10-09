@@ -123,7 +123,7 @@ end
         # Solve energy balance for T_sfc:
         # H + G = Rn (simplified here to coupling with canopy)
         # T_sfc is updated to balance heat fluxes given canopy conductance
-        Φ_sfc = SurfaceFluxes.surface_geopotential(inputs)
+        Φ_sfc = SurfaceFluxes.surface_geopotential(param_set, inputs)
         Φ_int = SurfaceFluxes.interior_geopotential(param_set, inputs)
         T_int = inputs.T_int
         g_h =
