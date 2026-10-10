@@ -22,9 +22,11 @@ FluxSpecs(shf=..., lhf=..., ustar=..., Cd=..., Ch=...)
 | `Cd`    | $C_d$  | Momentum Exchange Coefficient | - |
 | `Ch`    | $C_h$  | Heat Exchange Coefficient | - |
 
-The solver detects which combination of parameters is provided and dispatches to the appropriate routine.
+The solver detects which combination of parameters is provided and dispatches to the appropriate routine, in this order: `Cd` and `Ch` (mode 2); `shf`, `lhf`, and `ustar` (mode 3); `shf`, `lhf`, and `Cd` (mode 4). Other combinations, such as `ustar` alone, use the iterative solve (mode 1), with the prescribed values in place of the computed ones.
 
 ## Operating Modes
+
+In every mode, the reference level must lie above the apparent sinks for momentum and for scalars: $\Delta z - d > \max(z_{0m}, z_{0h})$, with $\Delta z$ the height above the surface. Otherwise, all returned fields are `NaN` and `converged = false` (see [Reference Level](SurfaceFluxes.md#Reference-Level)).
 
 ### 1. Iterative Solver (Standard MOST)
 - **Inputs:** Surface state ($T_s, q_s, \mathbf{u}_s$) and Atmospheric state ($T_a, q_a, \mathbf{u}_a, z, d$).
@@ -38,7 +40,7 @@ conditions = surface_fluxes(param_set, T_int, ..., u_sfc, ...)
 ```
 
 !!! note "Simplified Examples"
-    The examples below use simplified syntax (e.g., `flux_specs=...`) for clarity. In the actual API, [`surface_fluxes`](@ref) uses positional arguments. Users must provide all preceding arguments or use `nothing` for optional inputs. See the [API Reference](API.md) for the exact signature.
+    The examples below use simplified syntax (e.g., `flux_specs=...`) for clarity. In the actual API, [`surface_fluxes`](@ref) uses positional arguments. Users must provide all preceding arguments; `roughness_inputs`, `solver_opts`, `flux_specs`, and the callbacks accept `nothing`. See the [API Reference](API.md) for the exact signature.
 
 ### 2. Prescribed Coefficients
 - **Inputs:** Coefficients ($C_d, C_h$).
@@ -56,9 +58,9 @@ conditions = surface_fluxes(param_set, ..., flux_specs=specs)
 - **Unknowns:** Stability ($\zeta$), Coefficients ($C_d, C_h$).
 
 When `shf`, `lhf`, and `ustar` are all provided, the solver bypasses the flux calculation. It uses the prescribed values to:
-1.  Compute the Monin-Obukhov length $L$.
-2.  Diagnose the stability parameter $\zeta = z/L$.
-3.  Back-calculate the exchange coefficients consistent with these fluxes.
+1.  Compute the Monin-Obukhov length $L$ from the buoyancy flux of the prescribed fluxes.
+2.  Diagnose the stability parameter $\zeta = (\Delta z - d)/L$.
+3.  Compute the drag coefficient $C_d = (u_*/U_{\text{eff}})^2$ and the heat conductance $g_h$ from the MOST heat exchange coefficient at this $\zeta$.
 
 ```julia
 specs = FluxSpecs(shf = 20.0, lhf = 100.0, ustar = 0.3)
@@ -107,7 +109,7 @@ Available callbacks:
 - `update_T_sfc(ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0h)`: Returns updated surface temperature [K].
 - `update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h)`: Returns updated surface vapor specific humidity [kg/kg]. Receives the (possibly updated) `T_sfc` so that humidity can be computed consistently.
 
-If a callback returns a non-`Real` value (or is `nothing`), the initial guess from the inputs is used instead.
+If a callback returns a non-`Real` value (or is `nothing`), the current surface value is kept (initially the guess from the inputs).
 
 !!! warning "Evolving guesses across solver iterations"
     When either callback is supplied, the solver uses an `solve_stability_param_cb` function
@@ -119,4 +121,4 @@ If a callback returns a non-`Real` value (or is `nothing`), the initial guess fr
     with each solver iteration — this is intentional, so that Newton-style surface
     updates linearize around the most recent iterate rather than the stale initial guess.
 
-This mechanism ensures that the final fluxes and surface state are in equilibrium with respect to the surface energy/moisture balance.
+This mechanism makes the final fluxes and surface state consistent with the surface energy and moisture balance to the solver tolerance.

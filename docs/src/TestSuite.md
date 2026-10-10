@@ -8,7 +8,8 @@ SurfaceFluxes.jl employs a multi-tiered testing strategy to ensure physical corr
 1.  **Regression Tests:** Preventing breaking changes against known baselines.
 2.  **Universal Functions Tests:** Verifying mathematical properties of stability corrections.
 3.  **Physical Consistency:** Checking flux directions and energy balance.
-4.  **Software Compatibility:** Ensuring compatibility with GPU execution (CUDA.jl) and Automatic Differentiation (ForwardDiff.jl).
+4.  **Software Compatibility:** Ensuring compatibility with GPU execution (CUDA.jl) and automatic differentiation (ForwardDiff.jl and Enzyme.jl).
+5.  **Model Components:** Roughness models (COARE 3.0, including checks against the literature, and Raupach 1994), gustiness models, roughness-sublayer corrections, stability caps, reference-level conventions, screen-level diagnostics, and land use cases with surface energy balance callbacks.
 
 ## Automatic Differentiation (AD)
 
@@ -16,7 +17,7 @@ The package is designed to be fully differentiable. This is critical for coupled
 
 ### AD Test Example
 
-We verify AD compatibility by comparing the derivatives computed via `ForwardDiff.jl` against finite-difference approximations.
+We verify AD compatibility by comparing the derivatives computed with ForwardDiff.jl and Enzyme.jl (forward and reverse modes, through DifferentiationInterface.jl) against central finite differences, including derivatives through roughness-sublayer corrections, stability caps, and prescribed exchange coefficients.
 
 ```julia
 using ForwardDiff
@@ -41,7 +42,7 @@ Tests ensure that:
 
 ### Regression Tests
 
-Predefined test cases with known expected outputs, ensuring that code changes do not introduce regressions. Covers over 1600 cases across different stability regimes, floating-point types, and roughness parameterizations.
+Predefined test cases with known expected outputs, ensuring that code changes do not introduce regressions: 270 pinned cases (180 Businger, 90 Gryanik; `Float32`; constant and COARE 3.0 roughness) across stability regimes. A separate convergence matrix (`test_convergence.jl`) solves 17,496 synthetic states for each floating-point type, parameterization (Businger, Gryanik, Grachev), and roughness model, and checks convergence and the signs of the fluxes..
 
 These tests are also valuable for performance tuning of hyperparameters, such as determining the minimum `maxiter` required to achieve a target accuracy (e.g., < 10% error in fluxes).
 
@@ -50,12 +51,12 @@ These tests are also valuable for performance tuning of hyperparameters, such as
 Rigorous verification of the stability correction functions:
 
 #### Type Stability
-**Test:** `Type stability`
+**Tests:** `Type Stability (Phi & Psi)`, `Type Stability (Psi)`
 
 Verifies that all functions return values of the correct floating-point type (`Float32` or `Float64`) matching the input parameter type.
 
 #### Neutral Limit Behavior
-**Test:** `Neutral logarithmic velocity profile`
+**Test:** `Neutral Logarithmic Velocity Profile`
 
 Verifies that in the neutral limit ($L \to \infty$, i.e., $\zeta \to 0$), the velocity profile collapses to the logarithmic law of the wall:
 ```math
@@ -68,14 +69,14 @@ u(z) = \frac{u_*}{\kappa} \ln\left(\frac{z-d}{z_0}\right)
 **Test:** `Asymptotic behavior (|ζ| → ∞)`
 
 For very stable conditions ($\zeta \gg 1$), the functions should approach their asymptotic limits:
-- **Gryanik**: $\phi_m(\zeta) \sim \zeta^{1/3}$
-- **Grachev**: $\phi_m(\zeta) \sim \zeta^{1/3}$
+- **Gryanik**: $\phi_m(\zeta) \sim \zeta^{1/3}$ and $\phi_h(\zeta) \to \text{Pr}_0 (1 + a_h/b_h)$
+- **Grachev**: $\phi_m(\zeta) \sim \zeta^{1/3}$ and $\phi_h(\zeta) \to 1 + b_h$
 
 #### Mathematical Consistency
 Several tests ensure the internal consistency of the definitions:
 - **Derivative Consistency**: Checks $\phi(\zeta) \approx \phi(0) - \zeta \cdot \psi'(\zeta)$ using finite differences.
 - **Integral Consistency**: Checks $\psi(\zeta) \approx \int (\phi(0) - \phi(x))/x \, dx$ using numerical quadrature.
-- **Continuity**: Verifies continuous transitions in functions and their derivatives, **especially at the neutral limit** ($\zeta \to 0$).
+- **Continuity**: Verifies that $\phi$, $\psi$, and $\Psi$ are continuous at the neutral limit ($\zeta \to 0$), and checks the small-$\zeta$ slope of $\Psi$.
 
 ## Running the Tests
 

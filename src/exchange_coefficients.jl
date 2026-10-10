@@ -150,7 +150,7 @@ function heat_conductance(
     scheme = UF.PointValueScheme(),
 )
     # Compute Ch (pass RSL model from inputs)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
     Ch = heat_exchange_coefficient(
         param_set,

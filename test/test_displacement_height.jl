@@ -25,6 +25,7 @@ import ClimaParams as CP
     T_sfc = FT(301)
     q_sfc = FT(0.012)
     Φ_sfc = FT(0)
+    grav = SFP.grav(param_set)
 
     # Common roughness/configs
     z0m = FT(0.1)
@@ -54,25 +55,15 @@ import ClimaParams as CP
 
     sf_1 = SF.surface_fluxes(param_set, inputs_1)
 
-    # Case 2: Displaced case (d=2, Δz=10) -> Effective height should be 8
+    # Case 2: Displaced case (d=2, Δz=10) -> Effective height should be 8. The surface
+    # state applies at the displacement height, so the hydrostatic extrapolation of the
+    # surface density and the geopotential difference also span the effective height,
+    # and the two cases are the same exchange problem.
     Δz_2 = FT(10)
     d_2 = FT(2)
-    # Adjust interior density/pressure to ensure surface density matches Case 1
-    # This isolates the aerodynamic effect of d from the hydrostatic effect of Δz
-    grav = SFP.grav(param_set)
-    # Replicate the R_m_T_avg logic from surface_density
-    R_m_int = TD.gas_constant_air(thermo_params, q_tot, FT(0), FT(0))
-    R_m_sfc = TD.gas_constant_air(thermo_params, q_sfc, FT(0), FT(0))
-    R_m_T_avg = (R_m_int * T_int + R_m_sfc * T_sfc) / 2
-
-    # p_sfc = p_int * exp(Δz / H) -> p_int = p_sfc * exp(-Δz / H) where H = R_m_T_avg / g
-    # p_int_2 = p_int * exp( (Δz_1 - Δz_2) * g / R_m_T_avg )
-    p_int_2 = p_int * exp((Δz_1 - Δz_2) * grav / R_m_T_avg)
-    # Use dry density to match Case 1 logic (which used dry air_density)
-    ρ_int_2 = TD.air_density(thermo_params, T_int, p_int_2)
 
     inputs_2 = SF.build_surface_flux_inputs(
-        T_int, q_tot, 0, 0, ρ_int_2,
+        T_int, q_tot, 0, 0, ρ_int_1,
         T_sfc, q_sfc, Φ_sfc, Δz_2, d_2,
         u_int, u_sfc,
         config, nothing, flux_specs, nothing, nothing,
@@ -91,14 +82,12 @@ import ClimaParams as CP
     # 3. L_MO should be identical
     @test sf_1.L_MO ≈ sf_2.L_MO atol = 1e-10
 
-    # Test full solver (no prescribed fluxes)
-    # Note: Because Δz enters interior_geopotential, T_int/DSE_int logic changes slightly if we keep T_int fixed.
-    # But MOST stability loop depends on z-d.
-    # Let's verify that using d > 0 gives different results than ignoring d (i.e. if d were treated as 0)
-    # If d was ignored, Case 2 would behave like z=10.
-
+    # Test full solver (no prescribed fluxes): d > 0 gives different results than
+    # ignoring d (Case 2 would then behave like z=10), and the same results as Case 1,
+    # apart from the potential energy g d E carried by the vapor, which leaves the
+    # surface state d higher in Case 2.
     inputs_3 = SF.build_surface_flux_inputs(
-        T_int, q_tot, 0, 0, ρ_int_2,
+        T_int, q_tot, 0, 0, ρ_int_1,
         T_sfc, q_sfc, Φ_sfc, Δz_2, d_1, # d=0, z=10
         u_int, u_sfc,
         config, nothing, SF.FluxSpecs{FT}(), nothing, nothing,
@@ -106,21 +95,16 @@ import ClimaParams as CP
     sf_3 = SF.surface_fluxes(param_set, inputs_3)
 
     inputs_2_solve = SF.build_surface_flux_inputs(
-        T_int, q_tot, 0, 0, ρ_int_2,
+        T_int, q_tot, 0, 0, ρ_int_1,
         T_sfc, q_sfc, Φ_sfc, Δz_2, d_2, # d=2, z=10
         u_int, u_sfc,
         config, nothing, SF.FluxSpecs{FT}(), nothing, nothing,
     )
     sf_2_solve = SF.surface_fluxes(param_set, inputs_2_solve)
 
-    # sf_2_solve should act like z=8
-    # sf_3 should act like z=10
-    # They should be different
     @test sf_2_solve.ζ ≉ sf_3.ζ
     @test sf_2_solve.Cd ≉ sf_3.Cd
 
-    # sf_2_solve (z=10, d=2) should be reasonably close to sf_1_solve (z=8, d=0).
-    # Differences arise from interior_geopotential effect on ΔDSE.
     inputs_1_solve = SF.build_surface_flux_inputs(
         T_int, q_tot, 0, 0, ρ_int_1,
         T_sfc, q_sfc, Φ_sfc, Δz_1, d_1, # d=0, z=8
@@ -129,8 +113,10 @@ import ClimaParams as CP
     )
     sf_1_solve = SF.surface_fluxes(param_set, inputs_1_solve)
 
-    # We expect them to be close but not identical due to geopotential
-    @test sf_2_solve.Cd ≈ sf_1_solve.Cd rtol = 1e-3
+    @test sf_2_solve.ζ ≈ sf_1_solve.ζ rtol = 1e-10
+    @test sf_2_solve.Cd ≈ sf_1_solve.Cd rtol = 1e-10
+    @test sf_2_solve.lhf ≈ sf_1_solve.lhf rtol = 1e-10
+    @test sf_2_solve.shf - sf_1_solve.shf ≈ grav * d_2 * sf_1_solve.evaporation rtol = 1e-6
 
     # =========================================================================
     # Test: Vertical profile equivalence

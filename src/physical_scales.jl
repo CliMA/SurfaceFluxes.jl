@@ -78,7 +78,7 @@ function compute_ustar(
     end
 
     ΔU = windspeed(inputs, gustiness)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
@@ -117,7 +117,7 @@ function compute_theta_star(
 )
     thermo_params = SFP.thermodynamics_params(param_set)
     Φ_int = interior_geopotential(param_set, inputs)
-    Φ_sfc = surface_geopotential(inputs)
+    Φ_sfc = surface_geopotential(param_set, inputs)
 
     DSE_int = TD.dry_static_energy(thermo_params, inputs.T_int, Φ_int)
     DSE_sfc = TD.dry_static_energy(thermo_params, T_sfc, Φ_sfc)
@@ -126,7 +126,7 @@ function compute_theta_star(
     c_p = TD.cp_m(thermo_params, inputs.q_tot_int, inputs.q_liq_int, inputs.q_ice_int)
     Δθ = ΔDSE / c_p
 
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
@@ -165,11 +165,11 @@ function compute_q_star(
     q_vap_sfc = something(inputs.q_vap_sfc_guess, inputs.q_tot_int),
 )
     # Δq = q_vap_int - q_vap_sfc
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
     Δq = q_vap_int - q_vap_sfc
 
     # Scalars use HeatTransport coefficients in MOST
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,

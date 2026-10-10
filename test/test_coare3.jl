@@ -115,4 +115,11 @@ import SurfaceFluxes:
         # (though not strictly monotonic due to smooth/rough transition)
         @test z0m_vals[end] > z0m_vals[1]
     end
+
+    @testset "Float32 with Float64 COARE3 parameters" begin
+        param_set32 = SFP.SurfaceFluxesParameters(Float32, UF.BusingerParams)
+        spec64 = COARE3RoughnessParams()
+        z0m32, z0s32 = SF.momentum_and_scalar_roughness(spec64, 0.3f0, param_set32, nothing)
+        @test z0m32 isa Float32 && z0s32 isa Float32
+    end
 end

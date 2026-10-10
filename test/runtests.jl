@@ -34,8 +34,12 @@ include("test_deardorff_gustiness_integration.jl")    # Deardorff gustiness thro
 include("test_floored_deardorff_gustiness.jl")        # Closed-form Deardorff gustiness with a floor
 include("test_coare3_literature.jl")                  # COARE3 validation against Fairall et al. (2003)
 include("test_obukhov_helpers.jl")                    # Obukhov helper function tests
+include("test_roughness_inputs.jl")                   # User-defined roughness models with roughness inputs
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
 include("test_roughness_sublayer.jl")                 # Roughness sublayer (RSL) models
+include("test_gustiness_floor.jl")                    # Floor accessors of gustiness models
+include("test_reference_height.jl")                   # Reference level above the roughness length
+include("test_reference_level.jl")                    # Surface state at d and reference level conventions
 
 @testset "Regression Tests" begin
     # Regression tests with predefined (mostly stable) test cases.
@@ -54,11 +58,14 @@ end
 @testset "Physical Correctness" begin
     # Tests for physical consistency (signs of fluxes, positivity of coefficients)
     include("test_bulk_fluxes.jl")
+    include("test_physical_scales_consistency.jl")
     include("test_variance.jl")
     include("test_exchange_coefficients.jl")
     include("test_ad_compatibility.jl")
     include("test_energy_budget_closure.jl")
+    include("test_profile_recovery.jl")
     include("test_profile_recovery_roundtrip.jl")
+    include("test_screen_level.jl")
     include("test_supercritical_stability.jl")
     include("test_stability_cap.jl")
 end
@@ -69,6 +76,7 @@ end
 
 @testset "Solver Options" begin
     include("test_solver_options.jl")
+    include("test_convergence_flag.jl")
 end
 
 @testset "Convergence Tests" begin

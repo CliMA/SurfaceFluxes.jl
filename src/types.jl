@@ -6,8 +6,34 @@ abstract type AbstractRoughnessParams end
 abstract type AbstractGustinessSpec end
 abstract type AbstractRoughnessSubLayerModel end
 abstract type AbstractStabilityCap end
+abstract type AbstractReferenceLevel end
 
+"""
+    ReferenceAboveSurface
 
+The reference height `Δz` of the inputs is measured from the surface, and the
+Monin-Obukhov profiles span the effective height `Δz - d` above the displacement height
+`d`. This is the default convention.
+"""
+struct ReferenceAboveSurface <: AbstractReferenceLevel end
+
+"""
+    ReferenceAboveApparentSink
+
+The reference height `Δz` of the inputs is measured from the apparent sink for momentum,
+`d + z0m` above the surface. The solve converts it to the height `Δz + d + z0m` above
+the surface, so the reference level lies above the sink for any displacement height,
+and the profiles span `Δz + z0m`. Land models forced by reanalysis or by an atmosphere
+model that does not resolve the canopy use this convention: their forcing heights are
+defined relative to the surface the atmosphere feels, not to the ground below a canopy.
+
+The conversion uses the roughness length before the solve, so the roughness model must
+be independent of the friction velocity (see [`depends_on_ustar`](@ref) and
+[`reference_above_surface`](@ref)).
+"""
+struct ReferenceAboveApparentSink <: AbstractReferenceLevel end
+
+Base.broadcastable(r::AbstractReferenceLevel) = tuple(r)
 
 """
     ConstantGustinessSpec{TG <: Real}
@@ -111,6 +137,8 @@ Configuration for surface flux calculation components.
   Defaults to [`NoRoughnessSubLayer`](@ref) (standard MOST, no RSL correction).
 - `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
   [`MaxHeatFluxStabilityCap`](@ref)). Defaults to [`NoStabilityCap`](@ref) (standard MOST).
+- `reference_level`: Convention for the reference height `Δz` of the inputs,
+  [`ReferenceAboveSurface`](@ref) (the default) or [`ReferenceAboveApparentSink`](@ref).
 """
 struct SurfaceFluxConfig{
     R <: AbstractRoughnessParams,
@@ -118,12 +146,14 @@ struct SurfaceFluxConfig{
     M <: AbstractMoistureModel,
     RSL <: AbstractRoughnessSubLayerModel,
     SC <: AbstractStabilityCap,
+    RL <: AbstractReferenceLevel,
 }
     roughness::R
     gustiness::G
     moisture_model::M
     rsl_model::RSL
     stability_cap::SC
+    reference_level::RL
 end
 
 function SurfaceFluxConfig(roughness, gustiness)
@@ -144,14 +174,29 @@ function SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model)
     )
 end
 
+function SurfaceFluxConfig(roughness, gustiness, moisture_model, rsl_model, stability_cap)
+    return SurfaceFluxConfig(
+        roughness,
+        gustiness,
+        moisture_model,
+        rsl_model,
+        stability_cap,
+        ReferenceAboveSurface(),
+    )
+end
 
 
-const FluxOption{FT} = Union{Nothing, FT}
+
+const FluxOption = Union{Nothing, Real}
 
 """
-    FluxSpecs{FT}
+    FluxSpecs{FT}(; shf = nothing, lhf = nothing, ustar = nothing, Cd = nothing, Ch = nothing)
+    FluxSpecs(; shf = nothing, lhf = nothing, ustar = nothing, Cd = nothing, Ch = nothing)
 
-Container for prescribed surface flux boundary conditions.
+Container for prescribed surface flux boundary conditions. Each field is `nothing` or a
+`Real`, including dual numbers for differentiation with respect to a prescribed value;
+[`surface_fluxes`](@ref) converts the values to the floating-point type of the state. The
+untyped constructor takes `FT` from the values (`Float64` when none is given).
 
 # Fields
 - `shf`: Sensible Heat Flux [W/m^2].
@@ -162,11 +207,11 @@ Container for prescribed surface flux boundary conditions.
 """
 Base.@kwdef struct FluxSpecs{
     FT,
-    A <: FluxOption{FT},
-    B <: FluxOption{FT},
-    C <: FluxOption{FT},
-    D <: FluxOption{FT},
-    E <: FluxOption{FT},
+    A <: FluxOption,
+    B <: FluxOption,
+    C <: FluxOption,
+    D <: FluxOption,
+    E <: FluxOption,
 }
     shf::A = nothing
     lhf::B = nothing
@@ -183,6 +228,21 @@ function FluxSpecs{FT}(;
     Ch::E = nothing,
 ) where {FT, A, B, C, D, E}
     return FluxSpecs{FT, A, B, C, D, E}(shf, lhf, ustar, Cd, Ch)
+end
+
+# The floating-point type of a prescribed value; `Union{}` is the identity of
+# `promote_type`, so unprescribed fields do not contribute
+_flux_value_type(::Nothing) = Union{}
+_flux_value_type(x) = float(typeof(x))
+function FluxSpecs(
+    shf::A,
+    lhf::B,
+    ustar::C,
+    Cd::D,
+    Ch::E,
+) where {A, B, C, D, E}
+    FT = promote_type(_flux_value_type.((shf, lhf, ustar, Cd, Ch))...)
+    return FluxSpecs{FT === Union{} ? Float64 : FT, A, B, C, D, E}(shf, lhf, ustar, Cd, Ch)
 end
 
 """
@@ -239,10 +299,16 @@ with units `[kg/(m·s²)] = [N/m²]`.
   active, in which case the exchange coefficients and similarity scales were evaluated at
   the capped stability parameter. Pass `L_eff` (not `L_MO`) to
   [`compute_profile_value`](@ref) to recover profiles consistent with the fluxes.
-- `converged`: Solver convergence status.
+- `ζ_eff`: Stability parameter at which the exchange coefficients and similarity scales
+  were evaluated, `min(ζ, ζ_cap) = Δz_eff / L_eff` [-]. It equals `ζ` unless a stability
+  cap is active.
+- `converged`: Solver convergence status. It is `false` when the reference level lies at
+  or below a roughness length (see [`reference_height_valid`](@ref)), in which case all
+  other fields are `NaN`.
 
-The positional constructor accepts the fields in this order, with or without `L_eff`
-(without it, `L_eff = L_MO`).
+The positional constructor accepts the fields in this order, with or without `ζ_eff`
+and `L_eff` (without `ζ_eff`, it is derived as `ζ L_MO / L_eff`; without `L_eff`,
+`L_eff = L_MO`).
 """
 struct SurfaceFluxConditions{FT <: Real}
     shf::FT
@@ -258,6 +324,7 @@ struct SurfaceFluxConditions{FT <: Real}
     q_vap_sfc::FT
     L_MO::FT
     L_eff::FT
+    ζ_eff::FT
     converged::Bool
 end
 
@@ -275,26 +342,49 @@ SurfaceFluxConditions(
     q_vap_sfc,
     L_MO,
     L_eff,
+    ζ_eff,
     converged,
 ) =
-    let vars =
-            promote(
-                shf,
-                lhf,
-                E,
-                ρτxz,
-                ρτyz,
-                ustar,
-                ζ,
-                Cd,
-                g_h,
-                T_sfc,
-                q_vap_sfc,
-                L_MO,
-                L_eff,
-            )
+    let vars = promote(
+            shf,
+            lhf,
+            E,
+            ρτxz,
+            ρτyz,
+            ustar,
+            ζ,
+            Cd,
+            g_h,
+            T_sfc,
+            q_vap_sfc,
+            L_MO,
+            L_eff,
+            ζ_eff,
+        )
         SurfaceFluxConditions{eltype(vars)}(vars..., converged)
     end
+
+# Without the capped stability parameter: ζ_eff = ζ L_MO / L_eff, which is ζ itself when
+# no cap is active or at neutral stability (so infinite lengths stay finite)
+SurfaceFluxConditions(
+    shf,
+    lhf,
+    E,
+    ρτxz,
+    ρτyz,
+    ustar,
+    ζ,
+    Cd,
+    g_h,
+    T_sfc,
+    q_vap_sfc,
+    L_MO,
+    L_eff,
+    converged::Bool,
+) = SurfaceFluxConditions(
+    shf, lhf, E, ρτxz, ρτyz, ustar, ζ, Cd, g_h, T_sfc, q_vap_sfc, L_MO, L_eff,
+    ifelse((L_eff == L_MO) | iszero(ζ), ζ, ζ * L_MO / L_eff), converged,
+)
 
 # Without an effective Obukhov length (no stability cap): L_eff = L_MO
 SurfaceFluxConditions(
@@ -330,6 +420,7 @@ function Base.show(io::IO, sfc::SurfaceFluxConditions)
     println(io, "Surface air vapor specific humidity = ", sfc.q_vap_sfc)
     println(io, "Monin-Obukhov length                = ", sfc.L_MO)
     println(io, "Effective Obukhov length            = ", sfc.L_eff)
+    println(io, "Capped Obukhov stability ζ_eff      = ", sfc.ζ_eff)
     println(io, "Converged                           = ", sfc.converged)
     println(io, "-----------------------")
 end

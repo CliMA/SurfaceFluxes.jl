@@ -59,7 +59,7 @@ Since $L$ depends on the fluxes (via $u_*$ and $B$), and the fluxes depend on $L
 The solver uses the **Bulk Richardson Number** ($Ri_b$) as a constraint. In terms of state variables, $Ri_b$ is defined as
 
 ```math
- Ri_b(\text{state}) = \frac{g (z-d) \Delta \theta_v}{\theta_{v,\text{ref}} (\Delta U)^2},
+ Ri_b(\text{state}) = \frac{g \Delta z_{\text{eff}} \Delta \theta_v}{\theta_{v,\text{ref}} (\Delta U)^2},
 ```
 
 where $\theta_v$ is the virtual potential temperature. The bulk Richardson number $Ri_b$ is a dimensionless quantity that characterizes the stability of the surface layer. In stable conditions, $Ri_b > 0$, while in unstable conditions, $Ri_b < 0$.
@@ -70,19 +70,19 @@ Theoretical analysis shows that $Ri_b$ is universally related to $\zeta$:
  Ri_b(\zeta) = \zeta \frac{F_h(\zeta)}{F_m(\zeta)^2}.
 ```
 
-Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and heat (derived from $\phi_m$ and $\phi_h$). The bulk Richardson number $Ri_b(\zeta)$ is a monotonic function of $\zeta$, enabling a robust and efficient root-finding algorithm.
+Here, $F_m$ and $F_h$ are the dimensionless vertical profiles for momentum and heat (derived from $\phi_m$ and $\phi_h$). For typical geometries, the bulk Richardson number $Ri_b(\zeta)$ is a monotonic function of $\zeta$, enabling a robust and efficient root-finding algorithm; exceptions occur for layer averages over layers only a few roughness lengths deep.
 
-### Iterative Solver (Secant Method)
+### Iterative Solver (Bracketed Regula Falsi)
 
-The function `surface_fluxes` uses the **Secant Method** (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) to find the root $\zeta$ of the equation
+The function `surface_fluxes` uses a two-stage bracketed solver (via [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)'s `RegulaFalsiMethod`, Illinois variant) to find the root $\zeta$ of the equation
 
 ```math
- Ri_b(\text{state}) - Ri_b(\zeta) = 0.
+ Ri_b(\zeta) - Ri_b(\text{state}) = 0.
 ```
 
-The solver is initialized with guesses at $\zeta = -1$ and $\zeta = 1$, spanning neutral stability. By default, the solver runs for a fixed number of iterations (`maxiter=7`, `forced_fixed_iters=true`) to ensure predictable, branch-free execution on GPUs.
+First, the residual at neutral stability ($\zeta = 0$) indicates the stability branch, and log-spaced probes (at $\zeta = \pm 1$ on both branches and at $|\zeta| = 10$ and $\zeta_{\max} = 100$ on the indicated branch; the stable mid probe moves to a stability cap that lies between 10 and $\zeta_{\max}$) bracket the innermost sign change. Second, the bracket is refined with safeguarded Illinois regula falsi iterations (`maxiter = 7` by default, with `forced_fixed_iters = true` so that every point performs `5 + maxiter` residual evaluations with no data-dependent control flow on GPUs) and sharpened by a final linear interpolation of the bracket endpoints.
 
-For the Businger-Dyer similarity functions, a critical bulk Richardson number $Ri_{b,\text{crit}} \approx 0.21$ exists, above which no finite $\zeta$ satisfies the stability relations due to the asymptotic behavior of the integrated profile functions. In such **supercritical** stable conditions, the solver cannot converge to a finite root. To ensure bounded output, the solution is clamped to physical limits $\zeta \in [-100, 100]$ after iteration. While the clamped solution does not satisfy the stability equations exactly, it provides physically reasonable fluxes that smoothly approach zero as stratification increases.
+For the Businger-Dyer similarity functions, $Ri_b(\zeta)$ saturates at a critical value $Ri_{b,\text{crit}}$, above which no finite $\zeta$ satisfies the stability relations: with the linear stable functions $\phi = \phi(0) + a \zeta$, $Ri_{b,\text{crit}} \approx a_h / a_m^2 \approx 0.21$ for point values with $\Delta z_{\text{eff}} \gg z_0$, and about twice that ($\approx 0.43$) for the layer-average scheme, whose averaged profiles grow as $a \zeta / 2$. In such **supercritical** stable conditions, no sign change is bracketed within $|\zeta| \le \zeta_{\max}$, and the solver saturates at the branch limit $\zeta = \zeta_{\max}$ with `converged = false` (unless a [stability cap](#Stability-Caps) is active, in which case a root always exists and the far probe is extended if needed to bracket it).
 
 Once $\zeta$ is found, the scaling parameters ($u_*, \theta_*, q_*$) and thus the fluxes of sensible heat, latent heat, and momentum (SHF, LHF, $\tau$) are computed directly.
 
@@ -102,13 +102,45 @@ Supported parameterizations for $U_{\text{gust}}$:
 
 1. **Constant Gustiness**: A fixed minimum wind speed value.
 2. **Deardorff Gustiness**: Proportional to the convective velocity scale $w_*$, capturing gustiness induced by boundary layer eddies.
+3. **Floored Deardorff Gustiness**: The larger of a fixed minimum wind speed and the Deardorff gustiness, which is computed in closed form within the solve (see [Exchange Fluxes](ExchangeFluxes.md)).
+
+## Reference Level
+
+### Where the reference height is measured from
+
+The input $\Delta z$ is the height of the atmospheric level where the interior temperature, humidity, and wind are given. The `reference_level` field of [`SurfaceFluxConfig`](@ref) sets where it is measured from:
+
+- [`ReferenceAboveSurface`](@ref) (the default): from the surface, which under a canopy is the ground. With $z_{int}$ the height of the atmospheric level and $z_{sfc}$ that of the surface, $\Delta z = z_{int} - z_{sfc}$.
+- [`ReferenceAboveApparentSink`](@ref): from the apparent sink for momentum, the height $d + z_{0m}$ above the surface at which the logarithmic wind profile extrapolates to zero. To keep the two heights apart, this section writes the input `Δz` under this convention as $\Delta z_{sink} = z_{int} - (z_{sfc} + d + z_{0m})$. The solver adds $d + z_{0m}$ to obtain the height above the surface, $\Delta z = \Delta z_{sink} + d + z_{0m}$ ([`SurfaceFluxes.reference_above_surface`](@ref)). Because this needs $z_{0m}$ before the solve, the roughness model must be independent of $u_*$ ([`SurfaceFluxes.depends_on_ustar`](@ref)).
+
+Without a subscript, $\Delta z = z_{int} - z_{sfc}$ is the height above the surface, which the solver works with under either convention.
+
+### Where the profiles start
+
+The Monin-Obukhov profiles start at the displacement height $d$ above the surface, the level at which the canopy absorbs momentum and exchanges heat and moisture with the air. The surface temperature and humidity apply there, and the profiles span the distance $\Delta z - d$ from $z_{sfc} + d$ up to $z_{int}$. (The roughness lengths place the apparent sinks slightly above $d$; the surface state neglects this offset.) Three quantities follow:
+
+- the geopotential of the surface state is $\Phi_{sfc} + g d$ ([`SurfaceFluxes.surface_geopotential`](@ref));
+- the dry static energy difference that drives the sensible heat flux is $c_p (T_{int} - T_{sfc}) + g (\Delta z - d)$, so the air column below the canopy does not enter;
+- the surface density is extrapolated hydrostatically over $\Delta z - d$ ([`SurfaceFluxes.surface_density`](@ref)).
+
+The geometry therefore enters the fluxes only through the distance $\Delta z - d$; under [`ReferenceAboveApparentSink`](@ref), that distance is $\Delta z_{sink} + z_{0m}$. Raising $d$ and $\Delta z$ together by $\delta$ leaves the exchange unchanged; the sensible heat flux changes only by $g \delta E$, the potential energy the evaporation $E$ gains at the raised surface.
+
+### Valid reference levels
+
+The profiles exist only if the reference level lies above the apparent sinks for momentum and for scalars: $\Delta z - d > \max(z_{0m}, z_{0h})$. Otherwise, [`surface_fluxes`](@ref) returns `NaN` in every field of [`SurfaceFluxConditions`](@ref) and `converged = false`, in every operating mode. It does not throw, so that it can run inside GPU kernels. [`reference_height_valid`](@ref) evaluates the condition, and [`check_reference_height`](@ref) throws an `ArgumentError`, for checking a configuration on the host before fluxes are computed in kernels:
+
+```julia
+check_reference_height(Δz, d, z0m, z0h)  # Δz is the height above the surface
+```
+
+The condition matters over tall vegetation, where $d$ and $z_{0m}$ grow with the canopy height $h$. With $d = 0.67 h$, a forcing level 10 m above the ground lies below the displacement height of any canopy taller than 15 m, and with $z_{0m} = 0.1 h$ the solve already returns `NaN` for canopies taller than 13 m. Under [`ReferenceAboveApparentSink`](@ref), the same 10 m is $\Delta z_{sink}$, measured from $d + z_{0m}$, and any positive $\Delta z_{sink}$ is valid when $z_{0h} \le z_{0m}$.
 
 ## Discretization Schemes
 
 SurfaceFluxes.jl supports two interpretations of the boundary layer profiles, handled by the `UniversalFunctions` module:
 
 1. **Point Value Scheme (Finite Difference)**: Assumes that the inputs represent values at exact heights $z$.
-2. **Layer Average Scheme (Finite Volume)**: Assumes that the inputs represent volume-averaged values over a grid cell. This requires modified universal functions ($\Psi$) as derived by  ([Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534)).
+2. **Layer Average Scheme (Finite Volume)**: Assumes that the inputs represent layer-averaged values over a grid cell. This requires modified universal functions ($\Psi$) as derived by [Nishizawa & Kitamura (2018)](https://doi.org/10.1029/2018MS001534), which are available for the Businger and Gryanik functions.
 
 See [Universal Functions](UniversalFunctions.md) for details on the specific parameterizations.
 
@@ -127,18 +159,46 @@ compute_profile_value(
     scale,
     val_sfc,
     transport,
+    scheme,
+    rsl_model,
 )
 ```
 
-This calculates the value of a variable at the effective aerodynamic height `Δz_eff` based on its surface value `val_sfc`, its roughness length `z0`, and its similarity scale `scale` (e.g., $u_*$ or $\theta_*$). For a complete list of functions and their arguments, please refer to the [API Reference](API.md).
+This calculates the value of a variable at the effective aerodynamic height `Δz_eff` based on its surface value `val_sfc`, its roughness length `z0`, and its similarity scale `scale` (e.g., $u_*$ or $\theta_*$). Pass the `scheme` and `rsl_model` of the solve (defaults: `PointValueScheme()` and `NoRoughnessSubLayer()`), so that the recovered profile matches the fluxes. For a complete list of functions and their arguments, please refer to the [API Reference](API.md).
 
 !!! note "Effective Height"
-    Here and throughout, the input argument `Δz_eff` is the effective height above the surface, i.e., $z - d$.
+    In `compute_profile_value`, `Δz_eff` is the height above the displacement height, $z - d$.
 
 !!! note "Stability caps"
     With a [stability cap](#Stability-Caps), pass the effective Obukhov length `L_eff`
     returned in [`SurfaceFluxConditions`](@ref) instead of `L_MO`, so that the recovered
     profiles are consistent with the capped fluxes. Without a cap, `L_eff == L_MO`.
+
+### Screen-Level Diagnostics
+
+[`screen_level_values`](@ref) gives the air temperature and vapor specific humidity at screen height and the wind speed at anemometer height, as a weather station measures them (the WMO standard heights are 2 m and 10 m):
+
+```julia
+inputs = SurfaceFluxes.build_surface_flux_inputs(
+    T_int, q_tot_int, q_liq_int, q_ice_int, ρ_int, T_sfc_guess, q_vap_sfc_guess, Φ_sfc,
+    Δz, d, u_int, u_sfc, config, nothing, FluxSpecs(), nothing, nothing,
+)
+sc = surface_fluxes(param_set, inputs)
+(; T, q, u) = screen_level_values(param_set, sc, inputs, 2, 10)
+```
+
+Both heights are measured from the apparent sinks, where the profiles vanish without a roughness-sublayer correction: the screen height from the apparent sink for heat, $d + z_{0h}$, and the anemometer height from the apparent sink for momentum, $d + z_{0m}$. Over short grass, $d$ and the roughness lengths are small, and these are close to heights above the ground; over a forest, they are heights above the canopy's apparent sinks.
+
+The values come from the profiles of the solve. Temperature and humidity lie between their surface and interior values in proportion to the heat profile:
+
+```math
+X(z) = X_{\text{sfc}} + (X_{\text{int}} - X_{\text{sfc}})\,
+\frac{\widehat{F}_h(z)}{\widehat{F}_h(\Delta z_{\text{eff}})},
+```
+
+Temperature follows this relation as dry static energy, the variable of the sensible heat flux, so it includes the dry-adiabatic cooling with height. The wind speed is $u_* \widehat{F}_m(z)/\kappa$, gustiness included, relative to the surface velocity. Heights are clamped between the roughness length and the reference level.
+
+The profiles use the effective Obukhov length `L_eff`, so the values match the fluxes also when a stability cap is active. After a solve with the [`LayerAverageScheme`](@ref), pass that scheme: the interior state is then a layer average, and the screen and anemometer values are still point values.
 
 ### Example
 
@@ -167,7 +227,7 @@ where $z$ is the height above $d$. Two forms of the RSL factor $\mu$ are availab
 separate coefficients $c_m$ and $c_h$ for momentum and scalars:
 
 | Model | $\mu(z)$ for $z < z_{\text{RSL}}$ | $\mu_{\min}$ |
-|-------|------------------------------------|--------------|
+| ------- | ------------------------------------ | -------------- |
 | [`ExponentialRSL`](@ref) | $\exp[-c\,(1 - z/z_{\text{RSL}})]$ (Garratt 1980; Physick & Garratt 1995, $c = 0.7$) | $e^{-c}$ |
 | [`LinearRSL`](@ref) | $1 - c\,(1 - z/z_{\text{RSL}})$, $0 \le c < 1$ (first-order approximation) | $1 - c$ |
 
@@ -179,12 +239,15 @@ corrected profiles enters through $\phi(z/L)$.
 The RSL-corrected dimensionless profile is $\widehat{F} = F + P$, where $F$ is the MOST
 profile. The corrected profile coincides with MOST above the RSL, so the roughness length
 $z_0$ and displacement height $d$ are the *apparent* values obtained from profiles above
-the RSL or from canopy relations such as $z_0 \approx 0.1\,h$, $d \approx 0.67\,h$
-(Physick & Garratt 1995, Eqs. 7 and 9; Harman & Finnigan 2007, 2008; Bonan 2019). With
+the RSL or from canopy relations such as $z_0 \approx 0.1 h$, $d \approx 0.67 h$.
+Physick & Garratt (1995, Eqs. 7 and 9), Harman & Finnigan (2007, 2008), and Bonan (2019)
+likewise anchor the RSL-corrected profiles to MOST above the RSL. With
 $z_c = \min(\Delta z_{\text{eff}}, z_{\text{RSL}})$, the correction is
+
 ```math
 P = \int_{z_c}^{z_{\text{RSL}}} \phi\!\left(\frac{z}{L}\right)\left[1 - \mu(z)\right]\frac{\mathrm{d}z}{z} \ge 0.
 ```
+
 Wind speed and scalar differences at a height within the RSL are larger than those of
 the MOST profile extrapolated down with the apparent $z_0$ and $d$, so the exchange
 coefficients for a reference height within the RSL are *smaller* than MOST predicts.
@@ -202,9 +265,9 @@ the solver, the stability cap, and profile recovery all use the same corrected p
 
 !!! note "Reference height over tall canopies"
     MOST (with or without an RSL correction) requires the reference height to be well
-    above the roughness length, $\Delta z - d \gtrsim 3 z_0$. With $z_0 \approx 0.1\,h$ and
-    $d \approx 0.67\,h$, this means that the lowest model level should be at least $\approx 0.1\,h$
-    above the canopy top.
+    above the roughness length, $\Delta z - d \gtrsim 3 z_0$. With $z_0 \approx 0.1 h$ and
+    $d \approx 0.67 h$, this means that the lowest model level should be at about the
+    canopy top or higher, $\Delta z \gtrsim 0.97 h$.
 
 ### Usage
 
@@ -241,10 +304,12 @@ computed with [`rsl_corrected_profile`](@ref) for standard MOST, the
 
 In very stable conditions, the MOST exchange coefficients decrease rapidly with $\zeta$.
 At a fixed wind speed $U$, $u_* = \kappa U / \widehat{F}_m(\zeta)$ and
-$\zeta = \Delta z_{\text{eff}} / L \propto H / u_*^3$, so the sensible heat flux is
+$\zeta = \Delta z_{\text{eff}} / L \propto |H| / u_*^3$, so the magnitude of the (downward) sensible heat flux is
+
 ```math
-H \propto u_*^3\, \zeta \propto \frac{\zeta}{\widehat{F}_m(\zeta)^3}.
+|H| \propto u_*^3\, \zeta \propto \frac{\zeta}{\widehat{F}_m(\zeta)^3}.
 ```
+
 This function has a maximum at a stability $\zeta_p$ that depends only on the universal
 functions, the discretization scheme, $\Delta z_{\text{eff}} / z_{0m}$, and the RSL
 correction (the "maximum sustainable heat flux"; Derbyshire 1999; van de Wiel et al. 2012).
@@ -264,9 +329,9 @@ and `L_MO` are the Obukhov stability parameter and length implied by the fluxes;
 conditions are unaffected. Three options are available:
 
 | Cap | $\zeta_{\text{cap}}$ |
-|-----|----------------------|
+| ----- | ---------------------- |
 | [`NoStabilityCap`](@ref) (default) | none (standard MOST) |
-| [`ConstantStabilityCap`](@ref) | a positive constant, e.g., the limit $z/L \le 0.5$ of Physick & Garratt (1995) |
+| [`ConstantStabilityCap`](@ref) | a positive constant, e.g., the upper limit 0.5 of the range $-2.5 < z/L < 0.5$ to which the mesoscale model of Physick & Garratt (1995) restricts the Businger functions |
 | [`MaxHeatFluxStabilityCap`](@ref) | $\zeta_p$, computed per solve by [`max_heat_flux_stability`](@ref) |
 
 For point values, $\zeta_p$ satisfies
@@ -280,9 +345,11 @@ value $R_{f,\text{cr}} ≈ 0.20–0.25$ beyond which local similarity theory cea
 (Grachev et al. 2013).
 
 The cap is also applied to the diagnostic heat conductance when the fluxes are prescribed
-(through [`FluxSpecs`](@ref)). For profile recovery beyond the cap, use the effective
-Obukhov length `L_eff` returned in [`SurfaceFluxConditions`](@ref) (see
-[`compute_profile_value`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
+(through [`FluxSpecs`](@ref)). The exchange coefficients use the capped stability
+parameter `ζ_eff = min(ζ, ζ_cap) = Δz_eff / L_eff`, which [`SurfaceFluxConditions`](@ref)
+returns along with the uncapped `ζ` and `L_MO`. Profiles that match the capped fluxes use
+the effective Obukhov length `L_eff` (see [`compute_profile_value`](@ref) and
+[`screen_level_values`](@ref)). Select a cap through [`SurfaceFluxConfig`](@ref):
 
 ```julia
 config = SurfaceFluxConfig(

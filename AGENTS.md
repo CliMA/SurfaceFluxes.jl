@@ -31,14 +31,16 @@ SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moistu
 |------|---------|
 | `src/SurfaceFluxes.jl` | Top-level module: `surface_fluxes` entry point, mode dispatch, the MOST solve (`solve_monin_obukhov`, `ResidualFunction`) |
 | `src/UniversalFunctions.jl` | `UniversalFunctions` submodule: ϕ/ψ/Ψ for Businger, Gryanik, Grachev; solver schemes; dimensionless profiles |
-| `src/types.jl` | `SurfaceFluxConfig`, `FluxSpecs`, `SolverOptions`, `SurfaceFluxConditions`, moisture/gustiness model types |
+| `src/types.jl` | `SurfaceFluxConfig`, `FluxSpecs`, `SolverOptions`, `SurfaceFluxConditions`, moisture/gustiness model types, reference-level conventions (`ReferenceAboveSurface`, `ReferenceAboveApparentSink`) |
 | `src/bulk_fluxes.jl` | Sensible/latent heat, evaporation, buoyancy, momentum fluxes, bulk Richardson number |
 | `src/exchange_coefficients.jl` | Drag/heat exchange coefficients and conductance |
+| `src/roughness_sublayer.jl` | Roughness sublayer corrections to the MOST profiles (`ExponentialRSL`, linear RSL) |
+| `src/stability_cap.jl` | Caps on the stability parameter (`ConstantStabilityCap`, `MaxHeatFluxStabilityCap`) and the effective Obukhov length |
 | `src/physical_scales.jl` | u\*, θ\*, q\*, variances, Obukhov length and stability parameter |
-| `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models; combined u\*–roughness solver |
-| `src/wind_and_gustiness.jl` | Effective wind speed and gustiness (constant, Deardorff) |
-| `src/profile_recovery.jl` | `compute_profile_value` for diagnosing variables at arbitrary heights |
-| `src/utilities.jl` | `surface_density`, geopotential helpers, `non_zero`, Gauss-Legendre quadrature |
+| `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models (with the canopy displacement height); combined u\*–roughness solver |
+| `src/wind_and_gustiness.jl` | Effective wind speed and gustiness (constant, Deardorff, floored Deardorff); gustiness floor accessors |
+| `src/profile_recovery.jl` | `compute_profile_value` for diagnosing variables at arbitrary heights; `screen_level_values` |
+| `src/utilities.jl` | `surface_density`, geopotential helpers, reference-level conversion and validity checks, `non_zero`, Gauss-Legendre quadrature |
 | `src/input_builders.jl` | `build_surface_flux_inputs`: normalizes user inputs into a NamedTuple |
 | `src/Parameters.jl` | `SurfaceFluxesParameters` and accessors |
 | `ext/CreateParametersExt.jl` | ClimaParams-based constructors (weak dependency) |
@@ -50,7 +52,7 @@ SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moistu
 - For package tests, prefer `Pkg.test()` over manually `include`ing `test/runtests.jl`, so test-only dependencies load through the package test path.
 - Physics code is dimensional: carry SI units in docstrings (square brackets, e.g. `[W/m^2]`, `[kg/kg]`, `[m/s]`). Keep sign conventions explicit (fluxes are positive upward).
 - Match existing style: explicit names, narrow imports, comments that explain *why*. Unicode variable names (`ζ`, `θ`, `ϕ`, `ψ`, `Ψ`, `κ`, `ρ`) match the math.
-- Docstrings follow [docs/dev-guides/code-quality/documentation_policy.md](docs/dev-guides/code-quality/documentation_policy.md): an indented signature line, single-`#` section headings in plural standard form (`# Arguments`, `# Returns`, `# Fields`, `# Examples`, `# Notes`), and `[`name`](@ref)` cross-references for every type/function mentioned. Use `raw"""..."""` for docstrings with LaTeX backslashes.
+- Docstrings follow [docs/dev-guides/code-quality/documentation_policy.md](docs/dev-guides/code-quality/documentation_policy.md): an indented signature line, single-`#` section headings in plural standard form (`# Arguments`, `# Returns`, `# Fields`, `# Examples`, `# Notes`), and `[`name`](@ref)` cross-references for every type/function mentioned. Write LaTeX in plain `"""` docstrings with doubled backslashes (`\\frac`, `\\widehat`), as elsewhere in CliMA; do not use `raw"""` or `@doc raw"""` (a bare `raw"""` string is not attached as a docstring).
 - Run `julia -e 'using JuliaFormatter; format(".")'` before committing code (config in `.JuliaFormatter.toml`, margin 92).
 
 ## Self-correction

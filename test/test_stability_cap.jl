@@ -419,7 +419,7 @@ end
             (0.0, 0.0))
         for (rm, ri) in (
             (rough, nothing),
-            (SF.RaupachRoughnessParams{FT}(), (; LAI = 3.0, h = 10.0)),
+            (SF.RaupachRoughnessParams{FT}(), (; PAI = 3.0, h = 10.0)),
             (SF.COARE3RoughnessParams{FT}(), nothing),
         )
             cfg_rm = SF.SurfaceFluxConfig(

@@ -1,3 +1,8 @@
+# The `converged` flag: true for a solve that meets its tolerance and for the prescribed
+# modes, false when the iteration budget cannot meet the tolerance.
+
+module TestConvergenceFlag
+
 using Test
 import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
@@ -52,7 +57,7 @@ thermo_params = SFP.thermodynamics_params(param_set)
     @test sf.shf != 0
 
     # 2. Forced Non-Convergence Case
-    # By setting maxiter to 1 and starting far from the root, we expect it to fail convergence check
+    # A single refinement iteration of the bracket cannot meet a tolerance of 1e-10
     opts_fail = SF.SolverOptions{FT}(maxiter = 1, tol = 1e-10, forced_fixed_iters = false)
 
     sf_fail = SF.surface_fluxes(
@@ -102,3 +107,5 @@ thermo_params = SFP.thermodynamics_params(param_set)
     @test sf_coeffs.converged == true
 
 end
+
+end # module

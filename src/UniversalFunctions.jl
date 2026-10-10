@@ -152,7 +152,7 @@ function psi end
 """
     Psi(p, ζ, transport_type)
 
-The volume-averaged stability correction function `Ψ(ζ)`.
+The layer-averaged stability correction function `Ψ(ζ)`.
 Mathematically, this is defined as:
     Ψ(ζ) = (1/ζ) ∫`[0 to ζ]` ψ(x) dx
 
@@ -175,8 +175,6 @@ a_h(p::AUFP) = p.a_h
 b_m(p::AUFP) = p.b_m
 b_h(p::AUFP) = p.b_h
 c_h(p::AUFP) = p.c_h
-ζ_a(p::AUFP) = p.ζ_a
-γ(p::AUFP) = p.γ
 
 
 #####
@@ -319,8 +317,6 @@ Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     a_h::FT
     b_m::FT
     b_h::FT
-    ζ_a::FT
-    γ::FT
 end
 
 """
@@ -406,7 +402,7 @@ end
 """
     Psi(p::BusingerParams, ζ, ::MomentumTransport)
 
-Volume-averaged Businger momentum stability correction `Ψ_m`.
+Layer-averaged Businger momentum stability correction `Ψ_m`.
 
 # References
  - Stable (ζ >= 0): Eqs. A5 and A13 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -425,7 +421,7 @@ end
 """
     Psi(p::BusingerParams, ζ, ::HeatTransport)
 
-Volume-averaged Businger heat/scalar stability correction `Ψ_h`.
+Layer-averaged Businger heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Eqs. A6 and A14 (L >= 0) in Nishizawa & Kitamura (2018).
@@ -564,8 +560,6 @@ Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     b_h::FT
     b_m_unstable::FT
     b_h_unstable::FT
-    ζ_a::FT
-    γ::FT
 end
 
 """
@@ -669,7 +663,7 @@ end
 """
     Psi(p::GryanikParams, ζ, ::MomentumTransport)
 
-Volume-averaged Gryanik momentum stability correction `Ψ_m`.
+Layer-averaged Gryanik momentum stability correction `Ψ_m`.
 
 # References
  - Stable (ζ >= 0): Analytically derived from Eq. 34 in Gryanik et al. (2020).
@@ -681,7 +675,7 @@ Volume-averaged Gryanik momentum stability correction `Ψ_m`.
     _b_m = FT(b_m(p))
 
     # Analytical Integral of Gryanik et al. (2020), Eq. 34:
-    # The volume-averaged stability function Ψ_m is defined as (1/ζ) ∫ ψ_m(x) dx.
+    # The layer-averaged stability function Ψ_m is defined as (1/ζ) ∫ ψ_m(x) dx.
     # Integrating Eq. 34 yields:
     # Ψ_m(ζ) = 3(a_m/b_m) - [9 a_m / (4 b_m² ζ)] * ((1 + b_m ζ)^(4/3) - 1)
 
@@ -720,7 +714,7 @@ end
 """
     Psi(p::GryanikParams, ζ, ::HeatTransport)
 
-Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
+Layer-averaged Gryanik heat/scalar stability correction `Ψ_h`.
 
 # References
  - Stable (ζ >= 0): Analytically derived from Eq. 35 in Gryanik et al. (2020).
@@ -735,7 +729,7 @@ Volume-averaged Gryanik heat/scalar stability correction `Ψ_h`.
     ζ_safe = max(ζ, FT(0))
 
     # Analytical Integral of Gryanik et al. (2020), Eq. 35:
-    # The volume-averaged stability function Ψ_h is defined as (1/ζ) ∫ ψ_h(x) dx.
+    # The layer-averaged stability function Ψ_h is defined as (1/ζ) ∫ ψ_h(x) dx.
     # Eq. 35 gives: ψ_h(ζ) = -Pr_0 * (a_h/b_h) * ln(1 + b_h * ζ).
     #
     # Integrating yields:
@@ -778,10 +772,11 @@ based on SHEBA data.
     parameterizations.
 
 !!! note "LayerAverageScheme not supported"
-    The volume-averaged stability corrections `Ψ` are not implemented for `GrachevParams`
-    because the analytical integrals of Eqs. 12–13 in Grachev et al. (2007) do not admit
-    closed-form expressions suitable for efficient evaluation. Use `PointValueScheme`, or
-    use `BusingerParams`/`GryanikParams` if layer averaging is required.
+    The layer-averaged stability corrections `Ψ` are not implemented for `GrachevParams`:
+    the integrals of Eqs. 12–13 in Grachev et al. (2007) exist in closed form but are
+    lengthy. Combining `GrachevParams` with `LayerAverageScheme` raises a `MethodError`;
+    use `PointValueScheme`, or `BusingerParams`/`GryanikParams` if layer averaging is
+    required.
 
 Reference: Grachev et al. (2007).
 """
@@ -794,8 +789,6 @@ Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     c_h::FT
     b_m_unstable::FT
     b_h_unstable::FT
-    ζ_a::FT
-    γ::FT
 end
 
 # Accessor methods for unstable coefficients (defined after structs)

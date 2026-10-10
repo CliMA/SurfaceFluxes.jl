@@ -25,8 +25,9 @@ where:
 - The drag coefficient is denoted by $C_d$.
 - The effective wind speed $U_{\text{eff}}$ includes gustiness effects.
 - The wind speed component differences are $\Delta u_{x,y}$.
-- The surface density $\rho_{\text{sfc}}$ is computed internally by hydrostatically extrapolating
-  the interior pressure to the surface.
+- The surface density $\rho_{\text{sfc}}$ is computed internally by extrapolating the interior
+  pressure hydrostatically over $\Delta z - d$ to the displacement height, where the surface
+  state applies.
 
 ### 2. Evaporation ($E$)
 
@@ -82,8 +83,8 @@ sensible_heat_flux(param_set, inputs, g_h, T_int, T_sfc, ρ_sfc, E)
 
 This formulation accounts for the enthalpy transport due to sensible heat transfer:
 
-1. **Dry Static Energy Term**: $-\rho_{\text{sfc}} g_h \Delta \text{DSE}$. Driven by the dry static energy (potential temperature) gradient.
-2. **Mass Transfer Term**: $\text{VSE}_{\text{sfc}} \times E$. Represents the "dry" enthalpy carried by the evaporating water vapor leaving the surface ($\text{VSE}$ is Vapor Static Energy, or the dry static energy carried by water vapor).
+1. **Dry Static Energy Term**: $-\rho_{\text{sfc}} g_h \Delta \text{DSE}$. Driven by the dry static energy (potential temperature) gradient. $\text{DSE}_{\text{sfc}}$ is evaluated at $T_{\text{sfc}}$ and the geopotential $\Phi_{\text{sfc}} + g d$ of the surface state, so $\Delta\text{DSE} = c_{pd}(T_{\text{int}} - T_{\text{sfc}}) + g(\Delta z - d)$ (see [Reference Level](SurfaceFluxes.md#Reference-Level)).
+2. **Mass Transfer Term**: $\text{VSE}_{\text{sfc}} \times E$. The vapor static energy $\text{VSE}_{\text{sfc}} = c_{pv}(T_{\text{sfc}} - T_0) + \Phi_{\text{sfc}} + g d$ is the sensible enthalpy plus potential energy carried by the evaporated water; its latent heat is in LHF.
 
 See [Yatunin et al. (2026)](https://doi.org/10.1029/2025MS005014) for a derivation of these formulas and a detailed explanation of how they result in an energetically consistent formulation.
 
@@ -99,7 +100,7 @@ For momentum exchange:
 C_d = \left( \frac{\kappa}{F_m(\Delta z_{\text{eff}}, \zeta, z_{0m})} \right)^2
 ```
 
-Momentum flux: $\tau = \rho_{\text{sfc}} C_d U_{\text{eff}} \Delta U$.
+Momentum flux: $\boldsymbol\tau = -\rho_{\text{sfc}} C_d U_{\text{eff}} \Delta\mathbf{u}$ (see above). Here and in $C_h$, $F$ is the RSL-corrected profile $\widehat F = F + P$ when a roughness-sublayer model is configured, evaluated at the capped $\zeta$ when a stability cap is set.
 
 ### Heat Exchange Coefficient ($C_h$)
 
@@ -135,14 +136,15 @@ The surface roughness lengths ($z_{0m}, z_{0h}$) parameterize the effect of surf
 z_{0m} = 0.11 \frac{\nu}{u_*} + \alpha \frac{u_*^2}{g}
 ```
 
-- **Scalar Roughness ($z_{0h}$)**: Based on Reynolds number scaling.
+- **Scalar Roughness ($z_{0h}$)**: Based on Reynolds number scaling, $z_{0h} = \min(1.1\times10^{-4}\ \mathrm{m},\ 5.5\times10^{-5}\ \mathrm{m}\ Re_*^{-0.6})$ with $Re_* = z_{0m} u_* / \nu$ (Fairall et al. 2003).
 
 ### Raupach (Land/Canopy)
 
 `RaupachRoughnessParams` implements the [Raupach (1994)](https://doi.org/10.1007/BF00709229) model for vegetation canopies.
 
-- Estimates $z_{0m}$ from canopy height ($h$) and Leaf Area Index (LAI). The displacement-height ratio $d/h$ enters the $z_{0m}$ formula internally, but $d$ itself is supplied to [`surface_fluxes`](@ref) as a separate argument.
-- The scalar roughness $z_{0s}$ is obtained from $z_{0m}$ via a fixed Stanton number.
+- Estimates $z_{0m}$ and the displacement height $d$ from the canopy height $h$ and the plant area index `PAI`, the one-sided area of leaves, stems, and branches per unit ground area: the sum of the leaf and stem area indices, LAI + SAI. (The field name `LAI` is accepted as a deprecated alias for `PAI`.) The displacement height depends on `PAI` directly (raised to $\lambda_{min}/f_\lambda$ where the floor below is active). The split of the drag between the ground and the plants depends on the frontal area index $\lambda = \max(f_\lambda\,\mathrm{PAI}, \lambda_{min})$, the area the canopy presents to the wind per unit ground area. The frontal area ratio $f_\lambda$ (`frontal_area_ratio`) is 0.5 by default, the value for randomly oriented elements. The optional floor $\lambda_{min}$ (zero by default) keeps a canopy rough when the input counts leaves only, as for a leafless deciduous forest. $z_{0m}$ is at least the fixed roughness length `z0m_fixed`.
+- [`surface_fluxes`](@ref) takes $d$ as a separate argument. [`SurfaceFluxes.displacement_height`](@ref) computes it from the same canopy inputs as $z_{0m}$, so that the two are consistent.
+- The scalar roughness length is $z_{0h} = r\,z_{0m}$, with the fixed ratio $r = \exp(-kB^{-1})$ (field `stanton_number`, 0.1 by default, so $kB^{-1} \approx 2.3$).
 - Useful for dynamic vegetation models.
 
 ## Gustiness
@@ -159,7 +161,7 @@ where $U_{\text{gust}}$ is a parameterized gustiness velocity scale representing
 
 ### Parameterizations and Dispatch
 
-The gustiness formulation is controlled by the `GustinessSpec` type in the `SurfaceFluxInputs`. This design allows for **type-stable dispatch** and straightforward broadcasting over heterogeneous surfaces. For example, a model coupled to both land and ocean can use an array of input structs where some elements use `ConstantGustinessSpec` (land) and others use `DeardorffGustinessSpec` (ocean). The solver simply calls `surface_fluxes` and correct method is dispatched automatically.
+The gustiness formulation is controlled by the `gustiness` field of [`SurfaceFluxConfig`](@ref), a subtype of `AbstractGustinessSpec`, and [`surface_fluxes`](@ref) dispatches on its type. Land and ocean points can use different configurations; within one broadcast, a single concrete specification type keeps the computation type-stable.
 
 #### 1. Constant Gustiness
 
@@ -175,7 +177,7 @@ Uses a fixed tuning parameter, e.g., $U_{\text{gust}} = 1.0 \, \mathrm{m~s^{-1}}
 DeardorffGustinessSpec()
 ```
 
-Scales $U_{\text{gust}}$ with the convective velocity scale $w_*$, following [Deardorff (1970)](https://doi.org/10.1175/1520-0469(1970)027<1211:CVATSF>2.0.CO;2) and [Beljaars (1995)](https://doi.org/10.1002/qj.49712152203). This is physically robust for the unstable boundary layer over fluid surfaces (ocean/lakes).
+Scales $U_{\text{gust}}$ with the convective velocity scale $w_*$, following [Deardorff (1970)](https://doi.org/10.1175/1520-0469(1970)027<1211:CVATSF>2.0.CO;2) and [Beljaars (1995)](https://doi.org/10.1002/qj.49712152203). Beljaars (1995) adds $\beta w_*$ to the mean wind in quadrature; SurfaceFluxes.jl takes the larger of the two. This is physically robust for the unstable boundary layer over fluid surfaces (ocean/lakes).
 
 ```math
 U_{\text{gust}} = \beta w_* = \beta (B z_i)^{1/3}
@@ -184,10 +186,10 @@ U_{\text{gust}} = \beta w_* = \beta (B z_i)^{1/3}
 where:
 
 - The surface buoyancy flux is denoted by $B$.
-- The boundary layer height is $z_i$.
-- The scaling coefficient is $\beta$ (typically $\approx 1.0$).
+- The boundary layer height is $z_i$, the fixed parameter `gustiness_zi` (1000 m by default).
+- The scaling coefficient is $\beta$ (`gustiness_coeff`, 1.25 by default).
 
-Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and thus $B$), this introduces a nonlinear coupling that is resolved by an iterative solver. Within the stability solve, $B$ is evaluated from the current friction velocity, $B = -u_*^3 \zeta / (\kappa \Delta z)$, so that at fixed $\zeta$ the gustiness is proportional to $u_*$. Beyond the free-convection limit, no $u_*$ is consistent with this gustiness, and the solve settles where one exists.
+Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and thus $B$), this introduces a nonlinear coupling that is resolved by an iterative solver. Within the stability solve, $B$ is evaluated from the current friction velocity, $B = -u_*^3 \zeta / [\kappa (\Delta z - d)]$, so that at fixed $\zeta$ the gustiness is proportional to $u_*$. Beyond the free-convection limit, no $u_*$ is consistent with this gustiness, and the solve settles where one exists.
 
 #### 3. Floored Deardorff Gustiness
 
@@ -195,13 +197,17 @@ Since $B$ depends on the fluxes, and the fluxes depend on $U_{\text{eff}}$ (and 
 FlooredDeardorffGustinessSpec(u_min)
 ```
 
-The larger of a minimum wind speed $u_{\min}$ and the Deardorff gustiness, with the convective part evaluated in closed form from the surface and atmospheric state. At a stability parameter $\zeta$, the bulk relations $u_* = \kappa U_{\text{eff}} / F_m(\zeta)$ and $\theta_{v*} = \kappa \Delta\theta_v / F_h(\zeta)$ make the buoyancy flux $B = (g/\theta_v) u_* \theta_{v*}$ linear in $U_{\text{eff}}$, so that $U_{\text{eff}} = \beta w_*(U_{\text{eff}})$ has the solution
+The larger of a minimum wind speed $u_{\min}$ and the Deardorff gustiness, with the convective part evaluated in closed form from the surface and atmospheric state. At a stability parameter $\zeta$, the bulk relations $u_* = \kappa U_{\text{eff}} / F_m(\zeta)$ and $\theta_{v*} = \kappa \Delta\theta_v / F_h(\zeta)$ (defined with the surface excess, so that $u_* \theta_{v*} = \overline{w'\theta_v'}$) make the buoyancy flux $B = (g/\theta_v) u_* \theta_{v*}$ linear in $U_{\text{eff}}$, so that $U_{\text{eff}} = \beta w_*(U_{\text{eff}})$ has the solution
 
 ```math
 U_{\text{eff}}^2 = \beta^3 \kappa^2 \frac{g}{\theta_v} z_i \frac{\Delta\theta_v}{F_m(\zeta) F_h(\zeta)},
 ```
 
-where $\Delta\theta_v$ is the virtual potential temperature excess of the surface over the air and $F_m$, $F_h$ are the dimensionless profile integrals of momentum and heat. The convective part vanishes when the surface is not warmer than the air, where the floor applies. Because this gustiness does not depend on $u_*$, the friction velocity follows from $\zeta$ in closed form, and the free-convection limit is well posed at every $\zeta$. `FlooredDeardorffGustinessSpec(0)` is the pure convective gustiness in this form. This model is suited to land surfaces, where the surface temperature responds quickly to the fluxes and a small floor keeps the exchange from vanishing in calm, stable conditions.
+where $\Delta\theta_v$ is the virtual potential temperature excess of the surface over the air, $\theta_v$ is the air value, and $F_m$, $F_h$ are the dimensionless profile integrals of momentum and heat. The convective part vanishes when the surface is not warmer than the air, where the floor applies. Because this gustiness does not depend on $u_*$, with a roughness model independent of $u_*$ the friction velocity follows from $\zeta$ in closed form, and the free-convection limit is well posed at every $\zeta$. `FlooredDeardorffGustinessSpec(0)` is the pure convective gustiness in this form. This model is suited to land surfaces, where the surface temperature responds quickly to the fluxes and a small floor keeps the exchange from vanishing in calm, stable conditions.
+
+#### Minimum Wind Speed
+
+[`minimum_wind_speed`](@ref)`(spec, param_set)` returns the lowest effective wind speed a gustiness model allows: the value of a `ConstantGustinessSpec`, the floor $u_{\min}$ of a `FlooredDeardorffGustinessSpec`, and zero for a `DeardorffGustinessSpec`, whose gustiness vanishes in stable conditions. [`without_floor`](@ref)`(spec)` returns the same model with the floor set to zero. A model that applies the floor to the wind before passing it to the solve, for example a canopy model that reduces the wind above the canopy to the wind at the ground, passes `without_floor(spec)` so that the floor is not applied twice.
 
 ## Reference
 

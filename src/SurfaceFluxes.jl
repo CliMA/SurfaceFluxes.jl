@@ -75,11 +75,21 @@ export NoRoughnessSubLayer,
 export NoStabilityCap,
     ConstantStabilityCap, MaxHeatFluxStabilityCap, max_heat_flux_stability
 
+# From types.jl (reference level conventions)
+export ReferenceAboveSurface, ReferenceAboveApparentSink
+
 # From utilities.jl
-export surface_density
+export surface_density,
+    interior_vapor_specific_humidity,
+    reference_height_valid,
+    check_reference_height,
+    reference_above_surface
+
+# From wind_and_gustiness.jl
+export minimum_wind_speed, without_floor
 
 # From profile_recovery.jl
-export compute_profile_value
+export compute_profile_value, screen_level_values
 
 # From UniversalFunctions.jl (solver schemes)
 export PointValueScheme, LayerAverageScheme
@@ -197,11 +207,15 @@ Can operate in four modes depending on inputs:
 - `T_sfc_guess`: Initial guess for surface temperature [K], updated via callback if provided.
 - `q_vap_sfc_guess`: Initial guess for surface vapor specific humidity [kg/kg], updated via callback if provided.
 - `Φ_sfc`: Surface geopotential [m^2/s^2].
-- `Δz`: Geometric height difference between the surface and the interior level [m], used for geopotential.
-- `d`: Displacement height [m]. Aerodynamic calculations (MOST) use effective height `Δz - d`.
+- `Δz`: Height of the reference (interior) level [m], measured from the surface under
+  [`ReferenceAboveSurface`](@ref) or from the apparent sink `d + z0m` under
+  [`ReferenceAboveApparentSink`](@ref) (set in `config`).
+- `d`: Displacement height [m]. The Monin-Obukhov profiles span the effective height
+  `Δz - d` above `d`, where the surface state applies (see
+  [`surface_geopotential`](@ref)).
 - `u_int`: Tuple of interior wind components `(u, v)` [m/s].
 - `u_sfc`: Tuple of surface wind components `(u, v)` [m/s]. (Usually `(0, 0)`).
-- `roughness_inputs`: Optional container of parameters (e.g., LAI, canopy height) that are passed
+- `roughness_inputs`: Optional container of parameters (e.g., the plant area index `PAI` and canopy height `h`) that are passed
   directly to the specific roughness model (e.g., `RaupachRoughnessParams`).
 - `config`: [`SurfaceFluxConfig`](@ref) struct containing:
     - `roughness`: Model for roughness lengths (e.g., `ConstantRoughnessParams`, `COARE3RoughnessParams`).
@@ -212,11 +226,17 @@ Can operate in four modes depending on inputs:
     - `rsl_model`: Roughness sublayer model (e.g., `NoRoughnessSubLayer`, `ExponentialRSL`).
     - `stability_cap`: Cap on the stability parameter in stable conditions (e.g.,
       `NoStabilityCap`, `MaxHeatFluxStabilityCap`).
+    - `reference_level`: Convention for `Δz` (`ReferenceAboveSurface` or
+      `ReferenceAboveApparentSink`).
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
-- `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
-- `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
+- `update_T_sfc`: Optional callback
+  `update_T_sfc(ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0h)` that
+  returns the surface temperature [K] during iteration.
+- `update_q_vap_sfc`: Optional callback
+  `update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h)`
+  that returns the surface vapor specific humidity [kg/kg] during iteration.
 
 # Returns
 A [`SurfaceFluxConditions`](@ref) struct containing:
@@ -230,7 +250,12 @@ A [`SurfaceFluxConditions`](@ref) struct containing:
 - `g_h`: Heat conductance [m/s].
 - `T_sfc`, `q_vap_sfc`: Final iterated surface temperature [K] and vapor specific humidity [kg/kg].
 - `L_MO`: Monin-Obukhov length [m].
-- `converged`: Convergence status.
+- `L_eff`, `ζ_eff`: Effective Obukhov length [m] and stability parameter [-] at which
+  the exchange coefficients were evaluated (equal to `L_MO` and `ζ` unless a stability
+  cap is active).
+- `converged`: Convergence status; `false`, with all other fields `NaN`, when the
+  reference level lies at or below a roughness length (see
+  [`reference_height_valid`](@ref) and [`check_reference_height`](@ref)).
 """
 function surface_fluxes(
     param_set::APS,
@@ -294,7 +319,19 @@ function surface_fluxes(
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
-    # Dispatching based on availability:
+    inputs = reference_above_surface(param_set, inputs)
+    sc = surface_fluxes_by_mode(param_set, inputs, scheme, solver_opts)
+    z0m, z0h = momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        sc.ustar,
+        param_set,
+        inputs.roughness_inputs,
+    )
+    return invalidate_unless(sc, reference_height_valid(inputs, z0m, z0h))
+end
+
+# Dispatch to the solver mode that the inputs select
+@inline function surface_fluxes_by_mode(param_set::APS, inputs, scheme, solver_opts)
     # Case A: Coefficients known
     if inputs.Cd !== nothing && inputs.Ch !== nothing
         return compute_fluxes_given_coefficients(param_set, inputs, scheme)
@@ -313,6 +350,34 @@ function surface_fluxes(
     # Case D: Standard MOST solve
     solver_opts_val = normalize_solver_options(param_set, solver_opts)
     return solve_monin_obukhov(param_set, inputs, scheme, solver_opts_val)
+end
+
+"""
+    invalidate_unless(sc::SurfaceFluxConditions, valid::Bool)
+
+Return `sc` when `valid`, and otherwise a copy with every floating-point field set to
+`NaN` and `converged = false`. Written with `ifelse` so that it runs in GPU kernels,
+where the solve cannot throw; see [`reference_height_valid`](@ref).
+"""
+@inline function invalidate_unless(sc::SurfaceFluxConditions{FT}, valid::Bool) where {FT}
+    nan = FT(NaN)
+    return SurfaceFluxConditions{FT}(
+        ifelse(valid, sc.shf, nan),
+        ifelse(valid, sc.lhf, nan),
+        ifelse(valid, sc.evaporation, nan),
+        ifelse(valid, sc.ρτxz, nan),
+        ifelse(valid, sc.ρτyz, nan),
+        ifelse(valid, sc.ustar, nan),
+        ifelse(valid, sc.ζ, nan),
+        ifelse(valid, sc.Cd, nan),
+        ifelse(valid, sc.g_h, nan),
+        ifelse(valid, sc.T_sfc, nan),
+        ifelse(valid, sc.q_vap_sfc, nan),
+        ifelse(valid, sc.L_MO, nan),
+        ifelse(valid, sc.L_eff, nan),
+        ifelse(valid, sc.ζ_eff, nan),
+        sc.converged & valid,
+    )
 end
 
 function default_surface_flux_config(::Type{FT}) where {FT}
@@ -349,22 +414,12 @@ function compute_fluxes_given_coefficients(
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Coefficients (caller must ensure both are provided)
     FT = eltype(param_set)
-    Cd = FT(inputs.Cd)
-    Ch = FT(inputs.Ch)
+    Cd = float_parameter(FT, inputs.Cd)
+    Ch = float_parameter(FT, inputs.Ch)
 
     # First pass: compute fluxes with zero buoyancy flux for gustiness
     b_flux_init = FT(0)
@@ -402,7 +457,7 @@ function compute_fluxes_given_coefficients(
 
     # Derived L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     return SurfaceFluxConditions(
@@ -410,7 +465,7 @@ function compute_fluxes_given_coefficients(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_MO,
+        L_MO, L_MO, ζ,
         true,
     )
 end
@@ -429,17 +484,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int :
         inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Use prescribed flux values directly
     shf = inputs.shf
@@ -465,7 +510,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
 
     # Compute L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     # Compute Coefficients with division-by-zero guard
@@ -497,7 +542,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_eff,
+        L_MO, L_eff, capped_stability(inputs, ζ),
         true,
     )
 end
@@ -520,17 +565,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     T_sfc = inputs.T_sfc_guess === nothing ? inputs.T_int : inputs.T_sfc_guess
     q_vap_sfc =
         inputs.q_vap_sfc_guess === nothing ? inputs.q_tot_int : inputs.q_vap_sfc_guess
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
     # Use prescribed values
     shf = inputs.shf
@@ -564,7 +599,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
 
     # Compute L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     # Compute roughness from ustar
@@ -591,7 +626,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
         ρτxz, ρτyz,
         ustar, ζ, Cd, g_h,
         T_sfc, q_vap_sfc,
-        L_MO, L_eff,
+        L_MO, L_eff, capped_stability(inputs, ζ),
         true,
     )
 end
@@ -615,7 +650,7 @@ given the exchange coefficients and surface state.
     g_h = Ch * windspeed(inputs, param_set, b_flux)
 
     model = inputs.moisture_model
-    q_vap_int = inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+    q_vap_int = interior_vapor_specific_humidity(inputs)
     E = evaporation(param_set, inputs, g_h, q_vap_int, qs, ρ_sfc, model)
     lhf = latent_heat_flux(param_set, inputs, E, model)
     shf = sensible_heat_flux(param_set, inputs, g_h, inputs.T_int, Ts, ρ_sfc, E)
@@ -730,17 +765,7 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 3. Update density
-    ρ_sfc = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc_new,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc_new,
-    )
+    ρ_sfc = surface_density(param_set, inputs, T_sfc_new, q_vap_sfc_new)
 
     # 4. Compute gustiness and ΔU
     current_ΔU = windspeed(param_set, ζ, u_star, inputs, scheme)
@@ -756,7 +781,7 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 6. Evaluate residual (RSL-corrected theoretical Ri_b)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     Rib_theory = bulk_richardson_number(
         uf_params,
         inputs.rsl_model,
@@ -1248,17 +1273,7 @@ function solve_monin_obukhov(
     )
 
     # Update ρ_sfc based on final state
-    ρ_sfc_val = surface_density(
-        param_set,
-        inputs.T_int,
-        inputs.ρ_int,
-        T_sfc_val,
-        inputs.Δz,
-        inputs.q_tot_int,
-        inputs.q_liq_int,
-        inputs.q_ice_int,
-        q_vap_sfc_val,
-    )
+    ρ_sfc_val = surface_density(param_set, inputs, T_sfc_val, q_vap_sfc_val)
 
     # Consistent gustiness/fluxes
     b_flux = buoyancy_flux(param_set, ζ_final, u_star_curr, inputs)
@@ -1266,7 +1281,7 @@ function solve_monin_obukhov(
     # Use input coefficients if available, otherwise use MOST-derived ones (with RSL)
     # Exchange coefficients at the capped stability parameter (the returned ζ_final
     # and L_MO are the uncapped values, consistent with the computed fluxes)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ΔU = windspeed(inputs, param_set, b_flux)
     ΔU_safe = max(ΔU, eps(FT))
     ζ_capped = capped_stability(inputs, ζ_final)
@@ -1299,7 +1314,7 @@ function solve_monin_obukhov(
         ρτxz, ρτyz,
         u_star_curr, ζ_final, Cd, g_h,
         T_sfc_val, q_vap_sfc_val,
-        L_MO, L_eff,
+        L_MO, L_eff, ζ_capped,
         converged,
     )
 end

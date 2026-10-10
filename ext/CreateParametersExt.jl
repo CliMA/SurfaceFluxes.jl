@@ -124,6 +124,13 @@ Construct `RaupachRoughnessParams` from a TOML parameter dictionary.
 function RaupachRoughnessParams(toml_dict::CP.ParamDict{FT}) where {FT}
     name_map = (;
         :stanton_number => :stanton_number,
+        :raupach_element_drag_coefficient => :C_R,
+        :raupach_substrate_drag_coefficient => :C_S,
+        :raupach_displacement_coefficient => :c_d1,
+        :raupach_frontal_area_ratio => :frontal_area_ratio,
+        :raupach_minimum_frontal_area_index => :λ_min,
+        :raupach_max_ustar_to_canopy_wind_ratio => :ustar_Uh_max,
+        :raupach_roughness_sublayer_depth_ratio => :c_w,
     )
 
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
@@ -168,8 +175,6 @@ The following TOML keys are read from the "SurfaceFluxes" section:
 - `coefficient_a_h_businger` → `a_h`
 - `coefficient_b_m_businger` → `b_m`
 - `coefficient_b_h_businger` → `b_h`
-- `most_stability_parameter_businger` → `ζ_a`
-- `most_stability_exponent_businger` → `γ`
 
 See Businger et al. (1971) and Nishizawa & Kitamura (2018).
 """
@@ -180,8 +185,6 @@ function BusingerParams(toml_dict::CP.ParamDict{FT}) where {FT}
         :coefficient_a_h_businger => :a_h,
         :coefficient_b_m_businger => :b_m,
         :coefficient_b_h_businger => :b_h,
-        :most_stability_parameter_businger => :ζ_a,
-        :most_stability_exponent_businger => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     return BusingerParams{FT}(; parameters...)
@@ -256,8 +259,6 @@ The following TOML keys are read from the "SurfaceFluxes" section:
 - `coefficient_a_h_gryanik` → `a_h`
 - `coefficient_b_m_gryanik` → `b_m`
 - `coefficient_b_h_gryanik` → `b_h`
-- `most_stability_parameter_gryanik` → `ζ_a`
-- `most_stability_exponent_gryanik` → `γ`
 
 Additionally, `b_m_unstable` and `b_h_unstable` are set from the Businger parameters
 (`coefficient_b_m_businger` and `coefficient_b_h_businger`) for use in unstable branches.
@@ -271,8 +272,6 @@ function GryanikParams(toml_dict::CP.ParamDict{FT}) where {FT}
         :coefficient_a_h_gryanik => :a_h,
         :coefficient_b_m_gryanik => :b_m,
         :coefficient_b_h_gryanik => :b_h,
-        :most_stability_parameter_gryanik => :ζ_a,
-        :most_stability_exponent_gryanik => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     unstable_params = _get_businger_unstable_params(toml_dict)
@@ -319,8 +318,6 @@ The following TOML keys are read from the "SurfaceFluxes" section:
 - `coefficient_b_m_grachev` → `b_m`
 - `coefficient_b_h_grachev` → `b_h`
 - `coefficient_c_h_grachev` → `c_h`
-- `most_stability_parameter_grachev` → `ζ_a`
-- `most_stability_exponent_grachev` → `γ`
 
 Additionally, `b_m_unstable` and `b_h_unstable` are set from the Businger parameters
 (`coefficient_b_m_businger` and `coefficient_b_h_businger`) for use in unstable branches.
@@ -335,8 +332,6 @@ function GrachevParams(toml_dict::CP.ParamDict{FT}) where {FT}
         :coefficient_b_m_grachev => :b_m,
         :coefficient_b_h_grachev => :b_h,
         :coefficient_c_h_grachev => :c_h,
-        :most_stability_parameter_grachev => :ζ_a,
-        :most_stability_exponent_grachev => :γ,
     )
     parameters = CP.get_parameter_values(toml_dict, name_map, "SurfaceFluxes")
     unstable_params = _get_businger_unstable_params(toml_dict)

@@ -49,7 +49,41 @@ end
 """
     RaupachRoughnessParams <: AbstractRoughnessParams
 
-Raupach (1994) canopy roughness model.
+Raupach (1994) canopy roughness model: the momentum roughness length `z0m` and the
+zero-plane displacement height `d` as functions of the canopy height `h` and the area
+index of the canopy (see [`momentum_roughness`](@ref) and [`displacement_height`](@ref)).
+The roughness inputs are the canopy height `roughness_inputs.h` and the plant area index
+`Λ = roughness_inputs.PAI`, the single-sided area of all canopy elements (leaves, living or
+dead, stems, and branches) per unit ground area, which Raupach (1994) calls the canopy
+area index: the sum of the leaf and stem area indices, `LAI + SAI`. The field name `LAI`
+is accepted as a deprecated alias for `PAI`.
+
+Raupach (1994) writes the drag partition in terms of the frontal area index `λ`, the
+frontal area of the canopy elements facing the mean wind per unit ground area, with
+`Λ = 2λ` for isotropically oriented elements (see [`frontal_area_index`](@ref) and
+[`canopy_area_index`](@ref)).
+
+# Fields
+- `C_R`: Drag coefficient of an isolated roughness element (0.3).
+- `C_S`: Drag coefficient of the substrate at height `h` (0.003).
+- `c_d1`: Constant of the displacement height expression (7.5).
+- `stanton_number`: Ratio `z0s / z0m` of the scalar to the momentum roughness length;
+  `exp(-kB⁻¹)` for an excess resistance `kB⁻¹ = ln(z0m / z0s)` (0.1, so that
+  `kB⁻¹ ≈ 2.3`).
+- `frontal_area_ratio`: Frontal area index per unit plant area index,
+  `λ = frontal_area_ratio * Λ`; 0.5 for isotropically oriented elements (Raupach 1994).
+  It enters the drag partition (Eq. 7) only; the displacement height (Eq. 8) is an
+  empirical fit in `Λ`.
+- `λ_min`: Floor on the frontal area index (0, so that `PAI` is used as given, following
+  Raupach 1994). A positive floor stands in for stems and branches when the input counts
+  leaves only, or vanishes for a canopy of nonzero height, so that such a canopy stays
+  aerodynamically rough; with a plant area index that includes the stem area, it is
+  unnecessary.
+- `ustar_Uh_max`: Sheltering limit of `u★ / U(h)` (0.3, Raupach 1994, Eq. 7).
+- `c_w`: Ratio `(z_w - d) / (h - d)` of the heights of the roughness-sublayer top `z_w`
+  and the canopy top above the displacement height (2, Raupach 1994). It sets the
+  roughness-sublayer influence function at the canopy top, `Ψ_h = ln c_w - 1 + 1 / c_w`
+  (Eq. 5), which is 0.193 for `c_w = 2`.
 
 # References
 - Raupach, M. R. (1994). Simplified expressions for vegetation roughness length and zero-plane displacement 
@@ -58,15 +92,24 @@ Raupach (1994) canopy roughness model.
     [DOI: 10.1007/BF00709229](https://doi.org/10.1007/BF00709229)
 
 The default values specified here are used when constructing the struct manually. When loading
-via `ClimaParams`, `stanton_number` is overwritten by the parameter in the TOML file, while
-other parameters (`C_R`, `C_S`, `c_d1`) retain their default values.
+via `ClimaParams`, all fields are read from the TOML file: `stanton_number` and the
+`raupach_*` parameters.
 """
 Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     C_R::FT = 0.3
     C_S::FT = 0.003
     c_d1::FT = 7.5
     stanton_number::FT = 0.1
+    frontal_area_ratio::FT = 0.5
+    λ_min::FT = 0.0
+    ustar_Uh_max::FT = 0.3
+    c_w::FT = 2.0
 end
+
+# Positional construction, which the keyword constructor calls, promotes mixed or integer
+# arguments to a common floating-point type
+RaupachRoughnessParams(args::Vararg{Real, 8}) =
+    RaupachRoughnessParams{float(promote_type(map(typeof, args)...))}(args...)
 
 """
     charnock_parameter(mag_u_10, α_low, α_high, u_low, u_high)
@@ -93,14 +136,14 @@ upper bounds based on COARE 3.0 (Fairall et al. 2003).
     )
 end
 
-# Accessors
+# Accessors, in the floating-point type of the parameter set (see `float_parameter`)
 @inline function momentum_roughness(
     spec::ConstantRoughnessParams,
     u★,
     sfc_param_set,
     roughness_inputs,
 )
-    return spec.z0m
+    return float_parameter(eltype(sfc_param_set), spec.z0m)
 end
 
 @inline function scalar_roughness(
@@ -109,7 +152,7 @@ end
     sfc_param_set,
     roughness_inputs,
 )
-    return spec.z0s
+    return float_parameter(eltype(sfc_param_set), spec.z0s)
 end
 
 @inline function momentum_and_scalar_roughness(
@@ -118,7 +161,10 @@ end
     sfc_param_set,
     roughness_inputs,
 )
-    return (spec.z0m, spec.z0s)
+    return (
+        momentum_roughness(spec, u★, sfc_param_set, roughness_inputs),
+        scalar_roughness(spec, u★, sfc_param_set, roughness_inputs),
+    )
 end
 
 """
@@ -165,15 +211,21 @@ lower and upper bounds defined in `spec`.
 )
     FT = eltype(sfc_param_set)
     grav = SFP.grav(sfc_param_set)
-    kinematic_visc = spec.kinematic_visc
+    kinematic_visc = float_parameter(FT, spec.kinematic_visc)
 
     # Recover 10-m wind speed using neutral profile with a proxy roughness length (to avoid 
     # circular dependency)
-    z0_proxy = spec.z0m_default
+    z0_proxy = float_parameter(FT, spec.z0m_default)
     κ = SFP.von_karman_const(sfc_param_set)
     mag_u_10 = (u★ / κ) * log(FT(10) / z0_proxy)
 
-    α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high, spec.u_low, spec.u_high)
+    α = charnock_parameter(
+        mag_u_10,
+        float_parameter(FT, spec.α_low),
+        float_parameter(FT, spec.α_high),
+        float_parameter(FT, spec.u_low),
+        float_parameter(FT, spec.u_high),
+    )
 
     # Smooth flow limit (Smith 1988)
     u★_safe = max(u★, eps(FT))
@@ -229,7 +281,7 @@ end
 )
     FT = eltype(sfc_param_set)
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    kinematic_visc = spec.kinematic_visc
+    kinematic_visc = float_parameter(FT, spec.kinematic_visc)
     u★_safe = max(u★, eps(FT))
     Re_star = z0m * u★_safe / kinematic_visc
     z0s = min(FT(1.1e-4), FT(5.5e-5) * Re_star^FT(-0.6))
@@ -237,27 +289,140 @@ end
 end
 
 
+# The plant area index of the roughness inputs, from the field `PAI` or from its
+# deprecated alias `LAI`. `hasproperty` on a NamedTuple resolves at compile time, so the
+# alias costs nothing in kernels.
+@inline _plant_area_index(roughness_inputs) =
+    hasproperty(roughness_inputs, :PAI) ? roughness_inputs.PAI : roughness_inputs.LAI
+
+"""
+    frontal_area_index(spec::RaupachRoughnessParams, plant_area_index)
+
+Frontal area index `λ = max(frontal_area_ratio * plant_area_index, λ_min)` [m^2/m^2] of
+the canopy, which sets the drag partition of the Raupach (1994) roughness model (Eq. 7).
+"""
+@inline function frontal_area_index(spec::RaupachRoughnessParams, plant_area_index)
+    # Integer plant area indices are converted, so that the coefficients take a
+    # floating-point type
+    PAI = float(plant_area_index)
+    FT = typeof(PAI)
+    return max(
+        float_parameter(FT, spec.frontal_area_ratio) * PAI,
+        float_parameter(FT, spec.λ_min),
+    )
+end
+
+"""
+    canopy_area_index(spec::RaupachRoughnessParams, plant_area_index)
+
+Canopy area index `Λ` [m^2/m^2] of the Raupach (1994) displacement height (Eq. 8): the
+plant area index, raised to `λ_min / frontal_area_ratio` where the floor on the
+[`frontal_area_index`](@ref) is active, so that both indices describe the same canopy.
+"""
+@inline function canopy_area_index(spec::RaupachRoughnessParams, plant_area_index)
+    λ = frontal_area_index(spec, plant_area_index)
+    return λ / float_parameter(typeof(λ), spec.frontal_area_ratio)
+end
+
+"""
+    raupach_displacement_fraction(spec::RaupachRoughnessParams, plant_area_index)
+
+Zero-plane displacement height as a fraction of the canopy height for a plant area index
+(Raupach 1994, Eq. 8), with the [`canopy_area_index`](@ref) `Λ`:
+```math
+d / h = 1 - \\frac{1 - \\exp(-\\sqrt{c_{d1} Λ})}{\\sqrt{c_{d1} Λ}}
+```
+The fraction tends to zero as `Λ → 0`.
+"""
+@inline function raupach_displacement_fraction(
+    spec::RaupachRoughnessParams,
+    plant_area_index,
+)
+    Λ = canopy_area_index(spec, plant_area_index)
+    FT = typeof(Λ)
+    c_d1 = float_parameter(FT, spec.c_d1)
+    # The floor keeps the fraction finite at Λ = 0, and expm1 keeps it accurate for
+    # small Λ
+    x = sqrt(max(c_d1 * Λ, eps(FT)))
+    return 1 + expm1(-x) / x
+end
+
+"""
+    raupach_roughness_fraction(spec::RaupachRoughnessParams, κ, plant_area_index)
+
+Momentum roughness length as a fraction of the canopy height for a plant area index and
+von Kármán constant `κ` (Raupach 1994, Eqs. 4, 5, 7, and 8):
+```math
+z_{0m} / h = (1 - d / h) \\exp(-κ U_h / u_* - Ψ_h), \\quad
+u_* / U_h = \\min(\\sqrt{C_S + C_R λ}, (u_* / U_h)_{max}),
+```
+with the [`frontal_area_index`](@ref) `λ`, `d / h` from
+[`raupach_displacement_fraction`](@ref), and the roughness-sublayer influence function
+`Ψ_h = ln c_w - 1 + 1 / c_w`, the departure of the wind profile immediately above the
+canopy from the logarithmic law. The cap on `u_* / U_h` is the sheltering limit, beyond
+which `z0m / h` decreases with `λ` (for `λ > 0.29` with the default coefficients).
+
+# Arguments
+- `spec`: Coefficients, see [`RaupachRoughnessParams`](@ref).
+- `κ`: Von Kármán constant [-].
+- `plant_area_index`: Plant area index, the sum of the leaf and stem area indices
+  [m^2/m^2].
+"""
+@inline function raupach_roughness_fraction(
+    spec::RaupachRoughnessParams,
+    κ,
+    plant_area_index,
+)
+    λ = frontal_area_index(spec, plant_area_index)
+    FT = typeof(λ)
+    C_S = float_parameter(FT, spec.C_S)
+    C_R = float_parameter(FT, spec.C_R)
+    ustar_Uh_max = float_parameter(FT, spec.ustar_Uh_max)
+    c_w = float_parameter(FT, spec.c_w)
+    Ψ_h = log(c_w) - 1 + 1 / c_w
+    ustar_over_Uh = min(sqrt(C_S + C_R * λ), ustar_Uh_max)
+    return (1 - raupach_displacement_fraction(spec, plant_area_index)) *
+           exp(-κ / ustar_over_Uh - Ψ_h)
+end
+
+"""
+    displacement_height(spec::RaupachRoughnessParams, roughness_inputs)
+
+Zero-plane displacement height [m] of the canopy, `h` times
+[`raupach_displacement_fraction`](@ref) at the plant area index `roughness_inputs.PAI`.
+Inside [`surface_fluxes`](@ref), the displacement height is the input `d`, which sets the
+effective reference height `Δz - d`; callers compute it here from the same canopy inputs
+as the roughness length.
+"""
+@inline function displacement_height(spec::RaupachRoughnessParams, roughness_inputs)
+    return roughness_inputs.h *
+           raupach_displacement_fraction(spec, _plant_area_index(roughness_inputs))
+end
+
 """
     momentum_roughness(spec::RaupachRoughnessParams, u★, sfc_param_set, roughness_inputs)
 
-Calculate momentum roughness length using the Raupach (1994) canopy roughness model.
+Momentum roughness length [m] of the Raupach (1994) canopy roughness model, `h` times
+[`raupach_roughness_fraction`](@ref) at the plant area index `roughness_inputs.PAI`, and
+at least the fixed roughness length `z0m_fixed` of the parameter set (which also covers a
+vanishing canopy height).
 
 # Formulation
-This model estimates the aerodynamic roughness length `z0m` based on the geometry of the
-roughness elements (canopy). It accounts for the division of surface drag between the
-substrate (soil) and the roughness elements (plants).
-
-Key features:
-- **Displacement height (`d`)**: The height at which the mean drag appears to act.
-- **Roughness density (`λ`)**: Characterized by the Frontal Area Index (FAI), approximated here as `LAI / 2`.
-- **Wind attenuation**: Estimates `u★ / U(h)` (friction velocity ratio at canopy top) as
-  `min((C_S + C_R λ)^(1/2), 0.3)` (Eq. 8); the cap is the sheltering limit, beyond
-  which `z0m / h` decreases with `λ` (for `λ > 0.29`, i.e., `LAI > 0.58`).
+The model partitions the surface drag between the substrate (soil) and the roughness
+elements (plants), which gives the friction velocity ratio at the canopy top
+`u★ / U(h) = min((C_S + C_R λ)^(1/2), (u★ / U(h))_max)` for the frontal area index `λ`
+(Eq. 7); the cap is the sheltering limit, beyond which `z0m / h` decreases with `λ` (for
+`λ > 0.29`, i.e., `PAI > 0.58` with `frontal_area_ratio = 0.5`). The roughness length
+follows from the wind profile at the canopy top with the roughness-sublayer influence
+function `Ψ_h` (Eq. 4), set by the roughness-sublayer depth ratio `c_w` (Eq. 5).
 
 # Dependencies
-- `roughness_inputs.LAI`: Leaf Area Index [m^2/m^2]. Used to approximate frontal area index `λ`.
+- `roughness_inputs.PAI`: Plant area index `Λ = LAI + SAI` (leaves plus stems) [m^2/m^2],
+  from which the frontal area index is `λ = max(frontal_area_ratio * Λ, λ_min)`. `Λ`
+  enters the displacement height (Eq. 8) directly and `λ` the drag partition (Eq. 7).
 - `roughness_inputs.h`: Canopy height [m].
-- `spec.C_R`, `spec.C_S`, `spec.c_d1`: Empirical model coefficients (defaults: 0.3, 0.003, 7.5).
+- `spec`: Coefficients, see [`RaupachRoughnessParams`](@ref).
+- `z0m_fixed` and `von_karman_const` from `sfc_param_set`.
 
 # References
 - Raupach, M. R. (1994). Simplified expressions for vegetation roughness length and zero-plane 
@@ -271,41 +436,10 @@ Key features:
     sfc_param_set,
     roughness_inputs,
 )
-    FT = eltype(sfc_param_set)
-    k = SFP.von_karman_const(sfc_param_set)
-
-    LAI = roughness_inputs.LAI
-    h = roughness_inputs.h
-
-    # Roughness density lambda (frontal area index) approximated as LAI / 2
-    λ = LAI / FT(2)
-
-    C_R = spec.C_R
-    C_S = spec.C_S
-    c_d1 = spec.c_d1
-
-    # Avoid division by zero if LAI is extremely small
-    # Small λ limit: Use fixed roughness
-    z0m_small = SFP.z0m_fixed(sfc_param_set)
-
-    # Large λ: Use Raupach model
-    # Avoid div by zero by clamping λ
-    λ_safe = max(λ, eps(FT))
-
-    # d/h (Eq 15 in Raupach 1994)
-    sqrt_c_lambda = sqrt(c_d1 * λ_safe)
-    d_over_h = FT(1) - (FT(1) - exp(-sqrt_c_lambda)) / sqrt_c_lambda
-
-    # u_star / U(h) (Eq 8 in Raupach 1994, with (u_star / U(h))_max = 0.3)
-    ustar_over_Uh = min(sqrt(C_S + C_R * λ), FT(0.3))
-    Uh_over_ustar = FT(1) / ustar_over_Uh
-
-    # Psi_h (roughness sublayer influence function), approximated by fixed value 0.193
-    Ψ_h = FT(0.193)
-
-    z0m_large = h * (FT(1) - d_over_h) * exp(-k * Uh_over_ustar - Ψ_h)
-
-    return ifelse(λ <= eps(FT), z0m_small, z0m_large)
+    κ = SFP.von_karman_const(sfc_param_set)
+    PAI = _plant_area_index(roughness_inputs)
+    z0m = roughness_inputs.h * raupach_roughness_fraction(spec, κ, PAI)
+    return max(z0m, SFP.z0m_fixed(sfc_param_set))
 end
 
 """
@@ -330,7 +464,7 @@ where ``St`` is `spec.stanton_number`.
     roughness_inputs,
 )
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    return z0m * spec.stanton_number
+    return z0m * float_parameter(eltype(sfc_param_set), spec.stanton_number)
 end
 
 @inline function momentum_and_scalar_roughness(
@@ -340,7 +474,7 @@ end
     roughness_inputs,
 )
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    return (z0m, z0m * spec.stanton_number)
+    return (z0m, z0m * float_parameter(eltype(sfc_param_set), spec.stanton_number))
 end
 
 """

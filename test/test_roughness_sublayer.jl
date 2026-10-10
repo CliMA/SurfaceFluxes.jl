@@ -244,9 +244,11 @@ models(zR) = (
                     nothing, nothing)
             @test SF.compute_ustar(param_set, r.ζ, 3.0, inputs, sch, 0.0) ≈ r.ustar rtol =
                 1e-3
-            # θ* and q* from the similarity coefficients vs. from the fluxes
-            ρ_sfc =
-                SF.surface_density(param_set, 290.0, 1.2, T_sfc, Δz, 0.008, 0.0, 0.0, 0.01)
+            # θ* and q* from the similarity coefficients vs. from the fluxes; the surface
+            # density is extrapolated to the displacement height
+            ρ_sfc = SF.surface_density(
+                param_set, 290.0, 1.2, T_sfc, Δz - d, 0.008, 0.0, 0.0, 0.01,
+            )
             cp_m = TD.cp_m(thermo_params, 0.008, 0.0, 0.0)
             θ_star = SF.compute_theta_star(param_set, r.ζ, 0.3, inputs, sch)
             q_star = SF.compute_q_star(param_set, r.ζ, 0.3, inputs, sch)

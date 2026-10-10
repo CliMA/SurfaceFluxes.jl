@@ -172,3 +172,33 @@ param_set = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
         @test isfinite(result.ustar)
     end
 end
+
+@testset "Prescribed values in Float64 keep a Float32 solve in Float32" begin
+    T_sfc, T_int = FT(300), FT(299)
+    q_sfc, q_int = FT(0.015), FT(0.012)
+    u_int, u_sfc = (FT(10), FT(0)), (FT(0), FT(0))
+    config = SF.SurfaceFluxConfig(
+        SF.ConstantRoughnessParams(FT(0.01), FT(0.001)),
+        SF.ConstantGustinessSpec(FT(1)),
+    )
+    solve(specs) = SF.surface_fluxes(
+        param_set, T_int, q_int, FT(0), FT(0), FT(1.2), T_sfc, q_sfc, FT(0), FT(10),
+        FT(0), u_int, u_sfc, nothing, config, SF.PointValueScheme(), nothing, specs,
+    )
+    for specs in (
+        SF.FluxSpecs(shf = 10.0, lhf = 20.0, ustar = 0.3),
+        SF.FluxSpecs(shf = 10.0, lhf = 20.0, Cd = 1e-3),
+        SF.FluxSpecs(Cd = 1e-3, Ch = 1e-3),
+        SF.FluxSpecs(ustar = 0.3),
+        SF.FluxSpecs(shf = 10, lhf = 20, ustar = 1),
+    )
+        sc = solve(specs)
+        @test sc isa SF.SurfaceFluxConditions{FT}
+        @test isfinite(sc.shf)
+    end
+    # The untyped constructor labels the container with the type of its values
+    @test SF.FluxSpecs(Cd = 1.0f-3) isa SF.FluxSpecs{Float32}
+    @test SF.FluxSpecs(shf = 10.0, Cd = 1.0f-3) isa SF.FluxSpecs{Float64}
+    @test SF.FluxSpecs() isa SF.FluxSpecs{Float64}
+    @test SF.FluxSpecs(ustar = 1) isa SF.FluxSpecs{Float64}
+end

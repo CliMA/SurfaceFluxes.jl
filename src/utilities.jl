@@ -30,31 +30,54 @@ Compute the geopotential at the interior (atmospheric) reference level.
 - `param_set`: Parameter set containing gravitational constant.
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
-Returns `Φ_sfc + g * Δz` [m²/s²].
+Returns `Φ_sfc + g * Δz` [m²/s²], with `Δz` measured from the surface (see
+[`reference_above_surface`](@ref)).
 """
 @inline function interior_geopotential(param_set::APS, inputs)
+    inputs = reference_above_surface(param_set, inputs)
     return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz
+end
+
+"""
+    surface_geopotential(param_set, inputs)
+
+Compute the geopotential of the surface state, `Φ_sfc + g * d` [m²/s²]. The surface
+temperature and humidity apply at the apparent sink of the Monin-Obukhov profiles, which
+lies at the displacement height `d` above the surface (the roughness length `z0h` above
+it is neglected). Over a canopy, this is the level of the leaves that exchange heat with
+the air, so the dry static energy difference to the reference level,
+`cp (T_int - T_sfc) + g (Δz - d)`, does not include the air column below the canopy.
+
+# Arguments
+- `param_set`: Parameter set containing gravitational constant.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline function surface_geopotential(param_set::APS, inputs)
+    return inputs.Φ_sfc + SFP.grav(param_set) * inputs.d
 end
 
 """
     surface_geopotential(inputs)
 
-Return the surface geopotential from the inputs.
-
-# Arguments
-- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
-
-Returns `inputs.Φ_sfc` [m²/s²].
+Return the geopotential of the ground, `inputs.Φ_sfc` [m²/s²]. Deprecated: the surface
+state applies at the displacement height, with the geopotential `Φ_sfc + g d` of
+[`surface_geopotential`](@ref)`(param_set, inputs)`; a surface energy balance that uses
+this form with a displaced canopy is inconsistent with the sensible heat flux by
+`g d / cp`. Kept for callers of the one-argument form; to be removed in the next
+breaking release.
 """
 @inline surface_geopotential(inputs) = inputs.Φ_sfc
 
 """
     surface_density(param_set, T_int, ρ_int, T_sfc, Δz, q_tot_int=0, q_liq_int=0, q_ice_int=0, q_vap_sfc=nothing)
+    surface_density(param_set, inputs, T_sfc, q_vap_sfc)
 
 Estimates the surface air density assuming hydrostatic balance between the interior and surface.
 It effectively extrapolates the interior pressure to the surface using the hydrostatic 
 equation with an average virtual temperature, and then computes the surface density using the 
-ideal gas law.
+ideal gas law. The form with the inputs container extrapolates over the effective height
+`Δz - d`, from the reference level to the displacement height where the surface state
+applies (see [`surface_geopotential`](@ref)).
 
 # Arguments
 - `param_set`: AbstractSurfaceFluxesParameters.
@@ -105,12 +128,33 @@ Returns `ρ_sfc` [kg/m^3].
     return ρ_sfc
 end
 
+@inline function surface_density(param_set::APS, inputs, T_sfc, q_vap_sfc)
+    return surface_density(
+        param_set,
+        inputs.T_int,
+        inputs.ρ_int,
+        T_sfc,
+        effective_height(param_set, inputs),
+        inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
+        q_vap_sfc,
+    )
+end
+
 """
     effective_height(inputs)
+    effective_height(param_set, inputs)
 
-Compute the effective aerodynamic height `z_eff = Δz - d`.
+Compute the effective aerodynamic height `z_eff = Δz - d`, the height of the reference
+level above the displacement height, which the Monin-Obukhov profiles span and over which
+the surface state at `d` (see [`surface_geopotential`](@ref)) is connected to the interior
+state. The one-argument form expects inputs under [`ReferenceAboveSurface`](@ref); the
+two-argument form converts inputs under [`ReferenceAboveApparentSink`](@ref) first with
+[`reference_above_surface`](@ref).
 
 # Arguments
+- `param_set`: Parameter set (required when `inputs` may use [`ReferenceAboveApparentSink`](@ref)).
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
 Returns `Δz - d` [m].
@@ -118,6 +162,106 @@ Returns `Δz - d` [m].
 @inline function effective_height(inputs)
     FT = typeof(inputs.Δz)
     return max(inputs.Δz - inputs.d, eps(FT))
+end
+
+@inline effective_height(param_set::APS, inputs) =
+    effective_height(reference_above_surface(param_set, inputs))
+
+"""
+    reference_above_surface(param_set, inputs)
+
+Return the inputs with the reference height `Δz` measured from the surface. Under
+[`ReferenceAboveSurface`](@ref), the inputs are returned as they are. Under
+[`ReferenceAboveApparentSink`](@ref), `Δz` is measured from the apparent sink for momentum
+and becomes `Δz + d + z0m`, with the roughness length `z0m` of a roughness model that is
+independent of the friction velocity.
+
+# Arguments
+- `param_set`: Parameter set.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline reference_above_surface(param_set::APS, inputs) = reference_above_surface(
+    get(inputs, :reference_level, ReferenceAboveSurface()),
+    param_set,
+    inputs,
+)
+@inline reference_above_surface(::ReferenceAboveSurface, param_set::APS, inputs) = inputs
+@inline function reference_above_surface(
+    ::ReferenceAboveApparentSink,
+    param_set::APS,
+    inputs,
+)
+    depends_on_ustar(inputs.roughness_model) && throw(
+        ArgumentError(
+            "ReferenceAboveApparentSink requires a roughness model independent of the friction velocity",
+        ),
+    )
+    # The roughness model is independent of u★, so any value of u★ serves
+    z0m = momentum_roughness(
+        inputs.roughness_model,
+        zero(inputs.Δz),
+        param_set,
+        inputs.roughness_inputs,
+    )
+    return merge(
+        inputs,
+        (; Δz = inputs.Δz + inputs.d + z0m, reference_level = ReferenceAboveSurface()),
+    )
+end
+
+"""
+    interior_vapor_specific_humidity(inputs)
+
+Return the vapor specific humidity of the interior air [kg/kg], the total specific
+humidity `q_tot_int` less the condensate `q_liq_int + q_ice_int`.
+
+# Arguments
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline interior_vapor_specific_humidity(inputs) =
+    inputs.q_tot_int - inputs.q_liq_int - inputs.q_ice_int
+
+"""
+    reference_height_valid(inputs, z0m, z0h = z0m)
+
+Whether the reference level lies above both roughness lengths, `Δz - d > max(z0m, z0h)`,
+so that the Monin-Obukhov profiles of momentum and of scalars between the surface and
+the reference level are defined. The scalar roughness length matters when it exceeds the
+momentum one, as the COARE 3.0 model gives at low friction velocities.
+`Δz` is the height above the surface: inputs under [`ReferenceAboveApparentSink`](@ref)
+are converted first with [`reference_above_surface`](@ref), as [`surface_fluxes`](@ref)
+does. [`surface_fluxes`](@ref) returns `NaN` fluxes with `converged = false` for inputs
+that fail this test, since the solve cannot throw inside a GPU kernel;
+[`check_reference_height`](@ref) raises the corresponding error on the host.
+
+# Arguments
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Scalar roughness length [m]; `z0m` by default.
+"""
+@inline reference_height_valid(inputs, z0m, z0h = z0m) =
+    inputs.Δz - inputs.d > max(z0m, z0h)
+
+"""
+    check_reference_height(Δz, d, z0m, z0h = z0m)
+
+Throw an `ArgumentError` unless the reference level lies above both roughness lengths,
+`Δz - d > max(z0m, z0h)` (see [`reference_height_valid`](@ref)). For a host-side check
+of a model's configuration before fluxes are computed in kernels.
+
+# Arguments
+- `Δz`: Height of the reference level above the surface [m].
+- `d`: Displacement height [m].
+- `z0m`: Momentum roughness length [m].
+- `z0h`: Scalar roughness length [m]; `z0m` by default.
+"""
+function check_reference_height(Δz, d, z0m, z0h = z0m)
+    Δz - d > max(z0m, z0h) || throw(
+        ArgumentError(
+            "The reference height Δz = $Δz m must exceed the displacement height d = $d m plus the larger roughness length max(z0m, z0h) = $(max(z0m, z0h)) m",
+        ),
+    )
+    return nothing
 end
 
 # ============================================================================
