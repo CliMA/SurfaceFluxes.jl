@@ -101,10 +101,15 @@ Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     c_d1::FT = 7.5
     stanton_number::FT = 0.1
     frontal_area_ratio::FT = 0.5
-    λ_min::FT = 0
+    λ_min::FT = 0.0
     ustar_Uh_max::FT = 0.3
-    c_w::FT = 2
+    c_w::FT = 2.0
 end
+
+# Positional construction, which the keyword constructor calls, promotes mixed or integer
+# arguments to a common floating-point type
+RaupachRoughnessParams(args::Vararg{Real, 8}) =
+    RaupachRoughnessParams{float(promote_type(map(typeof, args)...))}(args...)
 
 """
     charnock_parameter(mag_u_10, α_low, α_high, u_low, u_high)
@@ -206,15 +211,21 @@ lower and upper bounds defined in `spec`.
 )
     FT = eltype(sfc_param_set)
     grav = SFP.grav(sfc_param_set)
-    kinematic_visc = spec.kinematic_visc
+    kinematic_visc = float_parameter(FT, spec.kinematic_visc)
 
     # Recover 10-m wind speed using neutral profile with a proxy roughness length (to avoid 
     # circular dependency)
-    z0_proxy = spec.z0m_default
+    z0_proxy = float_parameter(FT, spec.z0m_default)
     κ = SFP.von_karman_const(sfc_param_set)
     mag_u_10 = (u★ / κ) * log(FT(10) / z0_proxy)
 
-    α = charnock_parameter(mag_u_10, spec.α_low, spec.α_high, spec.u_low, spec.u_high)
+    α = charnock_parameter(
+        mag_u_10,
+        float_parameter(FT, spec.α_low),
+        float_parameter(FT, spec.α_high),
+        float_parameter(FT, spec.u_low),
+        float_parameter(FT, spec.u_high),
+    )
 
     # Smooth flow limit (Smith 1988)
     u★_safe = max(u★, eps(FT))
@@ -270,7 +281,7 @@ end
 )
     FT = eltype(sfc_param_set)
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    kinematic_visc = spec.kinematic_visc
+    kinematic_visc = float_parameter(FT, spec.kinematic_visc)
     u★_safe = max(u★, eps(FT))
     Re_star = z0m * u★_safe / kinematic_visc
     z0s = min(FT(1.1e-4), FT(5.5e-5) * Re_star^FT(-0.6))
@@ -453,7 +464,7 @@ where ``St`` is `spec.stanton_number`.
     roughness_inputs,
 )
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    return z0m * spec.stanton_number
+    return z0m * float_parameter(eltype(sfc_param_set), spec.stanton_number)
 end
 
 @inline function momentum_and_scalar_roughness(
@@ -463,7 +474,7 @@ end
     roughness_inputs,
 )
     z0m = momentum_roughness(spec, u★, sfc_param_set, roughness_inputs)
-    return (z0m, z0m * spec.stanton_number)
+    return (z0m, z0m * float_parameter(eltype(sfc_param_set), spec.stanton_number))
 end
 
 """

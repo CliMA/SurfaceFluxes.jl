@@ -33,7 +33,7 @@ psi_parameter_sets(::Type{FT}) where {FT <: AbstractFloat} =
 
 function ϕ_h_limit(p::UF.GryanikParams, ζ)
     Tζ = typeof(ζ)
-    return Tζ(1) + (Tζ(ζ) * Tζ(p.Pr_0) * Tζ(p.a_h)) / (1 + Tζ(p.b_h) * Tζ(ζ))
+    return Tζ(p.Pr_0) * (Tζ(1) + Tζ(p.a_h) * ζ / (1 + Tζ(p.b_h) * ζ))
 end
 
 ϕ_m_limit(p::UF.GryanikParams, ζ) =

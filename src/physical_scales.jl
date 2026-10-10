@@ -78,7 +78,7 @@ function compute_ustar(
     end
 
     ΔU = windspeed(inputs, gustiness)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
@@ -126,7 +126,7 @@ function compute_theta_star(
     c_p = TD.cp_m(thermo_params, inputs.q_tot_int, inputs.q_liq_int, inputs.q_ice_int)
     Δθ = ΔDSE / c_p
 
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,
@@ -169,7 +169,7 @@ function compute_q_star(
     Δq = q_vap_int - q_vap_sfc
 
     # Scalars use HeatTransport coefficients in MOST
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ϕ = compute_physical_scale_coeff(
         param_set,
         Δz_eff,

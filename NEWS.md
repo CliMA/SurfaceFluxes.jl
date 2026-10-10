@@ -1,3 +1,25 @@
+[v1.5.0] The unused fields `ζ_a` and `γ` of `BusingerParams`, `GryanikParams`, and
+`GrachevParams` are removed, with their accessors `UniversalFunctions.ζ_a`,
+`UniversalFunctions.γ`, `Parameters.ζ_a`, and `Parameters.γ`; the ClimaParams
+constructors no longer read `most_stability_parameter_*` and `most_stability_exponent_*`.
+No computation used them. Code that constructs these structs by keyword must drop the two
+keywords.
+
+[v1.5.0] Mixed precision and differentiation: prescribed fluxes and coefficients
+(`FluxSpecs`) may be of any `Real` type, including dual numbers; the untyped constructor
+`FluxSpecs(; ...)` takes its floating-point type from the values, and
+`build_surface_flux_inputs` converts them to the floating-point type of the state, so
+Float64 specifications keep a Float32 solve in Float32. The coefficients of
+`ConstantGustinessSpec`, `FlooredDeardorffGustinessSpec`, `COARE3RoughnessParams`,
+`ConstantRoughnessParams`, and the Raupach Stanton number are likewise converted to the
+type of the parameter set (`float_parameter`). `RaupachRoughnessParams(; ...)` promotes
+mixed or integer keywords to a floating-point type. `effective_height(param_set, inputs)`,
+`interior_geopotential`, and the lower-level flux functions (`heat_conductance`,
+`compute_ustar`, `buoyancy_flux`, ...) convert inputs under `ReferenceAboveApparentSink`
+themselves. The screen and anemometer heights of `screen_level_values` are clamped to the
+roughness length from below in the temperature as in the profiles, and may be given in
+any `Real` type.
+
 [v1.5.0] The surface state applies at the displacement height: the geopotential of the
 surface temperature and humidity is `Φ_sfc + g d`
 (`surface_geopotential(param_set, inputs)`), so the dry static energy difference that

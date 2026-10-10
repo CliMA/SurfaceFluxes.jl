@@ -88,6 +88,7 @@ SurfaceFluxes.ConstantRoughnessParams
 SurfaceFluxes.COARE3RoughnessParams
 SurfaceFluxes.RaupachRoughnessParams
 SurfaceFluxes.momentum_roughness
+SurfaceFluxes.scalar_roughness
 SurfaceFluxes.displacement_height
 SurfaceFluxes.frontal_area_index
 SurfaceFluxes.canopy_area_index

@@ -19,6 +19,15 @@ import ClimaParams as CP
         @test SF.minimum_wind_speed(dd, param_set) === FT(0)
         # The floor takes the floating-point type of the parameter set
         @test SF.minimum_wind_speed(SF.ConstantGustinessSpec(2.0), param_set) === FT(2)
+        @test SF.minimum_wind_speed(SF.FlooredDeardorffGustinessSpec(1.0), param_set) ===
+              FT(1)
+        @test SF.gustiness_value(SF.ConstantGustinessSpec(2.0), param_set, FT(0)) === FT(2)
+        @test SF.gustiness_value(
+            SF.FlooredDeardorffGustinessSpec(1.0),
+            param_set,
+            FT(0),
+        ) ===
+              FT(1)
         @test SF.without_floor(c) === SF.ConstantGustinessSpec(FT(0))
         @test SF.without_floor(f) === SF.FlooredDeardorffGustinessSpec(FT(0))
         @test SF.without_floor(dd) === dd

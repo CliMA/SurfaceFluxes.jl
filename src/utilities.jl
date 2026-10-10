@@ -30,9 +30,11 @@ Compute the geopotential at the interior (atmospheric) reference level.
 - `param_set`: Parameter set containing gravitational constant.
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
-Returns `Φ_sfc + g * Δz` [m²/s²].
+Returns `Φ_sfc + g * Δz` [m²/s²], with `Δz` measured from the surface (see
+[`reference_above_surface`](@ref)).
 """
 @inline function interior_geopotential(param_set::APS, inputs)
+    inputs = reference_above_surface(param_set, inputs)
     return inputs.Φ_sfc + SFP.grav(param_set) * inputs.Δz
 end
 
@@ -132,7 +134,7 @@ end
         inputs.T_int,
         inputs.ρ_int,
         T_sfc,
-        effective_height(inputs),
+        effective_height(param_set, inputs),
         inputs.q_tot_int,
         inputs.q_liq_int,
         inputs.q_ice_int,
@@ -142,14 +144,17 @@ end
 
 """
     effective_height(inputs)
+    effective_height(param_set, inputs)
 
 Compute the effective aerodynamic height `z_eff = Δz - d`, the height of the reference
 level above the displacement height, which the Monin-Obukhov profiles span and over which
 the surface state at `d` (see [`surface_geopotential`](@ref)) is connected to the interior
-state. The inputs follow the [`ReferenceAboveSurface`](@ref) convention (see
-[`reference_above_surface`](@ref)).
+state. The one-argument form expects inputs under [`ReferenceAboveSurface`](@ref); the
+two-argument form converts inputs under [`ReferenceAboveApparentSink`](@ref) first with
+[`reference_above_surface`](@ref).
 
 # Arguments
+- `param_set`: Parameter set (required when `inputs` may use [`ReferenceAboveApparentSink`](@ref)).
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 
 Returns `Δz - d` [m].
@@ -159,6 +164,9 @@ Returns `Δz - d` [m].
     return max(inputs.Δz - inputs.d, eps(FT))
 end
 
+@inline effective_height(param_set::APS, inputs) =
+    effective_height(reference_above_surface(param_set, inputs))
+
 """
     reference_above_surface(param_set, inputs)
 
@@ -166,8 +174,7 @@ Return the inputs with the reference height `Δz` measured from the surface. Und
 [`ReferenceAboveSurface`](@ref), the inputs are returned as they are. Under
 [`ReferenceAboveApparentSink`](@ref), `Δz` is measured from the apparent sink for momentum
 and becomes `Δz + d + z0m`, with the roughness length `z0m` of a roughness model that is
-independent of the friction velocity; the solver and [`screen_level_values`](@ref) apply
-the conversion before reading `Δz`.
+independent of the friction velocity.
 
 # Arguments
 - `param_set`: Parameter set.

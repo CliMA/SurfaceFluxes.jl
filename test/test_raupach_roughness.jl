@@ -19,7 +19,12 @@ import ClimaParams as CP
     Ψ_h = log(spec.c_w) - 1 + 1 / spec.c_w
 
     @testset "ClimaParams defaults" begin
-        # The TOML defaults are those of the struct
+        # The TOML defaults are those of the struct, and the untyped keyword constructor
+        # builds Float64 parameters (including when integer keywords are passed)
+        @test SF.RaupachRoughnessParams() === spec
+        @test SF.RaupachRoughnessParams(λ_min = 0, c_w = 2) === spec
+        @test SF.RaupachRoughnessParams(0, 0, 0, 0, 0, 0, 0, 2) isa
+              SF.RaupachRoughnessParams{Float64}
         @test SF.RaupachRoughnessParams(CP.create_toml_dict(FT)) == spec
         @test Ψ_h ≈ 0.193 atol = 1e-3
     end
@@ -221,7 +226,15 @@ import ClimaParams as CP
         param_set32 = SFP.SurfaceFluxesParameters(Float32, UF.BusingerParams)
         inputs32 = (PAI = 2.0f0, h = 10.0f0)
         @test SF.momentum_roughness(spec32, 0.3f0, param_set32, inputs32) isa Float32
+        @test SF.scalar_roughness(spec32, 0.3f0, param_set32, inputs32) isa Float32
         @test SF.displacement_height(spec32, inputs32) isa Float32
+        # Float64 coefficients keep Float32 evaluations in Float32
+        spec64 = SF.RaupachRoughnessParams()
+        @test SF.momentum_roughness(spec64, 0.3f0, param_set32, inputs32) isa Float32
+        @test SF.scalar_roughness(spec64, 0.3f0, param_set32, inputs32) isa Float32
+        z0m32, z0s32 =
+            SF.momentum_and_scalar_roughness(spec64, 0.3f0, param_set32, inputs32)
+        @test z0m32 isa Float32 && z0s32 isa Float32
     end
 end
 

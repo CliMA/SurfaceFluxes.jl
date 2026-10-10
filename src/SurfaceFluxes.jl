@@ -231,8 +231,12 @@ Can operate in four modes depending on inputs:
 - `scheme`: Discretization scheme (`PointValueScheme` or `LayerAverageScheme`).
 - `solver_opts`: Options for the root solver (`maxiter`, `tol`, `rtol`, `forced_fixed_iters`).
 - `flux_specs`: Optional `FluxSpecs` to prescribe specific constraints (e.g., `ustar`, `shf`, `Cd`).
-- `update_T_sfc`: Optional callback `f(T_sfc)` to update surface temperature during iteration.
-- `update_q_vap_sfc`: Optional callback `f(q_vap)` to update surface humidity during iteration.
+- `update_T_sfc`: Optional callback
+  `update_T_sfc(ζ, param_set, thermo_params, inputs, scheme, u_star, z0m, z0h)` that
+  returns the surface temperature [K] during iteration.
+- `update_q_vap_sfc`: Optional callback
+  `update_q_vap_sfc(ζ, param_set, thermo_params, inputs, scheme, T_sfc, u_star, z0m, z0h)`
+  that returns the surface vapor specific humidity [kg/kg] during iteration.
 
 # Returns
 A [`SurfaceFluxConditions`](@ref) struct containing:
@@ -414,8 +418,8 @@ function compute_fluxes_given_coefficients(
 
     # Coefficients (caller must ensure both are provided)
     FT = eltype(param_set)
-    Cd = FT(inputs.Cd)
-    Ch = FT(inputs.Ch)
+    Cd = float_parameter(FT, inputs.Cd)
+    Ch = float_parameter(FT, inputs.Ch)
 
     # First pass: compute fluxes with zero buoyancy flux for gustiness
     b_flux_init = FT(0)
@@ -453,7 +457,7 @@ function compute_fluxes_given_coefficients(
 
     # Derived L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     return SurfaceFluxConditions(
@@ -506,7 +510,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
 
     # Compute L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     # Compute Coefficients with division-by-zero guard
@@ -595,7 +599,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
 
     # Compute L_MO and stability parameter
     L_MO = obukhov_length(param_set, ustar, b_flux)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
     # Compute roughness from ustar
@@ -777,7 +781,7 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 6. Evaluate residual (RSL-corrected theoretical Ri_b)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     Rib_theory = bulk_richardson_number(
         uf_params,
         inputs.rsl_model,
@@ -1277,7 +1281,7 @@ function solve_monin_obukhov(
     # Use input coefficients if available, otherwise use MOST-derived ones (with RSL)
     # Exchange coefficients at the capped stability parameter (the returned ζ_final
     # and L_MO are the uncapped values, consistent with the computed fluxes)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     ΔU = windspeed(inputs, param_set, b_flux)
     ΔU_safe = max(ΔU, eps(FT))
     ζ_capped = capped_stability(inputs, ζ_final)

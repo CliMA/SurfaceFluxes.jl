@@ -9,7 +9,8 @@ Returns the gustiness velocity scale [m/s] based on the specification.
 - `buoyancy_flux`: Surface buoyancy flux [m^2/s^3], required for Deardorff gustiness.
 
 """
-@inline gustiness_value(spec::ConstantGustinessSpec, param_set, buoyancy_flux) = spec.value
+@inline gustiness_value(spec::ConstantGustinessSpec, param_set, buoyancy_flux) =
+    float_parameter(eltype(param_set), spec.value)
 
 """
     gustiness_value(::DeardorffGustinessSpec, param_set, buoyancy_flux)
@@ -40,11 +41,12 @@ eddies in unstable conditions, particularly important in low-wind regimes
   [DOI:  10.1002/qj.49712152203](https://doi.org/10.1002/qj.49712152203)
 """
 @inline function gustiness_value(::DeardorffGustinessSpec, param_set, buoyancy_flux)
+    FT = eltype(param_set)
     # Extract parameters
     β = SFP.gustiness_coeff(param_set)
     zi = SFP.gustiness_zi(param_set)
 
-    w_star = cbrt(max(buoyancy_flux * zi, 0))
+    w_star = cbrt(max(buoyancy_flux * zi, FT(0)))
     return β * w_star
 end
 
@@ -116,7 +118,7 @@ other models evaluate the buoyancy flux first (see [`depends_on_ustar`](@ref)).
     ustar,
     inputs,
     scheme = PointValueScheme(),
-) = spec.value
+) = float_parameter(eltype(param_set), spec.value)
 @inline function gustiness_value(
     spec::AbstractGustinessSpec,
     param_set,
@@ -139,7 +141,7 @@ buoyancy flux implied by the converged `ζ` and friction velocity.
 """
 @inline gustiness_value(spec::FlooredDeardorffGustinessSpec, param_set, buoyancy_flux) =
     max(
-        spec.u_min,
+        float_parameter(eltype(param_set), spec.u_min),
         gustiness_value(DeardorffGustinessSpec(), param_set, buoyancy_flux),
     )
 
@@ -163,7 +165,7 @@ lengths.
     scheme = PointValueScheme(),
 )
     return max(
-        spec.u_min,
+        float_parameter(eltype(param_set), spec.u_min),
         free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme),
     )
 end
@@ -212,7 +214,7 @@ once the surface state has converged.
     ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
     θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
     Δθ_v = θ_v_sfc - θ_v_int
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
         ustar,

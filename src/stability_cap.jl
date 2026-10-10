@@ -223,7 +223,7 @@ a prescribed friction velocity).
 @inline stability_cap_value(::MaxHeatFluxStabilityCap, param_set, inputs, scheme, z0m) =
     max_heat_flux_stability(
         param_set,
-        effective_height(inputs),
+        effective_height(param_set, inputs),
         z0m,
         scheme,
         inputs.rsl_model,

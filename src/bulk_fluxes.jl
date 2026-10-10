@@ -420,7 +420,7 @@ temperatures; the prescribed-flux modes use the linearized form of
     inputs,
 )
     κ = SFP.von_karman_const(param_set)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     return -(ustar^3 * ζ) / (κ * Δz_eff)
 end
 
@@ -492,7 +492,7 @@ Returns the bulk Richardson number.
 
     Δtheta_v = theta_v_int - theta_v_sfc
     theta_v_ref = theta_v_int
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
 
     Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
     return Rib_state

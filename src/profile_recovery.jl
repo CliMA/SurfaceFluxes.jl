@@ -84,16 +84,17 @@ profile stays within the levels the solve connected.
     scheme,
     rsl_model,
 )
-    FT = typeof(z)
+    FT = eltype(param_set)
     κ = SFP.von_karman_const(param_set)
+    z_clamped = max(min(float_parameter(FT, z), Δz_eff), z0)
     # With scale κ and zero surface value, the profile value is F̂ itself
     return compute_profile_value(
         param_set,
         L_eff,
         z0,
-        max(min(z, Δz_eff), z0),
+        z_clamped,
         κ,
-        FT(0),
+        zero(FT),
         transport,
         scheme,
         rsl_model,
@@ -127,9 +128,11 @@ the profiles reach the interior state at the reference level, and the wind reach
 effective wind speed of the solve. Under [`LayerAverageScheme`](@ref), the interior state is
 a layer average, which the point profile attains low in the layer, so point values in
 the upper part of the layer lie farther from the surface values than the interior state.
-Levels above the reference level take the values at the reference level; at or below
+Levels above the reference level take the values at the reference level. At or below
 the roughness length, the apparent sink at `d + z0` above the surface, the dry static
-energy and humidity take the surface values and the wind vanishes.
+energy and humidity take the surface values and the wind vanishes, unless a
+roughness-sublayer model is configured: its correction keeps the profiles away from the
+surface values there.
 
 # Arguments
 - `param_set`: Parameter set.
@@ -159,7 +162,7 @@ A NamedTuple `(; T, q, u)`:
     g = SFP.grav(param_set)
     cp_d = TD.Parameters.cp_d(thermo_params)
     inputs = reference_above_surface(param_set, inputs)
-    Δz_eff = effective_height(inputs)
+    Δz_eff = effective_height(param_set, inputs)
     z0m, z0h = momentum_and_scalar_roughness(
         inputs.roughness_model,
         sc.ustar,
@@ -171,8 +174,8 @@ A NamedTuple `(; T, q, u)`:
     rsl = inputs.rsl_model
 
     # Heights above the displacement height of the screen level and of the anemometer
-    z_T = z0h + z_screen
-    z_u = z0m + z_anemometer
+    z_T = z0h + float_parameter(FT, z_screen)
+    z_u = z0m + float_parameter(FT, z_anemometer)
 
     # The reference profile follows the scheme of the solve, which connects the interior
     # values (layer averages under LayerAverageScheme) to the surface; the screen and
@@ -205,7 +208,8 @@ A NamedTuple `(; T, q, u)`:
     # height of the reference and screen levels convert it back to temperature
     T_sfc = sc.T_sfc
     T_int = inputs.T_int
-    T = T_sfc + (T_int - T_sfc) * r + g / cp_d * (r * Δz_eff - min(z_T, Δz_eff))
+    z_T_clamped = max(min(z_T, Δz_eff), z0h)
+    T = T_sfc + (T_int - T_sfc) * r + g / cp_d * (r * Δz_eff - z_T_clamped)
     q_sfc = sc.q_vap_sfc
     q = q_sfc + (interior_vapor_specific_humidity(inputs) - q_sfc) * r
 

@@ -19,7 +19,7 @@ The package implements **Monin-Obukhov Similarity Theory (MOST)** to relate surf
 - **GPU Compatibility**: Type stable and designed for high-performance computing with full GPU support via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
 - **Automatic Differentiation**: Compatible with AD frameworks such as [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl).
 - **Roughness Sublayer Corrections**: Optional corrections for the enhanced turbulent mixing in the roughness sublayer above tall canopies (forests, urban canopies), with exponential ([Garratt 1980](https://doi.org/10.1002/qj.49710645011); [Physick & Garratt 1995](https://doi.org/10.1007/BF00715710)) or linear RSL factors, consistent with the stability dependence of the MOST profiles.
-- **Flexible Discretization**: Supports both **finite-difference** (point-wise) and **finite-volume** (layer-averaged) schemes.
+- **Flexible Discretization**: Supports both **finite-difference** (point-wise) and **finite-volume** (layer-averaged) schemes (the latter with the Businger and Gryanik functions).
 - **Profile Recovery**: Wind, temperature, and humidity at arbitrary heights from the computed fluxes, and screen-level diagnostics (e.g., 2 m temperature and humidity, 10 m wind).
 
 ## Installation

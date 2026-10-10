@@ -90,13 +90,16 @@ end
             @test above.T ≈ inputs.T_int rtol = 1e-8
             @test above.q ≈ inputs.q_tot_int rtol = 1e-8
             @test above.u ≈ s.u rtol = 1e-8
-            # At the roughness lengths, the apparent sinks at d + z0 above the surface,
-            # the dry static energy and humidity are those of the surface state at d
+            # At or below the roughness lengths, the apparent sinks at d + z0 above the
+            # surface, the dry static energy and humidity are those of the surface state
+            # at d and the wind vanishes
             dse(T, z) = cp_d * T + g * z
             at_z0 = SF.screen_level_values(param_set, sc, inputs, FT(0), FT(0))
             @test dse(at_z0.T, z0h + d) ≈ dse(sc.T_sfc, d)
             @test at_z0.q ≈ sc.q_vap_sfc
             @test at_z0.u == 0
+            below_z0 = SF.screen_level_values(param_set, sc, inputs, FT(-1), FT(-1))
+            @test below_z0.T ≈ at_z0.T && below_z0.q ≈ at_z0.q && below_z0.u == 0
             # Between them, the screen values lie between the surface and interior
             # values of the dry static energy and humidity
             mid = SF.screen_level_values(param_set, sc, inputs, FT(2), FT(10))
@@ -192,9 +195,14 @@ end
         sc32, inputs32 = solve(Float32, param_set32; T_sfc = 295)
         s32 = SF.screen_level_values(param_set32, sc32, inputs32, 2.0f0, 10.0f0)
         @test s32.T isa Float32 && s32.q isa Float32 && s32.u isa Float32
+        # Float64 and integer screen heights keep a Float32 solve in Float32
+        s32_f64 = SF.screen_level_values(param_set32, sc32, inputs32, 2.0, 10.0)
+        @test s32_f64 === s32
+        s32_int = SF.screen_level_values(param_set32, sc32, inputs32, 2, 10)
+        @test s32_int === s32
         screen_level_checked(param_set32, sc32, inputs32)
 
-        # Sensitivity of the screen temperature to the surface temperature propagates
+        # Sensitivity of the screen temperature to the surface temperature and screen height
         sc, inputs = solve(FT, param_set; T_sfc = 295)
         dT = ForwardDiff.derivative(FT(295)) do T_sfc
             scd = SF.SurfaceFluxConditions(
@@ -206,6 +214,10 @@ end
             SF.screen_level_values(param_set, scd, inputs, FT(2), FT(10)).T
         end
         @test 0 < dT < 1
+        du_dz = ForwardDiff.derivative(FT(10)) do z_anem
+            SF.screen_level_values(param_set, sc, inputs, FT(2), z_anem).u
+        end
+        @test du_dz > 0
     end
 end
 

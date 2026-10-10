@@ -73,6 +73,10 @@ function build_surface_flux_inputs(
     update_T_sfc,
     update_q_vap_sfc,
 )
+    # Prescribed fluxes and coefficients in the floating-point type of the state, so that
+    # Float64 specifications keep a Float32 solve in Float32; `nothing` and dual numbers
+    # pass through (see `float_parameter`)
+    FT = float(typeof(T_int))
 
     return (;
         T_int,
@@ -97,10 +101,10 @@ function build_surface_flux_inputs(
         roughness_inputs,
         update_T_sfc,
         update_q_vap_sfc,
-        shf = flux_specs.shf,
-        lhf = flux_specs.lhf,
-        ustar = flux_specs.ustar,
-        Cd = flux_specs.Cd,
-        Ch = flux_specs.Ch,
+        shf = float_parameter(FT, flux_specs.shf),
+        lhf = float_parameter(FT, flux_specs.lhf),
+        ustar = float_parameter(FT, flux_specs.ustar),
+        Cd = float_parameter(FT, flux_specs.Cd),
+        Ch = float_parameter(FT, flux_specs.Ch),
     )
 end

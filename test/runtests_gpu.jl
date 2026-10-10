@@ -717,4 +717,106 @@ else
         end
     end
 
+    # Land features on GPU: Raupach roughness with displacement_height,
+    # FlooredDeardorffGustinessSpec, ReferenceAboveApparentSink, screen_level_values,
+    # and invalid reference heights returning NaN.
+    @testset "GPU broadcast - Land Features (Raupach, FlooredDeardorff, ReferenceAboveApparentSink, Screen Level)" begin
+        for FT in (Float32, Float64)
+            param_set = SFP.SurfaceFluxesParameters(FT, BusingerParams)
+            n = 4
+            T_int_vals = FT.([290, 295, 300, 288])
+            T_sfc_vals = FT.([298, 290, 306, 285])
+            speed_vals = FT.([0, 1.5, 0.2, 4])
+            Δz_vals = FT.([10, 10, 10, 10])
+            q_int = FT(0.006)
+            q_sfc = FT(0.010)
+            ρ = FT(1.2)
+            raupach = SF.RaupachRoughnessParams{FT}()
+            gustiness = SF.FlooredDeardorffGustinessSpec(FT(0.5))
+            config = SF.SurfaceFluxConfig(
+                raupach,
+                gustiness,
+                SF.MoistModel(),
+                SF.NoRoughnessSubLayer(),
+                SF.MaxHeatFluxStabilityCap(),
+                SF.ReferenceAboveApparentSink(),
+            )
+            canopy_inputs = [
+                (PAI = FT(0.5), h = FT(5)),
+                (PAI = FT(2.0), h = FT(15)),
+                (PAI = FT(4.0), h = FT(25)),
+                (PAI = FT(1.0), h = FT(10)),
+            ]
+            d_vals = [SF.displacement_height(raupach, c) for c in canopy_inputs]
+
+            build_inp(T_int, T_sfc, Δz, d, u_int, ri) = SF.build_surface_flux_inputs(
+                T_int, q_int, FT(0), FT(0), ρ, T_sfc, q_sfc, FT(0), Δz, d,
+                u_int, (FT(0), FT(0)), config, ri, SF.FluxSpecs{FT}(), nothing, nothing,
+            )
+
+            cpu_inputs = [
+                build_inp(
+                    T_int_vals[i], T_sfc_vals[i], Δz_vals[i], d_vals[i],
+                    (speed_vals[i], FT(0)), canopy_inputs[i],
+                ) for i in 1:n
+            ]
+            cpu_results = [SF.surface_fluxes(param_set, inp) for inp in cpu_inputs]
+            cpu_screen = [
+                SF.screen_level_values(
+                    param_set,
+                    cpu_results[i],
+                    cpu_inputs[i],
+                    FT(2),
+                    FT(10),
+                )
+                for i in 1:n
+            ]
+
+            gpu_inputs = ArrayType(cpu_inputs)
+            gpu_results = SF.surface_fluxes.(Ref(param_set), gpu_inputs)
+            gpu_screen =
+                SF.screen_level_values.(
+                    Ref(param_set), gpu_results, gpu_inputs, Ref(FT(2)), Ref(FT(10)),
+                )
+            gpu_results_h = Array(gpu_results)
+            gpu_screen_h = Array(gpu_screen)
+
+            for f in (:shf, :lhf, :ustar, :ζ, :Cd, :g_h, :T_sfc, :L_MO, :L_eff, :ζ_eff)
+                cpu = getfield.(cpu_results, f)
+                gpu = getfield.(gpu_results_h, f)
+                @test all(isfinite, gpu)
+                @test isapprox(gpu, cpu; rtol = FT(1e-4), atol = FT(1e-5))
+            end
+            for f in (:T, :q, :u)
+                cpu = getfield.(cpu_screen, f)
+                gpu = getfield.(gpu_screen_h, f)
+                @test all(isfinite, gpu)
+                @test isapprox(gpu, cpu; rtol = FT(1e-4), atol = FT(1e-5))
+            end
+
+            # Invalid reference height in a GPU batch returns NaN with converged = false
+            # for that point while valid points still converge
+            config_sfc = SF.SurfaceFluxConfig(
+                SF.ConstantRoughnessParams(FT(0.5), FT(0.05)),
+                gustiness,
+            )
+            d_mixed = FT.([2, 12, 1, 9.8])  # points 2 and 4 have Δz - d <= z0m = 0.5
+            gpu_mixed =
+                SF.surface_fluxes.(
+                    Ref(param_set),
+                    ArrayType(T_int_vals), Ref(q_int), Ref(FT(0)), Ref(FT(0)), Ref(ρ),
+                    ArrayType(T_sfc_vals), Ref(q_sfc),
+                    Ref(FT(0)), ArrayType(Δz_vals), ArrayType(d_mixed),
+                    ArrayType([(speed_vals[i], FT(0)) for i in 1:n]),
+                    ArrayType([(FT(0), FT(0)) for _ in 1:n]),
+                    Ref(nothing), Ref(config_sfc),
+                )
+            gpu_mixed_h = Array(gpu_mixed)
+            @test gpu_mixed_h[1].converged && isfinite(gpu_mixed_h[1].shf)
+            @test !gpu_mixed_h[2].converged && isnan(gpu_mixed_h[2].shf)
+            @test gpu_mixed_h[3].converged && isfinite(gpu_mixed_h[3].shf)
+            @test !gpu_mixed_h[4].converged && isnan(gpu_mixed_h[4].shf)
+        end
+    end
+
 end  # if CUDA.functional()

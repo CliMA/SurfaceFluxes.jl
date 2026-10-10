@@ -69,7 +69,5 @@ a_m(ps::SurfaceFluxesParameters) = UF.a_m(uf_params(ps))
 a_h(ps::SurfaceFluxesParameters) = UF.a_h(uf_params(ps))
 b_m(ps::SurfaceFluxesParameters) = UF.b_m(uf_params(ps))
 b_h(ps::SurfaceFluxesParameters) = UF.b_h(uf_params(ps))
-ζ_a(ps::SurfaceFluxesParameters) = UF.ζ_a(uf_params(ps))
-γ(ps::SurfaceFluxesParameters) = UF.γ(uf_params(ps))
 
 end

@@ -261,4 +261,27 @@ end
             end
         end
     end
+
+    @testset "Prescribed Cd and Ch — d(ustar)/d(Cd) and d(SHF)/d(Ch)" begin
+        du_dCd = ForwardDiff.derivative(FT(1e-3)) do Cd
+            specs = SF.FluxSpecs(Cd = Cd, Ch = FT(1e-3))
+            SF.surface_fluxes(
+                param_set, T_int, q_int, FT(0), FT(0), ρ_int, FT(305), q_int,
+                FT(0), FT(10), FT(0), u_int, u_sfc, nothing,
+                SF.SurfaceFluxConfig(roughness, gustiness),
+                SF.PointValueScheme(), nothing, specs,
+            ).ustar
+        end
+        @test isfinite(du_dCd) && du_dCd > 0
+        dshf_dCh = ForwardDiff.derivative(FT(1e-3)) do Ch
+            specs = SF.FluxSpecs(Cd = FT(1e-3), Ch = Ch)
+            SF.surface_fluxes(
+                param_set, T_int, q_int, FT(0), FT(0), ρ_int, FT(305), q_int,
+                FT(0), FT(10), FT(0), u_int, u_sfc, nothing,
+                SF.SurfaceFluxConfig(roughness, gustiness),
+                SF.PointValueScheme(), nothing, specs,
+            ).shf
+        end
+        @test isfinite(dshf_dCh) && dshf_dCh > 0
+    end
 end

@@ -21,18 +21,15 @@ struct ReferenceAboveSurface <: AbstractReferenceLevel end
     ReferenceAboveApparentSink
 
 The reference height `Δz` of the inputs is measured from the apparent sink for momentum,
-`d + z0m` above the surface, as in the Community Land Model. The solve converts it to the
-height `Δz + d + z0m` above the surface, so the reference level lies above the sink for
-any displacement height, and the profiles span `Δz + z0m`. Land models forced by
-reanalysis or by an atmosphere model that does not resolve the canopy use this
-convention: their forcing heights are defined relative to the surface the atmosphere
-feels, not to the ground below a canopy.
+`d + z0m` above the surface. The solve converts it to the height `Δz + d + z0m` above
+the surface, so the reference level lies above the sink for any displacement height,
+and the profiles span `Δz + z0m`. Land models forced by reanalysis or by an atmosphere
+model that does not resolve the canopy use this convention: their forcing heights are
+defined relative to the surface the atmosphere feels, not to the ground below a canopy.
 
 The conversion uses the roughness length before the solve, so the roughness model must
-be independent of the friction velocity (see [`depends_on_ustar`](@ref)).
-[`surface_fluxes`](@ref) and [`screen_level_values`](@ref) apply it; functions that read
-`Δz` from the inputs directly, such as [`heat_conductance`](@ref) or
-[`compute_ustar`](@ref), expect inputs converted with [`reference_above_surface`](@ref).
+be independent of the friction velocity (see [`depends_on_ustar`](@ref) and
+[`reference_above_surface`](@ref)).
 """
 struct ReferenceAboveApparentSink <: AbstractReferenceLevel end
 
@@ -190,12 +187,16 @@ end
 
 
 
-const FluxOption{FT} = Union{Nothing, FT}
+const FluxOption = Union{Nothing, Real}
 
 """
-    FluxSpecs{FT}
+    FluxSpecs{FT}(; shf = nothing, lhf = nothing, ustar = nothing, Cd = nothing, Ch = nothing)
+    FluxSpecs(; shf = nothing, lhf = nothing, ustar = nothing, Cd = nothing, Ch = nothing)
 
-Container for prescribed surface flux boundary conditions.
+Container for prescribed surface flux boundary conditions. Each field is `nothing` or a
+`Real`, including dual numbers for differentiation with respect to a prescribed value;
+[`surface_fluxes`](@ref) converts the values to the floating-point type of the state. The
+untyped constructor takes `FT` from the values (`Float64` when none is given).
 
 # Fields
 - `shf`: Sensible Heat Flux [W/m^2].
@@ -206,11 +207,11 @@ Container for prescribed surface flux boundary conditions.
 """
 Base.@kwdef struct FluxSpecs{
     FT,
-    A <: FluxOption{FT},
-    B <: FluxOption{FT},
-    C <: FluxOption{FT},
-    D <: FluxOption{FT},
-    E <: FluxOption{FT},
+    A <: FluxOption,
+    B <: FluxOption,
+    C <: FluxOption,
+    D <: FluxOption,
+    E <: FluxOption,
 }
     shf::A = nothing
     lhf::B = nothing
@@ -227,6 +228,21 @@ function FluxSpecs{FT}(;
     Ch::E = nothing,
 ) where {FT, A, B, C, D, E}
     return FluxSpecs{FT, A, B, C, D, E}(shf, lhf, ustar, Cd, Ch)
+end
+
+# The floating-point type of a prescribed value; `Union{}` is the identity of
+# `promote_type`, so unprescribed fields do not contribute
+_flux_value_type(::Nothing) = Union{}
+_flux_value_type(x) = float(typeof(x))
+function FluxSpecs(
+    shf::A,
+    lhf::B,
+    ustar::C,
+    Cd::D,
+    Ch::E,
+) where {A, B, C, D, E}
+    FT = promote_type(_flux_value_type.((shf, lhf, ustar, Cd, Ch))...)
+    return FluxSpecs{FT === Union{} ? Float64 : FT, A, B, C, D, E}(shf, lhf, ustar, Cd, Ch)
 end
 
 """

@@ -93,6 +93,36 @@ same_conditions(a, b; rtol, except = (:converged,)) = all(
             s = SF.screen_level_values(param_set, sc, above_sink, FT(2), FT(10))
             s_ref = SF.screen_level_values(param_set, sc, above_surface, FT(2), FT(10))
             @test s.T ≈ s_ref.T && s.q ≈ s_ref.q && s.u ≈ s_ref.u
+            # Direct helper functions also convert inputs under ReferenceAboveApparentSink
+            @test SF.effective_height(param_set, above_sink) ≈
+                  SF.effective_height(above_surface)
+            @test SF.interior_geopotential(param_set, above_sink) ≈
+                  SF.interior_geopotential(param_set, above_surface)
+            @test SF.surface_density(param_set, above_sink, FT(295), FT(0.008)) ≈
+                  SF.surface_density(param_set, above_surface, FT(295), FT(0.008))
+            sch = SF.PointValueScheme()
+            @test SF.heat_conductance(
+                param_set, sc.ζ, sc.ustar, above_sink, FT(z0m), FT(z0h), sch,
+            ) ≈ SF.heat_conductance(
+                param_set, sc.ζ, sc.ustar, above_surface, FT(z0m), FT(z0h), sch,
+            )
+            @test SF.compute_ustar(
+                param_set, sc.ζ, FT(z0m), above_sink, sch, FT(1),
+            ) ≈ SF.compute_ustar(
+                param_set, sc.ζ, FT(z0m), above_surface, sch, FT(1),
+            )
+            @test SF.compute_theta_star(
+                param_set, sc.ζ, FT(z0h), above_sink, sch, FT(295),
+            ) ≈ SF.compute_theta_star(
+                param_set, sc.ζ, FT(z0h), above_surface, sch, FT(295),
+            )
+            @test SF.compute_q_star(
+                param_set, sc.ζ, FT(z0h), above_sink, sch, FT(0.008),
+            ) ≈ SF.compute_q_star(
+                param_set, sc.ζ, FT(z0h), above_surface, sch, FT(0.008),
+            )
+            @test SF.buoyancy_flux(param_set, sc.ζ, sc.ustar, above_sink) ≈
+                  SF.buoyancy_flux(param_set, sc.ζ, sc.ustar, above_surface)
             # Canopy roughness from the Raupach model
             raupach = SF.RaupachRoughnessParams{FT}()
             canopy = (PAI = FT(3), h = FT(20))
