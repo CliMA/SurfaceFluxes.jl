@@ -37,7 +37,7 @@ SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moistu
 | `src/roughness_sublayer.jl` | Roughness sublayer corrections to the MOST profiles (`ExponentialRSL`, linear RSL) |
 | `src/stability_cap.jl` | Caps on the stability parameter (`ConstantStabilityCap`, `MaxHeatFluxStabilityCap`) and the effective Obukhov length |
 | `src/physical_scales.jl` | u\*, θ\*, q\*, variances, Obukhov length and stability parameter |
-| `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models (with the canopy displacement height); combined u\*–roughness solver |
+| `src/roughness_lengths.jl` | Constant, COARE 3.0, Raupach roughness models (with the canopy displacement height); combined u\*–roughness solver; roughness lengths independent of u\* evaluated once per solve (`with_roughness_lengths`) |
 | `src/wind_and_gustiness.jl` | Effective wind speed and gustiness (constant, Deardorff, floored Deardorff); gustiness floor accessors |
 | `src/profile_recovery.jl` | `compute_profile_value` for diagnosing variables at arbitrary heights; `screen_level_values` |
 | `src/utilities.jl` | `surface_density`, geopotential helpers, reference-level conversion and validity checks, `non_zero`, Gauss-Legendre quadrature |

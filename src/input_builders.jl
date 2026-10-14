@@ -43,6 +43,11 @@ A `NamedTuple` with the following fields:
   set by the MOST solver from `stability_cap` (see [`with_stability_cap`](@ref)); functions
   that read the cap from the inputs compute it from `stability_cap` when it is `nothing`
   (see [`resolved_stability_cap`](@ref)).
+- `z0m`, `z0h`: Momentum and scalar roughness lengths [m], or `nothing`. They are
+  `nothing` here and are set by [`surface_fluxes`](@ref) for roughness models independent
+  of the friction velocity (see [`with_roughness_lengths`](@ref)); functions that read
+  them evaluate the roughness model when they are `nothing` (see
+  [`roughness_lengths`](@ref)).
 - `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values
@@ -98,6 +103,8 @@ function build_surface_flux_inputs(
         stability_cap = config.stability_cap,
         reference_level = config.reference_level,
         ζ_cap = nothing,
+        z0m = nothing,
+        z0h = nothing,
         roughness_inputs,
         update_T_sfc,
         update_q_vap_sfc,

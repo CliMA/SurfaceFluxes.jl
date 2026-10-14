@@ -494,6 +494,83 @@ of `u★` are [`ConstantRoughnessParams`](@ref), [`RaupachRoughnessParams`](@ref
 @inline depends_on_ustar(::ConstantGustinessSpec) = false
 @inline depends_on_ustar(::FlooredDeardorffGustinessSpec) = false
 
+"""
+    with_roughness_lengths(inputs, param_set)
+
+Return `inputs` with the fields `z0m` and `z0h` set to the momentum and scalar roughness
+lengths [m] of a roughness model independent of the friction velocity (see
+[`depends_on_ustar`](@ref)), such as [`ConstantRoughnessParams`](@ref) and
+[`RaupachRoughnessParams`](@ref). For other models, or if the fields are already set,
+`inputs` is returned unchanged. [`surface_fluxes`](@ref) calls this once per solve, and
+[`roughness_lengths`](@ref) reads the stored values in each residual evaluation of the
+stability solve.
+
+# Arguments
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+- `param_set`: Parameter set.
+
+# Returns
+The inputs container, with `z0m` and `z0h` [m] set for roughness models independent of
+the friction velocity.
+
+# Notes
+The stored roughness lengths are those of the `roughness_inputs` at the call, and a
+second call keeps them. Inputs with other `roughness_inputs` start from inputs without
+stored roughness lengths, such as those of
+[`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline function with_roughness_lengths(inputs, param_set)
+    if depends_on_ustar(inputs.roughness_model) || get(inputs, :z0m, nothing) !== nothing
+        return inputs
+    else
+        # The roughness model is independent of u★, so any value of u★ serves
+        z0m, z0h = momentum_and_scalar_roughness(
+            inputs.roughness_model,
+            zero(eltype(param_set)),
+            param_set,
+            inputs.roughness_inputs,
+        )
+        return (; inputs..., z0m, z0h)
+    end
+end
+
+"""
+    roughness_lengths(param_set, inputs, u★)
+
+Return the momentum and scalar roughness lengths `(z0m, z0h)` [m] at the friction velocity
+`u★` [m/s]: `inputs.z0m` and `inputs.z0h` if set by [`with_roughness_lengths`](@ref),
+otherwise evaluated from `inputs.roughness_model` at `u★`. Which case applies is known
+from the types of the inputs at compile time.
+
+# Arguments
+- `param_set`: Parameter set.
+- `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+- `u★`: Friction velocity [m/s]; not used when the roughness lengths are set.
+
+# Returns
+The tuple `(z0m, z0h)` [m].
+
+# Notes
+`inputs.z0m` and `inputs.z0h` are set together, both `nothing` or both numbers, as in
+the inputs returned by [`with_roughness_lengths`](@ref) and by
+[`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
+"""
+@inline roughness_lengths(param_set, inputs, u★) = _roughness_lengths(
+    get(inputs, :z0m, nothing),
+    get(inputs, :z0h, nothing),
+    param_set,
+    inputs,
+    u★,
+)
+@inline _roughness_lengths(z0m, z0h, param_set, inputs, u★) = (z0m, z0h)
+@inline _roughness_lengths(::Nothing, ::Nothing, param_set, inputs, u★) =
+    momentum_and_scalar_roughness(
+        inputs.roughness_model,
+        u★,
+        param_set,
+        inputs.roughness_inputs,
+    )
+
 # =========================================================================================
 # Iterative Solver for combined ustar and roughness
 # =========================================================================================
@@ -514,12 +591,7 @@ function (ur::UstarResidual)(ustar)
 
     # Ensure ustar is positive for physical consistency
     ustar_safe = max(ustar, FT(0))
-    z0m, z0s = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        ustar_safe,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0s = roughness_lengths(param_set, inputs, ustar_safe)
 
     gustiness_val = gustiness_value(
         inputs.gustiness_model,
@@ -538,6 +610,9 @@ end
     compute_ustar_and_roughness(param_set, ζ, inputs, scheme)
 
 Computes friction velocity `ustar` and roughness lengths `z0m`, `z0h` for a given stability `ζ`.
+The roughness lengths come from [`roughness_lengths`](@ref): for a roughness model
+independent of `ustar`, they are those set once per solve by
+[`with_roughness_lengths`](@ref); for other models, they are evaluated here at `ustar`.
 
 - If `inputs.ustar` is prescribed, it is returned directly.
 - If the roughness and gustiness models are independent of `ustar` (see
@@ -561,12 +636,7 @@ function compute_ustar_and_roughness(
 
     if inputs.ustar !== nothing
         ustar = inputs.ustar
-        z0m, z0s = momentum_and_scalar_roughness(
-            inputs.roughness_model,
-            ustar,
-            param_set,
-            inputs.roughness_inputs,
-        )
+        z0m, z0s = roughness_lengths(param_set, inputs, ustar)
         return ustar, z0m, z0s
     end
 
@@ -577,12 +647,7 @@ function compute_ustar_and_roughness(
         depends_on_ustar(inputs.roughness_model) ||
         depends_on_ustar(inputs.gustiness_model)
     )
-        z0m, z0s = momentum_and_scalar_roughness(
-            inputs.roughness_model,
-            zero(FT),
-            param_set,
-            inputs.roughness_inputs,
-        )
+        z0m, z0s = roughness_lengths(param_set, inputs, zero(FT))
         gustiness_val = gustiness_value(
             inputs.gustiness_model,
             param_set,
@@ -635,12 +700,7 @@ function compute_ustar_and_roughness(
         convert(RT, sol.root),
     )
 
-    z0m, z0s = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0s = roughness_lengths(param_set, inputs, ustar)
 
     return ustar, z0m, z0s
 end

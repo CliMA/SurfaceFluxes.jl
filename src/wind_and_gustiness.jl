@@ -215,12 +215,7 @@ once the surface state has converged.
     θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
     Δθ_v = θ_v_sfc - θ_v_int
     Δz_eff = effective_height(param_set, inputs)
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, ustar)
     ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
     # κ / F_m and κ / F_h
     ϕ_m = compute_physical_scale_coeff(

@@ -163,12 +163,7 @@ A NamedTuple `(; T, q, u)`:
     cp_d = TD.Parameters.cp_d(thermo_params)
     inputs = reference_above_surface(param_set, inputs)
     Δz_eff = effective_height(param_set, inputs)
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        sc.ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, sc.ustar)
     heat = UF.HeatTransport()
     momentum = UF.MomentumTransport()
     rsl = inputs.rsl_model
