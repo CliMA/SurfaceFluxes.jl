@@ -81,11 +81,13 @@ driven by convective eddies or other sub-grid variability represented by ``U_{gu
 important in low-wind regimes in the free convection limit.
 
 # Arguments
-- `Δu`: Tuple of wind component differences `(Δu_x, Δu_y)`.
+- `Δu`: Tuple of wind component differences `(Δu_x, Δu_y)` [m/s]. The components may
+  differ in type, e.g., a dual number and a float when differentiating with respect to
+  one component.
 - `inputs`: The inputs container. See [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 - `gustiness`: Gustiness velocity scale [m/s].
 """
-@inline function windspeed(Δu::NTuple{2}, gustiness)
+@inline function windspeed(Δu::Tuple{Any, Any}, gustiness)
     return max(hypot(Δu[1], Δu[2]), gustiness)
 end
 
