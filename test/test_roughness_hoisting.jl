@@ -151,6 +151,13 @@ relax_T_sfc(ζ, ps, thermo_params, inputs, scheme, u★, z0m, z0h) =
                 inputs = inputs_for(FT, counting; kwargs...)
                 @test evaluations(() -> SF.surface_fluxes(param_set, inputs, scheme)) == 1
             end
+            # Screen-level recovery under the apparent-sink convention, which needs z0m
+            # for the reference height and both roughness lengths for the profiles
+            inputs = inputs_for(FT, counting; reference_level = sink)
+            sc = SF.surface_fluxes(param_set, inputs)
+            @test evaluations(
+                () -> SF.screen_level_values(param_set, sc, inputs, FT(2), FT(10)),
+            ) == 1
             # A model that depends on u★ is evaluated in every residual evaluation
             inputs = inputs_for(FT, dependent)
             @test evaluations(() -> SF.surface_fluxes(param_set, inputs)) > 10

@@ -555,21 +555,17 @@ The tuple `(z0m, z0h)` [m].
 the inputs returned by [`with_roughness_lengths`](@ref) and by
 [`build_surface_flux_inputs`](@ref SurfaceFluxes.build_surface_flux_inputs).
 """
-@inline roughness_lengths(param_set, inputs, u★) = _roughness_lengths(
-    get(inputs, :z0m, nothing),
-    get(inputs, :z0h, nothing),
-    param_set,
-    inputs,
-    u★,
-)
-@inline _roughness_lengths(z0m, z0h, param_set, inputs, u★) = (z0m, z0h)
-@inline _roughness_lengths(::Nothing, ::Nothing, param_set, inputs, u★) =
-    momentum_and_scalar_roughness(
+@inline function roughness_lengths(param_set, inputs, u★)
+    z0m = get(inputs, :z0m, nothing)
+    # The type of `z0m` is known at compile time
+    z0m === nothing || return (z0m, inputs.z0h)
+    return momentum_and_scalar_roughness(
         inputs.roughness_model,
         u★,
         param_set,
         inputs.roughness_inputs,
     )
+end
 
 # =========================================================================================
 # Iterative Solver for combined ustar and roughness
