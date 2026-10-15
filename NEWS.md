@@ -1,3 +1,12 @@
+[v1.5.1] For roughness models independent of `u★` (`ConstantRoughnessParams`,
+`RaupachRoughnessParams`), `surface_fluxes` and `screen_level_values` evaluate the
+roughness lengths once and store them in the inputs (`with_roughness_lengths`); the
+residual evaluations of the stability solve read them with `roughness_lengths`. Results
+are bitwise unchanged; a solve with Raupach roughness takes about 20% less time.
+
+[v1.5.1] `windspeed` accepts wind tuples whose components differ in type, such as
+`(Dual, Float32)` when differentiating with respect to one wind component.
+
 [v1.5.0] The unused fields `ζ_a` and `γ` of `BusingerParams`, `GryanikParams`, and
 `GrachevParams` are removed, with their accessors `UniversalFunctions.ζ_a`,
 `UniversalFunctions.γ`, `Parameters.ζ_a`, and `Parameters.γ`; the ClimaParams
