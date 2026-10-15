@@ -171,8 +171,9 @@ quantities from the same inputs should set the cap once with [`with_stability_ca
 
 Return the momentum roughness length `z0m` [m] at neutral stability. For a roughness
 model independent of the friction velocity (see [`depends_on_ustar`](@ref)), this is the
-model's roughness length; for the others (e.g., [`COARE3RoughnessParams`](@ref)), it comes
-from a neutral solve with [`compute_ustar_and_roughness`](@ref).
+model's roughness length (see [`roughness_lengths`](@ref)); for the others (e.g.,
+[`COARE3RoughnessParams`](@ref)), it comes from a neutral solve with
+[`compute_ustar_and_roughness`](@ref).
 """
 @inline function neutral_momentum_roughness(roughness_model, param_set, inputs, scheme)
     FT = eltype(param_set)
@@ -185,12 +186,8 @@ from a neutral solve with [`compute_ustar_and_roughness`](@ref).
             compute_ustar_and_roughness(param_set, zero(FT), inputs_uncapped, scheme)
         return z0m
     else
-        return momentum_roughness(
-            roughness_model,
-            zero(FT),
-            param_set,
-            inputs.roughness_inputs,
-        )
+        z0m, _ = roughness_lengths(param_set, inputs, zero(FT))
+        return z0m
     end
 end
 

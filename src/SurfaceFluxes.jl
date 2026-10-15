@@ -319,14 +319,11 @@ function surface_fluxes(
     scheme::SolverScheme = PointValueScheme(),
     solver_opts::Union{SolverOptions, Nothing} = nothing,
 )
-    inputs = reference_above_surface(param_set, inputs)
+    # Roughness lengths independent of u★ are evaluated once here; the reference height
+    # conversion and every residual evaluation of the solve read them from the inputs
+    inputs = reference_above_surface(param_set, with_roughness_lengths(inputs, param_set))
     sc = surface_fluxes_by_mode(param_set, inputs, scheme, solver_opts)
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        sc.ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, sc.ustar)
     return invalidate_unless(sc, reference_height_valid(inputs, z0m, z0h))
 end
 
@@ -518,14 +515,9 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
     ΔU_safe = max(ΔU, eps(FT))
     Cd = (ustar / ΔU_safe)^2
 
-    # Compute roughness from ustar
+    # Roughness lengths at this ustar (set once per solve if independent of ustar)
     # Note: We assume z0h = z0s (scalar roughness) for now
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, ustar)
 
     # Compute g_h, with the stability cap (if any) evaluated at the roughness length
     # implied by the prescribed friction velocity
@@ -602,14 +594,9 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     Δz_eff = effective_height(param_set, inputs)
     ζ = obukhov_stability_parameter(param_set, Δz_eff, ustar, b_flux)
 
-    # Compute roughness from ustar
+    # Roughness lengths at this ustar (set once per solve if independent of ustar)
     # Note: We assume z0h = z0s (scalar roughness) for now
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, ustar)
 
     # Compute g_h, with the stability cap (if any) evaluated at the roughness length
     # implied by the derived friction velocity

@@ -161,14 +161,9 @@ A NamedTuple `(; T, q, u)`:
     κ = SFP.von_karman_const(param_set)
     g = SFP.grav(param_set)
     cp_d = TD.Parameters.cp_d(thermo_params)
-    inputs = reference_above_surface(param_set, inputs)
+    inputs = reference_above_surface(param_set, with_roughness_lengths(inputs, param_set))
     Δz_eff = effective_height(param_set, inputs)
-    z0m, z0h = momentum_and_scalar_roughness(
-        inputs.roughness_model,
-        sc.ustar,
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, z0h = roughness_lengths(param_set, inputs, sc.ustar)
     heat = UF.HeatTransport()
     momentum = UF.MomentumTransport()
     rsl = inputs.rsl_model

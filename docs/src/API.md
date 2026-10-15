@@ -106,6 +106,8 @@ SurfaceFluxes.free_convection_wind_speed
 SurfaceFluxes.virtual_pottemps
 SurfaceFluxes.depends_on_ustar
 SurfaceFluxes.compute_ustar_and_roughness
+SurfaceFluxes.with_roughness_lengths
+SurfaceFluxes.roughness_lengths
 ```
 
 ## Roughness Sublayer

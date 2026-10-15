@@ -8,6 +8,7 @@ import SurfaceFluxes.Parameters as SFP
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 using ClimaParams
+import ForwardDiff
 
 # Shared Parameter Set
 FT = Float64
@@ -386,6 +387,32 @@ end
         @test cfg.roughness.z0s == FT(2e-5)
         @test cfg.roughness.z0m == SF.ConstantRoughnessParams{FT}().z0m
         @test cfg.roughness.z0s == SF.ConstantRoughnessParams{FT}().z0s
+    end
+end
+
+# A derivative with respect to one wind component makes the wind tuple heterogeneous,
+# e.g., `(Dual, Float32)`, which the wind speed accepts
+@testset "Heterogeneous wind components" begin
+    for FT in (Float32, Float64)
+        ps = SFP.SurfaceFluxesParameters(FT, UF.BusingerParams)
+        config = SF.SurfaceFluxConfig(
+            SF.ConstantRoughnessParams{FT}(FT(0.1), FT(0.01)),
+            SF.ConstantGustinessSpec(FT(1)),
+        )
+        shf(u_int, u_sfc) = SF.surface_fluxes(
+            ps, FT(290), FT(0.005), FT(0), FT(0), FT(1.2), FT(295), FT(0.008), FT(0),
+            FT(20), FT(0), u_int, u_sfc, nothing, config,
+        ).shf
+        dual = ForwardDiff.Dual(FT(3), one(FT))
+        @test SF.windspeed((dual, FT(4)), FT(1)) == ForwardDiff.Dual(FT(5), FT(0.6))
+        δ = FT == Float32 ? FT(1e-2) : FT(1e-6)
+        fd =
+            (shf((3 + δ, FT(0)), (FT(0), FT(0))) - shf((3 - δ, FT(0)), (FT(0), FT(0)))) / 2δ
+        rtol = FT == Float32 ? 1e-2 : 1e-5
+        d_int = ForwardDiff.derivative(u -> shf((u, FT(0)), (FT(0), FT(0))), FT(3))
+        d_sfc = ForwardDiff.derivative(u -> shf((FT(3), FT(0)), (-u, FT(0))), FT(0))
+        @test d_int ≈ fd rtol = rtol
+        @test d_sfc ≈ fd rtol = rtol
     end
 end
 

@@ -174,7 +174,8 @@ Return the inputs with the reference height `Δz` measured from the surface. Und
 [`ReferenceAboveSurface`](@ref), the inputs are returned as they are. Under
 [`ReferenceAboveApparentSink`](@ref), `Δz` is measured from the apparent sink for momentum
 and becomes `Δz + d + z0m`, with the roughness length `z0m` of a roughness model that is
-independent of the friction velocity.
+independent of the friction velocity (read from `inputs.z0m` if set by
+[`with_roughness_lengths`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -197,12 +198,7 @@ independent of the friction velocity.
         ),
     )
     # The roughness model is independent of u★, so any value of u★ serves
-    z0m = momentum_roughness(
-        inputs.roughness_model,
-        zero(inputs.Δz),
-        param_set,
-        inputs.roughness_inputs,
-    )
+    z0m, _ = roughness_lengths(param_set, inputs, zero(eltype(param_set)))
     return merge(
         inputs,
         (; Δz = inputs.Δz + inputs.d + z0m, reference_level = ReferenceAboveSurface()),
