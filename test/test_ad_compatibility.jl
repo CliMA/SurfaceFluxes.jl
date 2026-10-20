@@ -284,4 +284,34 @@ end
         end
         @test isfinite(dshf_dCh) && dshf_dCh > 0
     end
+
+    @testset "Coupled callbacks under FlooredDeardorffGustinessSpec" begin
+        gust_d = SF.FlooredDeardorffGustinessSpec(FT(0.01))
+        cfg_d = SF.SurfaceFluxConfig(
+            roughness, gust_d, SF.MoistModel(),
+            SF.NoRoughnessSubLayer(), SF.MaxHeatFluxStabilityCap(),
+        )
+        g_liq = FT(0.01)
+        update_T_cb(ζ, ps, tp, inputs, scheme, u_star, z0m, z0b) =
+            inputs.T_sfc_guess + FT(0.1) * (inputs.T_int - inputs.T_sfc_guess)
+        function update_q_cb(ζ, ps, tp, inputs, scheme, T_s, u_star, z0m, z0b)
+            g_h = SF.heat_conductance(ps, ζ, u_star, inputs, z0m, z0b, scheme)
+            ρ_s = SF.surface_density(ps, inputs, T_s, inputs.q_vap_sfc_guess)
+            qsat = TD.q_vap_saturation(tp, T_s, ρ_s)
+            w = g_liq / (g_liq + g_h)
+            return w * qsat + (1 - w) * inputs.q_tot_int
+        end
+        solve_T_sfc(T_air) =
+            SF.surface_fluxes(
+                param_set, T_air, q_int, FT(0), FT(0), ρ_int, FT(305), q_int,
+                FT(0), FT(10), FT(0), (FT(0.05), FT(0)), u_sfc, nothing,
+                cfg_d, SF.PointValueScheme(), nothing, nothing,
+                update_T_cb, update_q_cb,
+            ).T_sfc
+        dT_ad = ForwardDiff.derivative(solve_T_sfc, T_int)
+        ϵ = FT(1e-5)
+        dT_fd = (solve_T_sfc(T_int + ϵ) - solve_T_sfc(T_int - ϵ)) / (2ϵ)
+        @test isfinite(dT_ad)
+        @test isapprox(dT_ad, dT_fd, rtol = FT(1e-4), atol = FT(1e-6))
+    end
 end

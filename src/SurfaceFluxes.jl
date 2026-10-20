@@ -695,8 +695,198 @@ heat transport.
     return ζ * F̂_h / F̂_m^2
 end
 
+# Secant step from two successive fixed-point increments `dx0 = x1 - x0` and
+# `dx1 = x2 - x1`. When the increments have opposite signs, returns the secant
+# root of `Φ(x) - x = 0` clamped between `x0` and `x1`; otherwise returns `x2`.
+@inline function secant_step(x0, dx0, dx1)
+    flipped = dx0 * dx1 < zero(dx0)
+    denom_safe = non_zero(dx0 - dx1)
+    x_sec = x0 + dx0 * (dx0 / denom_safe)
+    lo = min(x0, x0 + dx0)
+    hi = max(x0, x0 + dx0)
+    return ifelse(flipped, clamp(x_sec, lo, hi), x0 + dx0 + dx1)
+end
+
+# Two-stage surface-callback update at fixed stability parameter `ζ`.
+#
+# At low wind speed with buoyancy-dependent gustiness, a single callback step
+# can oscillate between a low-wind state (weak heat conductance, warm or moist
+# surface, `Δθ_v > 0`) and a high-wind state (strong conductance, cooler or
+# drier surface, `Δθ_v ≤ 0`). Evaluating the callbacks a second time from the
+# first output `(T_1, q_1)` samples both states and their wind speeds `U_0` and
+# `U_1`.
+#
+# When `U_0` and `U_1` agree, `secant_step` damps any sign flip between the two
+# increments. When they differ, ordering the two evaluations as `U_lo < U_hi`
+# gives outputs `(T_lo_out, q_lo_out)` and `(T_hi_out, q_hi_out)`, where `U_hi`
+# was driven by input buoyancy `Δθv_hi_in > 0`. Since convective gustiness
+# scales as `U² ∝ max(Δθ_v, 0)`, a wind `U(w) = U_lo + w (U_hi - U_lo)` requires
+# buoyancy `Δθv_hi_in (U(w) / U_hi)²`. Blending the outputs with weight
+# `w ∈ [0, 1]` in `(T, T q)` makes the output buoyancy linear in `w`,
+# `Δθv_out(w) = Δθv_lo_out - w D_out`, and matching it to the required buoyancy
+# gives a quadratic for `w`.
+#
+# Over a drying surface, the humidity excess `Δq = q_sfc - q_air` decreases
+# inversely with wind speed (`ρ_q = Δq_lo / Δq_hi > 1`, capped at 8), so the
+# blend at weight `w` corresponds to a smaller fraction `k_0 w` of the wind
+# step `U_hi - U_lo`, with `k_0 = Δq_hi / Δq(w_0)` evaluated at the first-order
+# weight `w_0`.
+@inline function step_surface_callbacks(
+    param_set,
+    inputs,
+    scheme,
+    thermo_params,
+    ζ,
+    u_star_0,
+    z0m,
+    z0h,
+    T_0,
+    q_0,
+)
+    T_1 = eval_callback(
+        inputs.update_T_sfc,
+        T_0,
+        ζ,
+        param_set,
+        thermo_params,
+        inputs,
+        scheme,
+        u_star_0,
+        z0m,
+        z0h,
+    )
+    q_1 = eval_callback(
+        inputs.update_q_vap_sfc,
+        q_0,
+        ζ,
+        param_set,
+        thermo_params,
+        inputs,
+        scheme,
+        T_1,
+        u_star_0,
+        z0m,
+        z0h,
+    )
+
+    if inputs.gustiness_model isa ConstantGustinessSpec
+        return T_1, q_1
+    end
+
+    inputs_1 = with_sfc_guesses(inputs, T_1, q_1)
+    u_star_1, z0m_1, z0h_1 = compute_ustar_and_roughness(param_set, ζ, inputs_1, scheme)
+    T_2 = eval_callback(
+        inputs_1.update_T_sfc,
+        T_1,
+        ζ,
+        param_set,
+        thermo_params,
+        inputs_1,
+        scheme,
+        u_star_1,
+        z0m_1,
+        z0h_1,
+    )
+    q_2 = eval_callback(
+        inputs_1.update_q_vap_sfc,
+        q_1,
+        ζ,
+        param_set,
+        thermo_params,
+        inputs_1,
+        scheme,
+        T_2,
+        u_star_1,
+        z0m_1,
+        z0h_1,
+    )
+
+    U_0 = windspeed(param_set, ζ, u_star_0, inputs, scheme)
+    U_1 = windspeed(param_set, ζ, u_star_1, inputs_1, scheme)
+
+    ρ_0 = surface_density(param_set, inputs, T_0, q_0)
+    θv_0, θv_int = virtual_pottemps(param_set, inputs, T_0, ρ_0, q_0)
+    ρ_1 = surface_density(param_set, inputs_1, T_1, q_1)
+    θv_1, _ = virtual_pottemps(param_set, inputs_1, T_1, ρ_1, q_1)
+    ρ_2 = surface_density(param_set, inputs_1, T_2, q_2)
+    θv_2, _ = virtual_pottemps(param_set, inputs_1, T_2, ρ_2, q_2)
+
+    Δθv_0 = θv_0 - θv_int
+    Δθv_1 = θv_1 - θv_int
+    Δθv_2 = θv_2 - θv_int
+
+    swap = U_0 > U_1
+    U_lo = ifelse(swap, U_1, U_0)
+    U_hi = ifelse(swap, U_0, U_1)
+    T_lo_out = ifelse(swap, T_2, T_1)
+    q_lo_out = ifelse(swap, q_2, q_1)
+    Δθv_lo_out = ifelse(swap, Δθv_2, Δθv_1)
+
+    T_hi_out = ifelse(swap, T_1, T_2)
+    q_hi_out = ifelse(swap, q_1, q_2)
+    Δθv_hi_in = ifelse(swap, Δθv_0, Δθv_1)
+    Δθv_hi_out = ifelse(swap, Δθv_1, Δθv_2)
+
+    U_hi_safe = max(U_hi, eps(typeof(U_hi)))
+    Δθv_lo_req = Δθv_hi_in * (U_lo / U_hi_safe)^2
+    r_lo = Δθv_lo_out - Δθv_lo_req
+    r_hi = Δθv_hi_out - Δθv_hi_in
+
+    q_air = interior_vapor_specific_humidity(inputs)
+    Δq_lo = q_lo_out - q_air
+    Δq_hi = q_hi_out - q_air
+    Δq_hi_safe = non_zero(Δq_hi)
+    q_ratio = Δq_lo / Δq_hi_safe
+    ratio_q = clamp(q_ratio, one(q_ratio), oftype(q_ratio, 8))
+    ρ_q = ifelse(
+        (Δq_lo * Δq_hi > zero(Δq_lo)) & (abs(Δq_lo) > abs(Δq_hi)),
+        ratio_q,
+        one(ratio_q),
+    )
+
+    Δθv_diff = Δθv_lo_out - Δθv_hi_out
+    D_out = max(Δθv_diff, eps(typeof(Δθv_diff)))
+    Δb_raw = Δθv_hi_in - Δθv_lo_req
+    Δb = max(Δb_raw, zero(Δb_raw))
+    U_sum = U_hi + U_lo
+    α = (U_hi - U_lo) / max(U_sum, eps(typeof(U_sum)))
+    r_lo_pos = max(r_lo, zero(r_lo))
+    w_0_raw = r_lo_pos / (D_out + Δb / ρ_q)
+    w_0 = clamp(w_0_raw, zero(w_0_raw), one(w_0_raw))
+    k_0 = inv(max(ρ_q - (ρ_q - one(ρ_q)) * w_0, one(ρ_q)))
+    A = α * k_0^2 * Δb
+    B = D_out + (one(α) - α) * k_0 * Δb
+    disc_raw = B^2 + 4 * A * r_lo_pos
+    disc = max(disc_raw, zero(disc_raw))
+    denom = B + sqrt(disc)
+    w_quad_raw = 2 * r_lo_pos / max(denom, eps(typeof(denom)))
+    w_quad = clamp(w_quad_raw, zero(w_quad_raw), one(w_quad_raw))
+    w = ifelse(
+        r_lo <= zero(r_lo),
+        zero(w_quad),
+        ifelse(r_hi >= zero(r_hi), one(w_quad), w_quad),
+    )
+
+    T_wind =
+        inputs.update_T_sfc === nothing ? T_0 :
+        (one(w) - w) * T_lo_out + w * T_hi_out
+    q_wind =
+        inputs.update_q_vap_sfc === nothing ? q_0 :
+        ((one(w) - w) * T_lo_out * q_lo_out + w * T_hi_out * q_hi_out) /
+        max(T_wind, eps(typeof(T_wind)))
+
+    T_sec = secant_step(T_0, T_1 - T_0, T_2 - T_1)
+    q_sec = secant_step(q_0, q_1 - q_0, q_2 - q_1)
+
+    U_scale = max(U_0, U_1, one(U_0))
+    wind_varied = abs(U_1 - U_0) > eps(typeof(U_scale)) * U_scale
+    T_new = ifelse(wind_varied, T_wind, T_sec)
+    q_new = ifelse(wind_varied, q_wind, q_sec)
+    return T_new, q_new
+end
+
 """
-    evaluate_most_residual(
+    evaluate_monin_obukhov_residual(
         param_set, inputs, scheme, uf_params, thermo_params, ζ,
         T_sfc_guess_safe, q_vap_sfc_guess_safe,
     ) -> (residual, T_sfc_new, q_vap_sfc_new)
@@ -725,31 +915,28 @@ function evaluate_monin_obukhov_residual(
     )
 
     # 2. Update T_sfc and q_vap_sfc via callbacks or use current guesses
-    T_sfc_new = eval_callback(
-        inputs.update_T_sfc,
-        T_sfc_guess_safe,
-        ζ,
-        param_set,
-        thermo_params,
-        inputs,
-        scheme,
-        u_star,
-        z0m,
-        z0h,
-    )
-    q_vap_sfc_new = eval_callback(
-        inputs.update_q_vap_sfc,
-        q_vap_sfc_guess_safe,
-        ζ,
-        param_set,
-        thermo_params,
-        inputs,
-        scheme,
-        T_sfc_new,
-        u_star,
-        z0m,
-        z0h,
-    )
+    if has_sfc_callbacks(inputs)
+        T_sfc_new, q_vap_sfc_new = step_surface_callbacks(
+            param_set,
+            inputs,
+            scheme,
+            thermo_params,
+            ζ,
+            u_star,
+            z0m,
+            z0h,
+            T_sfc_guess_safe,
+            q_vap_sfc_guess_safe,
+        )
+        inputs = with_sfc_guesses(inputs, T_sfc_new, q_vap_sfc_new)
+        if depends_on_ustar(inputs.roughness_model) ||
+           depends_on_ustar(inputs.gustiness_model)
+            u_star, z0m, z0h = compute_ustar_and_roughness(param_set, ζ, inputs, scheme)
+        end
+    else
+        T_sfc_new = T_sfc_guess_safe
+        q_vap_sfc_new = q_vap_sfc_guess_safe
+    end
 
     # 3. Update density
     ρ_sfc = surface_density(param_set, inputs, T_sfc_new, q_vap_sfc_new)
@@ -1069,11 +1256,11 @@ function solve_stability_param_cb(
     scheme,
     uf_params,
     thermo_params,
-    ζ_max::FT,
+    ζ_max,
     options::SolverOptions,
     T_sfc_init,
     q_vap_init,
-) where {FT}
+)
     # Evaluate residual at ζ, advancing the surface-state guess as a plain local
     function eval_cb(ζ, T_sfc, q_vap)
         evaluate_monin_obukhov_residual(
@@ -1088,7 +1275,7 @@ function solve_stability_param_cb(
     # solve_stability_param (shared helpers), with the surface state threaded
     # sequentially through each evaluation.
     ζ_cap = get(inputs, :ζ_cap, nothing)
-    r0, T_curr, q_curr = eval_cb(zero(FT), T_sfc_init, q_vap_init)
+    r0, T_curr, q_curr = eval_cb(zero(ζ_max), T_sfc_init, q_vap_init)
     p1, m1, p2, p3 = monin_obukhov_probe_points(r0, ζ_max, ζ_cap)
 
     r1, T_curr, q_curr = eval_cb(p1, T_curr, q_curr)
@@ -1210,7 +1397,17 @@ function solve_monin_obukhov(
                 safe_T_sfc_guess(inputs),
                 safe_q_vap_sfc_guess(inputs),
             )
-        inputs = with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe)
+        _, T_sfc_val, q_vap_sfc_val = evaluate_monin_obukhov_residual(
+            param_set,
+            with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe),
+            scheme,
+            uf_params,
+            thermo_params,
+            ζ_final,
+            T_sfc_guess_safe,
+            q_vap_sfc_guess_safe,
+        )
+        inputs = with_sfc_guesses(inputs, T_sfc_val, q_vap_sfc_val)
     else
         root_function = ResidualFunction(
             param_set,
@@ -1221,8 +1418,8 @@ function solve_monin_obukhov(
         )
         ζ_final, converged =
             solve_stability_param(root_function, ζ_max, options, inputs.ζ_cap)
-        T_sfc_guess_safe = safe_T_sfc_guess(inputs)
-        q_vap_sfc_guess_safe = safe_q_vap_sfc_guess(inputs)
+        T_sfc_val = safe_T_sfc_guess(inputs)
+        q_vap_sfc_val = safe_q_vap_sfc_guess(inputs)
     end
 
     # 1. Compute u_star and roughness consistent with ζ_final
@@ -1231,32 +1428,6 @@ function solve_monin_obukhov(
         ζ_final,
         inputs,
         scheme,
-    )
-
-    T_sfc_val = eval_callback(
-        inputs.update_T_sfc,
-        T_sfc_guess_safe,
-        ζ_final,
-        param_set,
-        thermo_params,
-        inputs,
-        scheme,
-        u_star_curr,
-        z0m,
-        z0h,
-    )
-    q_vap_sfc_val = eval_callback(
-        inputs.update_q_vap_sfc,
-        q_vap_sfc_guess_safe,
-        ζ_final,
-        param_set,
-        thermo_params,
-        inputs,
-        scheme,
-        T_sfc_val,
-        u_star_curr,
-        z0m,
-        z0h,
     )
 
     # Update ρ_sfc based on final state

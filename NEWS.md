@@ -1,3 +1,11 @@
+[unreleased] Prevent surface-callback oscillations at low wind speed with
+buoyancy-dependent gustiness (`FlooredDeardorffGustinessSpec`,
+`DeardorffGustinessSpec`): `evaluate_monin_obukhov_residual` updates the
+surface state with a two-stage callback step (`step_surface_callbacks`) and
+evaluates the effective wind speed, state bulk Richardson number, and
+post-solve fluxes at the updated state; `free_convection_wind_speed` returns
+zero for `ζ > 0`.
+
 [v1.5.1] For roughness models independent of `u★` (`ConstantRoughnessParams`,
 `RaupachRoughnessParams`), `surface_fluxes` and `screen_level_values` evaluate the
 roughness lengths once and store them in the inputs (`with_roughness_lengths`); the
