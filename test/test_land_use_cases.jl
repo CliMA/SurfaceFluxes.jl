@@ -405,3 +405,108 @@ end
     budget_scale = max(abs(H + L), abs(SW_n + LW_n), abs(F_int), FT(1))
     @test abs(budget_residual) / budget_scale < FT(0.05)
 end
+
+@testset "Coupled soil skin energy and moisture balance under convective gustiness" begin
+    # Low wind over warm/hot soil with dry-soil-layer vapor conductance g_liq:
+    # the aerodynamic conductance varies strongly where the virtual potential
+    # temperatures of the surface and the air cross.
+    for FT_s in (Float32, Float64)
+        ps = Parameters.SurfaceFluxesParameters(FT_s, BusingerParams)
+        tp = Parameters.thermodynamics_params(ps)
+        _σ = FT_s(5.670374419e-8)
+        r = FT_s(0.016)
+        ϵ = FT_s(0.96)
+        LW_d = FT_s(450)
+        P_atmos = FT_s(1e5)
+        T_atmos = FT_s(308.27)
+        q_atmos = FT_s(0.01956)
+        ρ_atmos = TD.air_density(tp, T_atmos, P_atmos, q_atmos)
+        Δz_s = FT_s(0.5)
+        roughness = SurfaceFluxes.ConstantRoughnessParams{FT_s}(FT_s(0.01), FT_s(0.001))
+
+        function soil_q_sat_and_deriv(T_s, inputs)
+            ρ_s = SurfaceFluxes.surface_density(ps, inputs, T_s, inputs.q_vap_sfc_guess)
+            q_s = TD.q_vap_saturation(tp, T_s, ρ_s, TD.Liquid())
+            LH = TD.latent_heat_vapor(tp, T_s)
+            ∂q∂T = TD.∂q_vap_sat_∂T_from_L(tp, q_s, LH, T_s)
+            return ρ_s, q_s, ∂q∂T
+        end
+
+        function make_soil_callbacks(T_top, SW_n, g_liq)
+            function update_T(ζ, p_set, t_params, inputs, scheme, u_star, z_0m, z_0b)
+                T_s = inputs.T_sfc_guess
+                q_air = SurfaceFluxes.interior_vapor_specific_humidity(inputs)
+                ρ_s, q_s, ∂q∂T = soil_q_sat_and_deriv(T_s, inputs)
+                g_h = SurfaceFluxes.heat_conductance(
+                    p_set, ζ, u_star, inputs, z_0m, z_0b, scheme,
+                )
+                denom = g_liq + g_h
+                β_e = ifelse(iszero(denom), one(denom), g_liq / denom)
+                q_sfc = β_e * q_s + (1 - β_e) * q_air
+                ∂q_sfc∂T = β_e * ∂q∂T
+                E = SurfaceFluxes.evaporation(
+                    p_set, inputs, g_h, q_air, q_sfc, ρ_s, inputs.moisture_model,
+                )
+                L = SurfaceFluxes.latent_heat_flux(p_set, inputs, E, inputs.moisture_model)
+                H = SurfaceFluxes.sensible_heat_flux(
+                    p_set, inputs, g_h, inputs.T_int, T_s, ρ_s, E,
+                )
+                LH_v0 = TD.Parameters.LH_v0(t_params)
+                cp_m = TD.cp_m(t_params, q_sfc)
+                ∂L∂T = ρ_s * g_h * LH_v0 * ∂q_sfc∂T
+                ∂H∂T = ρ_s * g_h * cp_m + ∂q_sfc∂T * cp_m * (T_s - inputs.T_int)
+                LW_n = ϵ * (LW_d - _σ * T_s^4)
+                ∂LW_n∂T = -4 * ϵ * _σ * T_s^3
+                f = SW_n - LW_n + L + H - (T_top - T_s) / r
+                df = -∂LW_n∂T + ∂L∂T + ∂H∂T + 1 / r
+                return T_s - f / df
+            end
+            function update_q(ζ, p_set, t_params, inputs, scheme, T_s, u_star, z_0m, z_0b)
+                q_air = SurfaceFluxes.interior_vapor_specific_humidity(inputs)
+                _, q_s, _ = soil_q_sat_and_deriv(T_s, inputs)
+                g_h = SurfaceFluxes.heat_conductance(
+                    p_set, ζ, u_star, inputs, z_0m, z_0b, scheme,
+                )
+                denom = g_liq + g_h
+                β_e = ifelse(iszero(denom), one(denom), g_liq / denom)
+                return β_e * q_s + (1 - β_e) * q_air
+            end
+            return update_T, update_q
+        end
+
+        for gust_min in (FT_s(0), FT_s(0.5)),
+            T_top in (FT_s(300), FT_s(303), FT_s(304), FT_s(305), FT_s(308), FT_s(312.58)),
+            u_spd in (FT_s(0), FT_s(0.02), FT_s(0.132), FT_s(0.5)),
+            SW_n in (FT_s(-250), FT_s(0)),
+            g_liq in (FT_s(1e-4), FT_s(0.01), FT_s(2.08))
+
+            conf = SurfaceFluxes.SurfaceFluxConfig(
+                roughness,
+                SurfaceFluxes.FlooredDeardorffGustinessSpec(gust_min),
+                SurfaceFluxes.MoistModel(),
+                SurfaceFluxes.NoRoughnessSubLayer(),
+                SurfaceFluxes.MaxHeatFluxStabilityCap(),
+                SurfaceFluxes.ReferenceAboveSurface(),
+            )
+            update_T, update_q = make_soil_callbacks(T_top, SW_n, g_liq)
+            q_guess = TD.q_vap_saturation(tp, T_top, ρ_atmos, TD.Liquid())
+            out = SurfaceFluxes.surface_fluxes(
+                ps,
+                T_atmos, q_atmos, FT_s(0), FT_s(0), ρ_atmos,
+                T_top, q_guess, FT_s(0), Δz_s, FT_s(0),
+                (u_spd, FT_s(0)), (FT_s(0), FT_s(0)),
+                nothing, conf, SurfaceFluxes.PointValueScheme(),
+                nothing, nothing, update_T, update_q,
+            )
+            F = SW_n - ϵ * (LW_d - _σ * out.T_sfc^4) + out.lhf + out.shf
+            G = (T_top - out.T_sfc) / r
+            # Largest imbalances over this sweep: 1.0e-3 W/m² in Float64, and
+            # 0.52 W/m² in Float32 at T_top = 303 K with zero wind and zero
+            # gustiness floor, where Δθ_v at the solution is below the Float32
+            # resolution of θ_v (≈ 3e-5 K).
+            tol = FT_s === Float32 ? FT_s(1) : FT_s(2e-3)
+            @test out.converged || out.ζ >= FT_s(100)
+            @test isfinite(F) && abs(F - G) < tol
+        end
+    end
+end

@@ -37,6 +37,7 @@ SurfaceFluxes.buoyancy_flux
 SurfaceFluxes.evaporation
 SurfaceFluxes.momentum_fluxes
 SurfaceFluxes.state_bulk_richardson_number
+SurfaceFluxes.bulk_richardson_number_of_state
 ```
 
 ## Exchange Coefficients
@@ -55,6 +56,8 @@ Functions for computing Monin-Obukhov similarity scales and variances.
 
 ```@docs
 SurfaceFluxes.compute_physical_scale_coeff
+SurfaceFluxes.physical_scale_coeff
+SurfaceFluxes.with_profile_coefficients
 SurfaceFluxes.compute_ustar
 SurfaceFluxes.compute_theta_star
 SurfaceFluxes.compute_q_star
@@ -102,8 +105,11 @@ SurfaceFluxes.DryModel
 SurfaceFluxes.gustiness_value
 SurfaceFluxes.minimum_wind_speed
 SurfaceFluxes.without_floor
+SurfaceFluxes.wind_depends_on_surface_state
 SurfaceFluxes.free_convection_wind_speed
 SurfaceFluxes.virtual_pottemps
+SurfaceFluxes.interior_virtual_pottemp
+SurfaceFluxes.with_interior_virtual_pottemp
 SurfaceFluxes.depends_on_ustar
 SurfaceFluxes.compute_ustar_and_roughness
 SurfaceFluxes.with_roughness_lengths

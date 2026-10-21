@@ -37,6 +37,7 @@ include("test_obukhov_helpers.jl")                    # Obukhov helper function 
 include("test_roughness_inputs.jl")                   # User-defined roughness models with roughness inputs
 include("test_raupach_roughness.jl")                  # Raupach canopy roughness tests
 include("test_roughness_hoisting.jl")                 # Roughness lengths evaluated once per solve
+include("test_profile_hoisting.jl")                   # Profile coefficients evaluated once per residual
 include("test_roughness_sublayer.jl")                 # Roughness sublayer (RSL) models
 include("test_gustiness_floor.jl")                    # Floor accessors of gustiness models
 include("test_reference_height.jl")                   # Reference level above the roughness length

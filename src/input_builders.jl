@@ -48,6 +48,12 @@ A `NamedTuple` with the following fields:
   of the friction velocity (see [`with_roughness_lengths`](@ref)); functions that read
   them evaluate the roughness model when they are `nothing` (see
   [`roughness_lengths`](@ref)).
+- `ϕ_m`, `ϕ_h`: Coefficients `κ / F̂` relating the bulk differences of momentum and of
+  scalars to their similarity scales at the stability parameter of the current residual
+  evaluation, or `nothing`. They are `nothing` here and are set by the MOST solver at each
+  residual evaluation when the roughness lengths are stored (see
+  [`with_profile_coefficients`](@ref)); functions that read them evaluate the
+  dimensionless profiles when they are `nothing` (see [`physical_scale_coeff`](@ref)).
 - `roughness_inputs`: Optional inputs for roughness models.
 
 ## Callbacks and Prescribed Values
@@ -105,6 +111,8 @@ function build_surface_flux_inputs(
         ζ_cap = nothing,
         z0m = nothing,
         z0h = nothing,
+        ϕ_m = nothing,
+        ϕ_h = nothing,
         roughness_inputs,
         update_T_sfc,
         update_q_vap_sfc,
