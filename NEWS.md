@@ -1,4 +1,4 @@
-[unreleased] Prevent surface-callback oscillations at low wind speed with
+[v1.6.0] Prevent surface-callback oscillations at low wind speed with
 gustiness that depends on the surface state (`FlooredDeardorffGustinessSpec`):
 `evaluate_monin_obukhov_residual` updates the surface state with a two-stage
 callback step (`step_surface_callbacks`) and evaluates the effective wind
@@ -9,7 +9,7 @@ models whose wind speed at fixed `ζ` is independent of the surface state
 `wind_depends_on_surface_state`), the callbacks take a single step, and only
 the thermodynamic part of the surface state is re-evaluated after it.
 
-[unreleased] Evaluate the profile coefficients `ϕ_m = κ / F̂_m` and
+[v1.6.0] Evaluate the profile coefficients `ϕ_m = κ / F̂_m` and
 `ϕ_h = κ / F̂_h` once per residual evaluation for roughness models independent
 of `u★` (`with_profile_coefficients`, `physical_scale_coeff`), and reuse them
 in `compute_ustar`, `free_convection_wind_speed`, `heat_conductance`, and
