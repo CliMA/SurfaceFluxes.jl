@@ -47,6 +47,63 @@ function compute_physical_scale_coeff(
 end
 
 """
+    physical_scale_coeff(param_set, inputs, scheme, ζ, z0, transport)
+
+Return the coefficient `ϕ = κ / F̂` of [`compute_physical_scale_coeff`](@ref)
+for `inputs` at the capped stability parameter ([`capped_stability`](@ref))
+and roughness length `z0` of `transport`. Returns `inputs.ϕ_m` or `inputs.ϕ_h`
+when stored ([`with_profile_coefficients`](@ref)), and evaluates the universal
+profile otherwise.
+"""
+@inline function physical_scale_coeff(param_set::APS, inputs, scheme, ζ, z0, transport)
+    ϕ = stored_profile_coefficient(inputs, transport)
+    ϕ === nothing || return ϕ
+    return compute_physical_scale_coeff(
+        param_set,
+        effective_height(param_set, inputs),
+        capped_stability(param_set, inputs, scheme, ζ),
+        z0,
+        transport,
+        scheme,
+        inputs.rsl_model,
+    )
+end
+
+@inline stored_profile_coefficient(inputs, ::UF.MomentumTransport) =
+    get(inputs, :ϕ_m, nothing)
+@inline stored_profile_coefficient(inputs, ::UF.HeatTransport) = get(inputs, :ϕ_h, nothing)
+
+"""
+    with_profile_coefficients(inputs, param_set, scheme, ζ, z0m, z0h)
+
+Return `inputs` with `ϕ_m` and `ϕ_h` set to the coefficients `κ / F̂_m` and
+`κ / F̂_h` of [`compute_physical_scale_coeff`](@ref) at the capped stability
+parameter `ζ` and roughness lengths `z0m`, `z0h`. The MOST solver calls this
+once per residual evaluation when the roughness lengths are independent of
+`ustar`, so [`physical_scale_coeff`](@ref) and [`heat_conductance`](@ref)
+reuse the stored coefficients at that `ζ`.
+"""
+@inline function with_profile_coefficients(inputs, param_set::APS, scheme, ζ, z0m, z0h)
+    Δz_eff = effective_height(param_set, inputs)
+    ζ_c = capped_stability(param_set, inputs, scheme, ζ)
+    uf = SFP.uf_params(param_set)
+    κ = SFP.von_karman_const(param_set)
+    rsl_model = inputs.rsl_model
+    F̂_m = rsl_corrected_profile(
+        uf,
+        rsl_model,
+        Δz_eff,
+        ζ_c,
+        z0m,
+        UF.MomentumTransport(),
+        scheme,
+    )
+    F̂_h =
+        rsl_corrected_profile(uf, rsl_model, Δz_eff, ζ_c, z0h, UF.HeatTransport(), scheme)
+    return (; inputs..., ϕ_m = κ / F̂_m, ϕ_h = κ / F̂_h)
+end
+
+"""
     compute_ustar(param_set, ζ, z0, inputs, scheme, gustiness)
 
 Return the friction velocity implied by the Monin-Obukhov solution.
@@ -78,16 +135,7 @@ function compute_ustar(
     end
 
     ΔU = windspeed(inputs, gustiness)
-    Δz_eff = effective_height(param_set, inputs)
-    ϕ = compute_physical_scale_coeff(
-        param_set,
-        Δz_eff,
-        capped_stability(param_set, inputs, scheme, ζ),
-        z0,
-        UF.MomentumTransport(),
-        scheme,
-        inputs.rsl_model,
-    )
+    ϕ = physical_scale_coeff(param_set, inputs, scheme, ζ, z0, UF.MomentumTransport())
     return ΔU * ϕ
 end
 
@@ -126,16 +174,7 @@ function compute_theta_star(
     c_p = TD.cp_m(thermo_params, inputs.q_tot_int, inputs.q_liq_int, inputs.q_ice_int)
     Δθ = ΔDSE / c_p
 
-    Δz_eff = effective_height(param_set, inputs)
-    ϕ = compute_physical_scale_coeff(
-        param_set,
-        Δz_eff,
-        capped_stability(param_set, inputs, scheme, ζ),
-        z0h,
-        UF.HeatTransport(),
-        scheme,
-        inputs.rsl_model,
-    )
+    ϕ = physical_scale_coeff(param_set, inputs, scheme, ζ, z0h, UF.HeatTransport())
     return Δθ * ϕ
 end
 
@@ -169,16 +208,7 @@ function compute_q_star(
     Δq = q_vap_int - q_vap_sfc
 
     # Scalars use HeatTransport coefficients in MOST
-    Δz_eff = effective_height(param_set, inputs)
-    ϕ = compute_physical_scale_coeff(
-        param_set,
-        Δz_eff,
-        capped_stability(param_set, inputs, scheme, ζ),
-        z0h,
-        UF.HeatTransport(),
-        scheme,
-        inputs.rsl_model,
-    )
+    ϕ = physical_scale_coeff(param_set, inputs, scheme, ζ, z0h, UF.HeatTransport())
     return Δq * ϕ
 end
 

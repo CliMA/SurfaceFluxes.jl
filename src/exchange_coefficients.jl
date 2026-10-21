@@ -123,13 +123,15 @@ end
 """
     heat_conductance(param_set, ζ, ustar, inputs, z0m, z0h, scheme)
 
-Compute the heat conductance `g_h` (speed * Ch), including any gustiness factor in the wind speed.
-Calculates windspeed and exchange coefficient internally from Monin-Obukhov variables;
-the gustiness uses the profile integrals of `scheme` (see [`gustiness_value`](@ref)).
-The exchange coefficient is evaluated at the stability parameter capped by any
-stability cap in `inputs` (see [`MaxHeatFluxStabilityCap`](@ref) and
-[`capped_stability`](@ref)).
+Compute the heat conductance `g_h = Ch ΔU` [m/s] at stability parameter `ζ`
+and friction velocity `ustar`, where `Ch = ϕ_m ϕ_h` is the heat exchange
+coefficient at the capped stability parameter ([`MaxHeatFluxStabilityCap`](@ref),
+[`capped_stability`](@ref), [`physical_scale_coeff`](@ref)) and `ΔU` is the
+effective wind speed including gustiness ([`gustiness_value`](@ref)).
 
+Inside the stability solve, when `inputs` stores the profile coefficients
+([`with_profile_coefficients`](@ref)) and the gustiness is independent of
+`ustar`, `ustar = ϕ_m ΔU` holds and `heat_conductance` returns `ustar ϕ_h`.
 
 # Arguments
 - `param_set`: Parameter set.
@@ -149,21 +151,19 @@ function heat_conductance(
     z0h,
     scheme = UF.PointValueScheme(),
 )
-    # Compute Ch (pass RSL model from inputs)
-    Δz_eff = effective_height(param_set, inputs)
-    ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
-    Ch = heat_exchange_coefficient(
-        param_set,
-        ζ_capped,
-        z0m,
-        z0h,
-        Δz_eff,
-        scheme,
-        inputs.rsl_model,
-    )
-
-    # Compute windspeed with gustiness (using windspeed helper which handles b_flux)
+    ϕ_h = physical_scale_coeff(param_set, inputs, scheme, ζ, z0h, UF.HeatTransport())
+    if ustar_implies_windspeed(inputs)
+        return ustar * ϕ_h
+    end
+    ϕ_m = physical_scale_coeff(param_set, inputs, scheme, ζ, z0m, UF.MomentumTransport())
     current_speed = windspeed(param_set, ζ, ustar, inputs, scheme)
-
-    return Ch * current_speed
+    return ϕ_m * ϕ_h * current_speed
 end
+
+# True when `u_star = ϕ_m ΔU` holds with the stored profile coefficient
+# `inputs.ϕ_m`: `ϕ_m` is stored, `ustar` is not prescribed, and the gustiness
+# model does not depend on `ustar`.
+@inline ustar_implies_windspeed(inputs) =
+    get(inputs, :ϕ_m, nothing) !== nothing &&
+    inputs.ustar === nothing &&
+    !depends_on_ustar(inputs.gustiness_model)

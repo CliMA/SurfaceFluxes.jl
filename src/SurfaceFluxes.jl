@@ -446,7 +446,7 @@ function compute_fluxes_given_coefficients(
 
     # Compute ustar from Cd: u*^2 = Cd * ΔU^2
     ΔU = windspeed(inputs, param_set, b_flux)
-    ΔU_safe = max(ΔU, eps(FT))
+    ΔU_safe = max(ΔU, eps(typeof(ΔU)))
     ustar = sqrt(Cd) * ΔU_safe
 
     # Compute g_h
@@ -473,7 +473,6 @@ end
 Computes diagnostics when ustar, shf, lhf are all prescribed.
 """
 function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
-    FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
     T_sfc =
@@ -512,7 +511,7 @@ function compute_fluxes_from_prescribed(param_set::APS, inputs, scheme)
 
     # Compute Coefficients with division-by-zero guard
     ΔU = windspeed(inputs, param_set, b_flux)
-    ΔU_safe = max(ΔU, eps(FT))
+    ΔU_safe = max(ΔU, eps(typeof(ΔU)))
     Cd = (ustar / ΔU_safe)^2
 
     # Roughness lengths at this ustar (set once per solve if independent of ustar)
@@ -550,7 +549,6 @@ function compute_fluxes_with_prescribed_heat_and_drag(
     inputs,
     scheme,
 )
-    FT = eltype(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
     model = inputs.moisture_model
 
@@ -583,7 +581,7 @@ function compute_fluxes_with_prescribed_heat_and_drag(
 
     # Compute wind speed (accounting for gustiness via b_flux)
     ΔU = windspeed(inputs, param_set, b_flux)
-    ΔU_safe = max(ΔU, eps(FT))
+    ΔU_safe = max(ΔU, eps(typeof(ΔU)))
 
     # Compute ustar from Cd and wind speed
     # τ = ρ Cd ΔU^2 = ρ ustar^2  => ustar = sqrt(Cd) * ΔU
@@ -695,6 +693,20 @@ heat transport.
     return ζ * F̂_h / F̂_m^2
 end
 
+"""
+    bulk_richardson_number(param_set, inputs, scheme, ζ, z0m, z0h)
+
+Bulk Richardson number `ζ F̂_h / F̂_m²` of the profiles at `ζ`, from the coefficients
+`ϕ_m = κ / F̂_m` and `ϕ_h = κ / F̂_h` of [`physical_scale_coeff`](@ref) for `inputs`
+(evaluated at the capped stability parameter): `ζ ϕ_m² / (κ ϕ_h)`.
+"""
+@inline function bulk_richardson_number(param_set::APS, inputs, scheme, ζ, z0m, z0h)
+    κ = SFP.von_karman_const(param_set)
+    ϕ_m = physical_scale_coeff(param_set, inputs, scheme, ζ, z0m, UF.MomentumTransport())
+    ϕ_h = physical_scale_coeff(param_set, inputs, scheme, ζ, z0h, UF.HeatTransport())
+    return ζ * ϕ_m^2 / (κ * ϕ_h)
+end
+
 # Secant step from two successive fixed-point increments `dx0 = x1 - x0` and
 # `dx1 = x2 - x1`. When the increments have opposite signs, returns the secant
 # root of `Φ(x) - x = 0` clamped between `x0` and `x1`; otherwise returns `x2`.
@@ -707,7 +719,49 @@ end
     return ifelse(flipped, clamp(x_sec, lo, hi), x0 + dx0 + dx1)
 end
 
-# Two-stage surface-callback update at fixed stability parameter `ζ`.
+# Surface state at stability parameter `ζ` for temperature `T` and humidity `q`
+# (matching the guesses of `inputs`): surface air density `ρ_sfc`, virtual
+# potential temperature excess `Δθ_v` and interior value `θ_v_int`, effective
+# wind speed `ΔU`, friction velocity `u_star`, and roughness lengths `z0m`,
+# `z0h`. When `ustar_implies_windspeed(inputs)` holds, `u_star = ϕ_m ΔU` is
+# evaluated from `ΔU` and `inputs.ϕ_m`; otherwise `compute_ustar_and_roughness`
+# and `windspeed` evaluate them.
+@inline function surface_state(param_set, inputs, scheme, ζ, T, q)
+    thermodynamic_state = surface_thermodynamic_state(param_set, inputs, T, q)
+    (; Δθ_v, θ_v_int) = thermodynamic_state
+    if ustar_implies_windspeed(inputs)
+        z0m = inputs.z0m
+        z0h = inputs.z0h
+        gustiness = gustiness_value(
+            inputs.gustiness_model,
+            param_set,
+            ζ,
+            zero(T),
+            inputs,
+            scheme,
+            Δθ_v,
+            θ_v_int,
+        )
+        ΔU = windspeed(inputs, gustiness)
+        u_star = ΔU * inputs.ϕ_m
+    else
+        u_star, z0m, z0h = compute_ustar_and_roughness(param_set, ζ, inputs, scheme)
+        ΔU = windspeed(param_set, ζ, u_star, inputs, scheme)
+    end
+    return (; thermodynamic_state..., ΔU, u_star, z0m, z0h)
+end
+
+# Thermodynamic part of `surface_state` for temperature `T` and humidity `q`:
+# surface air density `ρ_sfc`, virtual potential temperature excess `Δθ_v`, and
+# interior value `θ_v_int`.
+@inline function surface_thermodynamic_state(param_set, inputs, T, q)
+    ρ_sfc = surface_density(param_set, inputs, T, q)
+    θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T, ρ_sfc, q)
+    return (; T, q, ρ_sfc, Δθ_v = θ_v_sfc - θ_v_int, θ_v_int)
+end
+
+# Two-stage surface-callback update at fixed stability parameter `ζ`, starting
+# from `state_0` (`surface_state`).
 #
 # At low wind speed with buoyancy-dependent gustiness, a single callback step
 # can oscillate between a low-wind state (weak heat conductance, warm or moist
@@ -731,18 +785,20 @@ end
 # blend at weight `w` corresponds to a smaller fraction `k_0 w` of the wind
 # step `U_hi - U_lo`, with `k_0 = Δq_hi / Δq(w_0)` evaluated at the first-order
 # weight `w_0`.
+#
+# When the wind speed at fixed `ζ` is independent of the surface state
+# (`wind_depends_on_surface_state`), the low- and high-wind states coincide, and
+# the first output `(T_1, q_1)` is returned.
 @inline function step_surface_callbacks(
     param_set,
     inputs,
     scheme,
     thermo_params,
     ζ,
-    u_star_0,
-    z0m,
-    z0h,
-    T_0,
-    q_0,
+    state_0,
 )
+    T_0 = state_0.T
+    q_0 = state_0.q
     T_1 = eval_callback(
         inputs.update_T_sfc,
         T_0,
@@ -751,9 +807,9 @@ end
         thermo_params,
         inputs,
         scheme,
-        u_star_0,
-        z0m,
-        z0h,
+        state_0.u_star,
+        state_0.z0m,
+        state_0.z0h,
     )
     q_1 = eval_callback(
         inputs.update_q_vap_sfc,
@@ -764,17 +820,17 @@ end
         inputs,
         scheme,
         T_1,
-        u_star_0,
-        z0m,
-        z0h,
+        state_0.u_star,
+        state_0.z0m,
+        state_0.z0h,
     )
 
-    if inputs.gustiness_model isa ConstantGustinessSpec
+    if !wind_depends_on_surface_state(inputs.gustiness_model)
         return T_1, q_1
     end
 
     inputs_1 = with_sfc_guesses(inputs, T_1, q_1)
-    u_star_1, z0m_1, z0h_1 = compute_ustar_and_roughness(param_set, ζ, inputs_1, scheme)
+    state_1 = surface_state(param_set, inputs_1, scheme, ζ, T_1, q_1)
     T_2 = eval_callback(
         inputs_1.update_T_sfc,
         T_1,
@@ -783,9 +839,9 @@ end
         thermo_params,
         inputs_1,
         scheme,
-        u_star_1,
-        z0m_1,
-        z0h_1,
+        state_1.u_star,
+        state_1.z0m,
+        state_1.z0h,
     )
     q_2 = eval_callback(
         inputs_1.update_q_vap_sfc,
@@ -796,24 +852,16 @@ end
         inputs_1,
         scheme,
         T_2,
-        u_star_1,
-        z0m_1,
-        z0h_1,
+        state_1.u_star,
+        state_1.z0m,
+        state_1.z0h,
     )
 
-    U_0 = windspeed(param_set, ζ, u_star_0, inputs, scheme)
-    U_1 = windspeed(param_set, ζ, u_star_1, inputs_1, scheme)
-
-    ρ_0 = surface_density(param_set, inputs, T_0, q_0)
-    θv_0, θv_int = virtual_pottemps(param_set, inputs, T_0, ρ_0, q_0)
-    ρ_1 = surface_density(param_set, inputs_1, T_1, q_1)
-    θv_1, _ = virtual_pottemps(param_set, inputs_1, T_1, ρ_1, q_1)
-    ρ_2 = surface_density(param_set, inputs_1, T_2, q_2)
-    θv_2, _ = virtual_pottemps(param_set, inputs_1, T_2, ρ_2, q_2)
-
-    Δθv_0 = θv_0 - θv_int
-    Δθv_1 = θv_1 - θv_int
-    Δθv_2 = θv_2 - θv_int
+    U_0 = state_0.ΔU
+    U_1 = state_1.ΔU
+    Δθv_0 = state_0.Δθ_v
+    Δθv_1 = state_1.Δθ_v
+    Δθv_2 = surface_thermodynamic_state(param_set, inputs_1, T_2, q_2).Δθ_v
 
     swap = U_0 > U_1
     U_lo = ifelse(swap, U_1, U_0)
@@ -886,95 +934,94 @@ end
 end
 
 """
+    solver_surface_state(param_set, inputs, scheme, thermo_params, ζ, T_sfc, q_vap_sfc)
+        -> (inputs, state)
+
+Return `(inputs, state)` for the candidate stability parameter `ζ`, starting
+from surface temperature `T_sfc` and humidity `q_vap_sfc`. When the roughness
+lengths are stored in `inputs`, the profile coefficients at `ζ` are stored
+first ([`with_profile_coefficients`](@ref)). When surface callbacks are
+present, `T_sfc` and `q_vap_sfc` are updated by `step_surface_callbacks`, and
+the returned `inputs` and `state` (`surface_state`) are evaluated at the
+updated surface state. For gustiness models whose wind speed at fixed `ζ` is
+independent of the surface state ([`wind_depends_on_surface_state`](@ref)), only
+the thermodynamic part of `state` is re-evaluated.
+"""
+@inline function solver_surface_state(
+    param_set,
+    inputs,
+    scheme,
+    thermo_params,
+    ζ,
+    T_sfc,
+    q_vap_sfc,
+)
+    if get(inputs, :z0m, nothing) !== nothing
+        inputs =
+            with_profile_coefficients(inputs, param_set, scheme, ζ, inputs.z0m, inputs.z0h)
+    end
+    state = surface_state(param_set, inputs, scheme, ζ, T_sfc, q_vap_sfc)
+    if has_sfc_callbacks(inputs)
+        T_sfc_new, q_vap_sfc_new =
+            step_surface_callbacks(param_set, inputs, scheme, thermo_params, ζ, state)
+        inputs = with_sfc_guesses(inputs, T_sfc_new, q_vap_sfc_new)
+        if wind_depends_on_surface_state(inputs.gustiness_model)
+            state = surface_state(param_set, inputs, scheme, ζ, T_sfc_new, q_vap_sfc_new)
+        else
+            state = merge(
+                state,
+                surface_thermodynamic_state(param_set, inputs, T_sfc_new, q_vap_sfc_new),
+            )
+        end
+    end
+    return inputs, state
+end
+
+"""
     evaluate_monin_obukhov_residual(
-        param_set, inputs, scheme, uf_params, thermo_params, ζ,
+        param_set, inputs, scheme, thermo_params, ζ,
         T_sfc_guess_safe, q_vap_sfc_guess_safe,
     ) -> (residual, T_sfc_new, q_vap_sfc_new)
 
 Evaluate the MOST residual `Ri_b(ζ) − Ri_b(state)` for a candidate stability
-parameter `ζ`, optionally updating surface temperature and humidity via
-callbacks. Returns the residual together with the (possibly updated) surface
-state so iterative solvers can advance surface guesses across ζ iterations.
+parameter `ζ`, at the surface state of [`solver_surface_state`](@ref) (advanced by
+the surface-state callbacks, if present). Returns the residual together with the
+surface temperature and humidity of that state, so iterative solvers can advance
+the surface guesses across ζ iterations.
 """
 function evaluate_monin_obukhov_residual(
     param_set,
     inputs,
     scheme,
-    uf_params,
     thermo_params,
     ζ,
     T_sfc_guess_safe,
     q_vap_sfc_guess_safe,
 )
-    # 1. Compute u_star and roughness lengths, iteratively if they are mutually dependent
-    u_star, z0m, z0h = compute_ustar_and_roughness(
-        param_set,
-        ζ,
-        inputs,
-        scheme,
-    )
-
-    # 2. Update T_sfc and q_vap_sfc via callbacks or use current guesses
-    if has_sfc_callbacks(inputs)
-        T_sfc_new, q_vap_sfc_new = step_surface_callbacks(
-            param_set,
-            inputs,
-            scheme,
-            thermo_params,
-            ζ,
-            u_star,
-            z0m,
-            z0h,
-            T_sfc_guess_safe,
-            q_vap_sfc_guess_safe,
-        )
-        inputs = with_sfc_guesses(inputs, T_sfc_new, q_vap_sfc_new)
-        if depends_on_ustar(inputs.roughness_model) ||
-           depends_on_ustar(inputs.gustiness_model)
-            u_star, z0m, z0h = compute_ustar_and_roughness(param_set, ζ, inputs, scheme)
-        end
-    else
-        T_sfc_new = T_sfc_guess_safe
-        q_vap_sfc_new = q_vap_sfc_guess_safe
-    end
-
-    # 3. Update density
-    ρ_sfc = surface_density(param_set, inputs, T_sfc_new, q_vap_sfc_new)
-
-    # 4. Compute gustiness and ΔU
-    current_ΔU = windspeed(param_set, ζ, u_star, inputs, scheme)
-
-    # 5. Calculate state bulk Richardson number
-    Rib_state = state_bulk_richardson_number(
+    inputs, state = solver_surface_state(
         param_set,
         inputs,
-        T_sfc_new,
-        ρ_sfc,
-        current_ΔU,
-        q_vap_sfc_new,
-    )
-
-    # 6. Evaluate residual (RSL-corrected theoretical Ri_b)
-    Δz_eff = effective_height(param_set, inputs)
-    Rib_theory = bulk_richardson_number(
-        uf_params,
-        inputs.rsl_model,
-        Δz_eff,
-        ζ,
-        z0m,
-        z0h,
         scheme,
-        get(inputs, :ζ_cap, nothing),
+        thermo_params,
+        ζ,
+        T_sfc_guess_safe,
+        q_vap_sfc_guess_safe,
     )
-
-    return Rib_theory - Rib_state, T_sfc_new, q_vap_sfc_new
+    Rib_state = bulk_richardson_number_of_state(
+        param_set,
+        inputs,
+        state.Δθ_v,
+        state.θ_v_int,
+        state.ΔU,
+    )
+    Rib_theory = bulk_richardson_number(param_set, inputs, scheme, ζ, state.z0m, state.z0h)
+    return Rib_theory - Rib_state, state.T, state.q
 end
 
-struct ResidualFunction{PS, I, UF, TP, SCH} <: Function
+struct ResidualFunction{PS, I, TP, SCH} <: Function
     param_set::PS
     inputs::I
     scheme::SCH
-    uf_params::UF
     thermo_params::TP
 end
 
@@ -984,7 +1031,6 @@ function (rf::ResidualFunction)(ζ)
         rf.param_set,
         inputs,
         rf.scheme,
-        rf.uf_params,
         rf.thermo_params,
         ζ,
         safe_T_sfc_guess(inputs),
@@ -1237,7 +1283,7 @@ end
 
 """
     solve_stability_param_cb(
-        param_set, inputs, scheme, uf_params, thermo_params,
+        param_set, inputs, scheme, thermo_params,
         ζ_max, options, T_sfc_init, q_vap_init,
     )
 
@@ -1247,14 +1293,13 @@ path. Performs identical bracketing and Illinois regula falsi refinement, but ca
 evaluations, so all values remain `isbits` and the function compiles inside GPU kernels.
 
 Returns `(ζ, converged, T_sfc_final, q_vap_final)`. The returned surface-state
-values are from the last residual evaluation and are used to finalize the surface
-fluxes after the solve.
+values are from the last residual evaluation; `solve_monin_obukhov` starts the final
+surface-state evaluation at `ζ` from them.
 """
 function solve_stability_param_cb(
     param_set,
     inputs,
     scheme,
-    uf_params,
     thermo_params,
     ζ_max,
     options::SolverOptions,
@@ -1266,7 +1311,7 @@ function solve_stability_param_cb(
         evaluate_monin_obukhov_residual(
             param_set,
             with_sfc_guesses(inputs, T_sfc, q_vap),
-            scheme, uf_params, thermo_params,
+            scheme, thermo_params,
             ζ, T_sfc, q_vap,
         )
     end
@@ -1368,9 +1413,6 @@ function solve_monin_obukhov(
     options::SolverOptions,
 )
     FT = eltype(param_set)
-
-    # Auxiliary variables constant during solve
-    uf_params = SFP.uf_params(param_set)
     thermo_params = SFP.thermodynamics_params(param_set)
 
     # Physical limit for |ζ|. For supercritical Ri_b (e.g., very stable
@@ -1379,98 +1421,84 @@ function solve_monin_obukhov(
     # solve saturates at the limit of the appropriate stability branch.
     ζ_max = FT(100)
 
-    # Numerical value of the stability cap (if any), constant during the solve
+    # Numerical value of the stability cap (if any) and the virtual potential
+    # temperature of the interior air, constant during the solve
     inputs = with_stability_cap(inputs, param_set, scheme)
+    inputs = with_interior_virtual_pottemp(inputs, param_set)
 
     if has_sfc_callbacks(inputs)
         # Callback path: inline Illinois loop carries T_sfc/q_vap as stack locals
         # so all values remain isbits and the solve compiles inside GPU kernels.
-        ζ_final, converged, T_sfc_guess_safe, q_vap_sfc_guess_safe =
-            solve_stability_param_cb(
-                param_set,
-                inputs,
-                scheme,
-                uf_params,
-                thermo_params,
-                ζ_max,
-                options,
-                safe_T_sfc_guess(inputs),
-                safe_q_vap_sfc_guess(inputs),
-            )
-        _, T_sfc_val, q_vap_sfc_val = evaluate_monin_obukhov_residual(
-            param_set,
-            with_sfc_guesses(inputs, T_sfc_guess_safe, q_vap_sfc_guess_safe),
-            scheme,
-            uf_params,
-            thermo_params,
-            ζ_final,
-            T_sfc_guess_safe,
-            q_vap_sfc_guess_safe,
-        )
-        inputs = with_sfc_guesses(inputs, T_sfc_val, q_vap_sfc_val)
-    else
-        root_function = ResidualFunction(
+        ζ_final, converged, T_sfc_guess, q_vap_sfc_guess = solve_stability_param_cb(
             param_set,
             inputs,
             scheme,
-            uf_params,
             thermo_params,
+            ζ_max,
+            options,
+            safe_T_sfc_guess(inputs),
+            safe_q_vap_sfc_guess(inputs),
         )
+        inputs = with_sfc_guesses(inputs, T_sfc_guess, q_vap_sfc_guess)
+    else
+        root_function = ResidualFunction(param_set, inputs, scheme, thermo_params)
         ζ_final, converged =
             solve_stability_param(root_function, ζ_max, options, inputs.ζ_cap)
-        T_sfc_val = safe_T_sfc_guess(inputs)
-        q_vap_sfc_val = safe_q_vap_sfc_guess(inputs)
+        T_sfc_guess = safe_T_sfc_guess(inputs)
+        q_vap_sfc_guess = safe_q_vap_sfc_guess(inputs)
     end
 
-    # 1. Compute u_star and roughness consistent with ζ_final
-    u_star_curr, z0m, z0h = compute_ustar_and_roughness(
+    # Surface state at ζ_final (updated by the callbacks when present), with
+    # the profile coefficients at ζ_final stored in `inputs`
+    inputs, state = solver_surface_state(
         param_set,
-        ζ_final,
         inputs,
         scheme,
+        thermo_params,
+        ζ_final,
+        T_sfc_guess,
+        q_vap_sfc_guess,
     )
-
-    # Update ρ_sfc based on final state
-    ρ_sfc_val = surface_density(param_set, inputs, T_sfc_val, q_vap_sfc_val)
+    (; u_star, z0m, z0h, ρ_sfc) = state
+    T_sfc_val = state.T
+    q_vap_sfc_val = state.q
 
     # Consistent gustiness/fluxes
-    b_flux = buoyancy_flux(param_set, ζ_final, u_star_curr, inputs)
+    b_flux = buoyancy_flux(param_set, ζ_final, u_star, inputs)
 
     # Use input coefficients if available, otherwise use MOST-derived ones (with RSL)
     # Exchange coefficients at the capped stability parameter (the returned ζ_final
     # and L_MO are the uncapped values, consistent with the computed fluxes)
     Δz_eff = effective_height(param_set, inputs)
     ΔU = windspeed(inputs, param_set, b_flux)
-    ΔU_safe = max(ΔU, eps(FT))
+    ΔU_safe = max(ΔU, eps(typeof(ΔU)))
     ζ_capped = capped_stability(inputs, ζ_final)
+    ϕ_m = physical_scale_coeff(
+        param_set,
+        inputs,
+        scheme,
+        ζ_final,
+        z0m,
+        UF.MomentumTransport(),
+    )
+    ϕ_h = physical_scale_coeff(param_set, inputs, scheme, ζ_final, z0h, UF.HeatTransport())
     Cd =
         inputs.Cd !== nothing ? inputs.Cd :
-        inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 :
-        drag_coefficient(param_set, ζ_capped, z0m, Δz_eff, scheme, inputs.rsl_model)
-    Ch =
-        inputs.Ch !== nothing ? inputs.Ch :
-        heat_exchange_coefficient(
-            param_set,
-            ζ_capped,
-            z0m,
-            z0h,
-            Δz_eff,
-            scheme,
-            inputs.rsl_model,
-        )
+        inputs.ustar !== nothing ? (inputs.ustar / ΔU_safe)^2 : ϕ_m^2
+    Ch = inputs.Ch !== nothing ? inputs.Ch : ϕ_m * ϕ_h
 
     (shf, lhf, E, ρτxz, ρτyz) = compute_flux_components(
-        param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc_val, b_flux,
+        param_set, inputs, Ch, Cd, T_sfc_val, q_vap_sfc_val, ρ_sfc, b_flux,
     )
 
     g_h = Ch * ΔU_safe
-    L_MO = obukhov_length(param_set, u_star_curr, b_flux)
+    L_MO = obukhov_length(param_set, u_star, b_flux)
     L_eff = effective_obukhov_length(inputs, ζ_final, Δz_eff, L_MO)
 
     return SurfaceFluxConditions(
         shf, lhf, E,
         ρτxz, ρτyz,
-        u_star_curr, ζ_final, Cd, g_h,
+        u_star, ζ_final, Cd, g_h,
         T_sfc_val, q_vap_sfc_val,
         L_MO, L_eff, ζ_capped,
         converged,

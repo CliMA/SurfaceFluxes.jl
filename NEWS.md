@@ -1,10 +1,21 @@
 [unreleased] Prevent surface-callback oscillations at low wind speed with
-buoyancy-dependent gustiness (`FlooredDeardorffGustinessSpec`,
-`DeardorffGustinessSpec`): `evaluate_monin_obukhov_residual` updates the
-surface state with a two-stage callback step (`step_surface_callbacks`) and
-evaluates the effective wind speed, state bulk Richardson number, and
-post-solve fluxes at the updated state; `free_convection_wind_speed` returns
-zero for `ζ > 0`.
+gustiness that depends on the surface state (`FlooredDeardorffGustinessSpec`):
+`evaluate_monin_obukhov_residual` updates the surface state with a two-stage
+callback step (`step_surface_callbacks`) and evaluates the effective wind
+speed, state bulk Richardson number, and post-solve fluxes at the updated
+state; `free_convection_wind_speed` returns zero for `ζ > 0`. For gustiness
+models whose wind speed at fixed `ζ` is independent of the surface state
+(`ConstantGustinessSpec`, `DeardorffGustinessSpec`; see
+`wind_depends_on_surface_state`), the callbacks take a single step, and only
+the thermodynamic part of the surface state is re-evaluated after it.
+
+[unreleased] Evaluate the profile coefficients `ϕ_m = κ / F̂_m` and
+`ϕ_h = κ / F̂_h` once per residual evaluation for roughness models independent
+of `u★` (`with_profile_coefficients`, `physical_scale_coeff`), and reuse them
+in `compute_ustar`, `free_convection_wind_speed`, `heat_conductance`, and
+`bulk_richardson_number`. Store the interior virtual potential temperature once
+per solve (`with_interior_virtual_pottemp`) and evaluate each surface state
+once per stage (`surface_state`).
 
 [v1.5.1] For roughness models independent of `u★` (`ConstantRoughnessParams`,
 `RaupachRoughnessParams`), `surface_fluxes` and `screen_level_values` evaluate the

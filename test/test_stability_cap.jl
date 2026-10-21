@@ -213,7 +213,7 @@ end
                     SF.FluxSpecs{FT}(), nothing, nothing,
                 )
                 inputs = SF.with_stability_cap(inputs, param_set, pv)
-                residual = SF.ResidualFunction(param_set, inputs, pv, uf, thermo_params)
+                residual = SF.ResidualFunction(param_set, inputs, pv, thermo_params)
                 for opts in (SF.SolverOptions{FT}(),
                     SF.SolverOptions{FT}(maxiter = 40, tol = FT(1e-6), rtol = FT(1e-6),
                         forced_fixed_iters = false))
@@ -355,8 +355,9 @@ end
                 0.0, 10.0, 0.0, (U, 0.0), (0.0, 0.0), cfg, nothing, SF.FluxSpecs{FT}(),
                 nothing, nothing)
             inp = SF.with_stability_cap(inp, param_set, pv)
-            residual = SF.ResidualFunction(param_set, inp, pv, SFP.uf_params(param_set),
-                SFP.thermodynamics_params(param_set))
+            residual = SF.ResidualFunction(
+                param_set, inp, pv, SFP.thermodynamics_params(param_set),
+            )
             out = SF.surface_fluxes(param_set, inp, pv, SF.SolverOptions{FT}())
             @test out.converged
             @test abs(residual(out.ζ)) <= 1e-6 * abs(residual(0.0))

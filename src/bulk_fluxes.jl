@@ -466,7 +466,8 @@ end
 """
     state_bulk_richardson_number(param_set, inputs, T_sfc, ρ_sfc, ΔU, q_vap_sfc)
 
-Computes the bulk Richardson number from the given state.
+Computes the bulk Richardson number from the given state (see
+[`bulk_richardson_number_of_state`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -486,25 +487,42 @@ Returns the bulk Richardson number.
     ΔU,
     q_vap_sfc = 0,
 )
-    grav = SFP.grav(param_set)
     theta_v_sfc, theta_v_int =
         virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
+    return bulk_richardson_number_of_state(
+        param_set,
+        inputs,
+        theta_v_sfc - theta_v_int,
+        theta_v_int,
+        ΔU,
+    )
+end
 
-    Δtheta_v = theta_v_int - theta_v_sfc
-    theta_v_ref = theta_v_int
+"""
+    bulk_richardson_number_of_state(param_set, inputs, Δθ_v, θ_v_int, ΔU)
+
+Bulk Richardson number `-g Δz_eff Δθ_v / (θ_v_int ΔU²)` of the state, from the virtual
+potential temperature excess `Δθ_v` of the surface over the interior air and the
+interior value `θ_v_int` [K] (see [`virtual_pottemps`](@ref)) and the effective wind
+speed `ΔU` [m/s].
+"""
+@inline function bulk_richardson_number_of_state(param_set::APS, inputs, Δθ_v, θ_v_int, ΔU)
+    grav = SFP.grav(param_set)
     Δz_eff = effective_height(param_set, inputs)
-
-    Rib_state = (grav * Δz_eff * Δtheta_v) / (theta_v_ref * non_zero(ΔU)^2)
-    return Rib_state
+    return -(grav * Δz_eff * Δθ_v) / (θ_v_int * non_zero(ΔU)^2)
 end
 
 """
     virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc = 0)
 
 Return the virtual potential temperatures `(θ_v_sfc, θ_v_int)` [K] of the surface and
-of the interior air. Called from [`state_bulk_richardson_number`](@ref) and
-[`free_convection_wind_speed`](@ref), so both evaluate the same ``Δθ_v``. The condensate
-concentration is taken to be the same at the surface and in the interior.
+of the interior air. The stability solve evaluates ``Δθ_v = θ_v_sfc - θ_v_int`` once per
+surface state, for both the convective gustiness ([`free_convection_wind_speed`](@ref))
+and the bulk Richardson number of the state
+([`bulk_richardson_number_of_state`](@ref)). The condensate
+concentration is taken to be the same at the surface and in the interior. The interior
+value is read from `inputs.θ_v_int` when the MOST solver has stored it (see
+[`with_interior_virtual_pottemp`](@ref)).
 
 # Arguments
 - `param_set`: Parameter set.
@@ -515,8 +533,6 @@ concentration is taken to be the same at the surface and in the interior.
 """
 @inline function virtual_pottemps(param_set::APS, inputs, T_sfc, ρ_sfc, q_vap_sfc = 0)
     thermo_params = SFP.thermodynamics_params(param_set)
-
-    q_tot_int = inputs.q_tot_int
     q_liq_int = inputs.q_liq_int
     q_ice_int = inputs.q_ice_int
 
@@ -524,13 +540,37 @@ concentration is taken to be the same at the surface and in the interior.
     q_tot_sfc = q_vap_sfc + q_liq_int + q_ice_int
     theta_v_sfc =
         TD.virtual_pottemp(thermo_params, T_sfc, ρ_sfc, q_tot_sfc, q_liq_int, q_ice_int)
-    theta_v_int = TD.virtual_pottemp(
+    return theta_v_sfc, interior_virtual_pottemp(param_set, inputs)
+end
+
+"""
+    interior_virtual_pottemp(param_set, inputs)
+
+Return the virtual potential temperature of the interior air [K]: `inputs.θ_v_int` if
+stored (see [`with_interior_virtual_pottemp`](@ref)), otherwise evaluated from the
+interior state.
+"""
+@inline function interior_virtual_pottemp(param_set::APS, inputs)
+    θ_v_int = get(inputs, :θ_v_int, nothing)
+    θ_v_int === nothing || return θ_v_int
+    thermo_params = SFP.thermodynamics_params(param_set)
+    return TD.virtual_pottemp(
         thermo_params,
         inputs.T_int,
         inputs.ρ_int,
-        q_tot_int,
-        q_liq_int,
-        q_ice_int,
+        inputs.q_tot_int,
+        inputs.q_liq_int,
+        inputs.q_ice_int,
     )
-    return theta_v_sfc, theta_v_int
 end
+
+"""
+    with_interior_virtual_pottemp(inputs, param_set)
+
+Return `inputs` with the field `θ_v_int` set to the virtual potential temperature of the
+interior air [K], which is constant during a solve. The MOST solver calls this once per
+solve, so that [`virtual_pottemps`](@ref) reads the stored value in each residual
+evaluation.
+"""
+@inline with_interior_virtual_pottemp(inputs, param_set::APS) =
+    (; inputs..., θ_v_int = interior_virtual_pottemp(param_set, inputs))

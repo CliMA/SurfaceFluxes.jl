@@ -152,11 +152,14 @@ buoyancy flux implied by the converged `ζ` and friction velocity.
         spec::FlooredDeardorffGustinessSpec, param_set, ζ, ustar, inputs,
         scheme = PointValueScheme(),
     )
+    gustiness_value(spec, param_set, ζ, ustar, inputs, scheme, Δθ_v, θ_v_int)
 
 Return the larger of the floor `spec.u_min` and the free-convection wind speed
 [`free_convection_wind_speed`](@ref) at the stability parameter `ζ`, with the profile
 integrals of `scheme`. The friction velocity `ustar` enters only through the roughness
-lengths.
+lengths. The second form takes the virtual potential temperature excess `Δθ_v` of the
+surface over the interior air and the interior value `θ_v_int` [K] from the caller; for
+the other gustiness models, it ignores them.
 """
 @inline function gustiness_value(
     spec::FlooredDeardorffGustinessSpec,
@@ -171,9 +174,35 @@ lengths.
         free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme),
     )
 end
+@inline function gustiness_value(
+    spec::FlooredDeardorffGustinessSpec,
+    param_set,
+    ζ,
+    ustar,
+    inputs,
+    scheme,
+    Δθ_v,
+    θ_v_int,
+)
+    return max(
+        float_parameter(eltype(param_set), spec.u_min),
+        free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme, Δθ_v, θ_v_int),
+    )
+end
+@inline gustiness_value(
+    spec::AbstractGustinessSpec,
+    param_set,
+    ζ,
+    ustar,
+    inputs,
+    scheme,
+    Δθ_v,
+    θ_v_int,
+) = gustiness_value(spec, param_set, ζ, ustar, inputs, scheme)
 
 """
     free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme = PointValueScheme())
+    free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme, Δθ_v, θ_v_int)
 
 Return the effective wind speed ``U`` [m/s] at which the convective gustiness ``β w_*``
 equals ``U`` itself, for the Monin-Obukhov stability parameter `ζ` and the surface and
@@ -195,7 +224,8 @@ The profile integrals are evaluated with the discretization `scheme` of the solv
 model, and the stability cap of `inputs`, with the roughness lengths of the roughness
 model at `ustar`. The surface temperature and humidity are `T_sfc_guess` and
 `q_vap_sfc_guess` of `inputs` (updated by the surface callbacks when present), so the
-gustiness and the state bulk Richardson number see the same surface state.
+gustiness and the state bulk Richardson number see the same surface state; the second
+form takes `Δθ_v` and `θ_v_int` [K] ([`virtual_pottemps`](@ref)) from the caller.
 """
 @inline function free_convection_wind_speed(
     param_set::APS,
@@ -204,37 +234,29 @@ gustiness and the state bulk Richardson number see the same surface state.
     inputs,
     scheme = PointValueScheme(),
 )
-    FT = eltype(param_set)
-    β = SFP.gustiness_coeff(param_set)
-    z_i = SFP.gustiness_zi(param_set)
-    g = SFP.grav(param_set)
     T_sfc = safe_T_sfc_guess(inputs)
     q_vap_sfc = safe_q_vap_sfc_guess(inputs)
     ρ_sfc = surface_density(param_set, inputs, T_sfc, q_vap_sfc)
     θ_v_sfc, θ_v_int = virtual_pottemps(param_set, inputs, T_sfc, ρ_sfc, q_vap_sfc)
     Δθ_v = θ_v_sfc - θ_v_int
-    Δz_eff = effective_height(param_set, inputs)
+    return free_convection_wind_speed(param_set, ζ, ustar, inputs, scheme, Δθ_v, θ_v_int)
+end
+@inline function free_convection_wind_speed(
+    param_set::APS,
+    ζ,
+    ustar,
+    inputs,
+    scheme,
+    Δθ_v,
+    θ_v_int,
+)
+    β = SFP.gustiness_coeff(param_set)
+    z_i = SFP.gustiness_zi(param_set)
+    g = SFP.grav(param_set)
     z0m, z0h = roughness_lengths(param_set, inputs, ustar)
-    ζ_capped = capped_stability(param_set, inputs, scheme, ζ)
     # κ / F_m and κ / F_h
-    ϕ_m = compute_physical_scale_coeff(
-        param_set,
-        Δz_eff,
-        ζ_capped,
-        z0m,
-        UF.MomentumTransport(),
-        scheme,
-        inputs.rsl_model,
-    )
-    ϕ_h = compute_physical_scale_coeff(
-        param_set,
-        Δz_eff,
-        ζ_capped,
-        z0h,
-        UF.HeatTransport(),
-        scheme,
-        inputs.rsl_model,
-    )
+    ϕ_m = physical_scale_coeff(param_set, inputs, scheme, ζ, z0m, UF.MomentumTransport())
+    ϕ_h = physical_scale_coeff(param_set, inputs, scheme, ζ, z0h, UF.HeatTransport())
     U²_raw = β^3 * (g / θ_v_int) * z_i * Δθ_v * ϕ_m * ϕ_h
     U² = ifelse(ζ > zero(ζ), zero(U²_raw), U²_raw)
     return sqrt(max(U², zero(U²)))
@@ -284,3 +306,19 @@ no floor are returned as they are. See [`minimum_wind_speed`](@ref).
 @inline without_floor(spec::FlooredDeardorffGustinessSpec) =
     FlooredDeardorffGustinessSpec(zero(spec.u_min))
 @inline without_floor(spec::AbstractGustinessSpec) = spec
+
+"""
+    wind_depends_on_surface_state(spec::AbstractGustinessSpec)
+
+Whether the effective wind speed of a gustiness model at fixed stability parameter `ζ`
+depends on the surface temperature and humidity. The gustiness of
+[`FlooredDeardorffGustinessSpec`](@ref) depends on the virtual potential temperature
+excess of the surface; that of [`ConstantGustinessSpec`](@ref) is fixed, and that of
+[`DeardorffGustinessSpec`](@ref) follows from the buoyancy flux implied by `ζ` and the
+friction velocity. For models independent of the surface state, the surface callbacks
+take a single step at each `ζ`, and the wind speed, friction velocity, and roughness
+lengths are not re-evaluated after the step.
+"""
+@inline wind_depends_on_surface_state(::AbstractGustinessSpec) = true
+@inline wind_depends_on_surface_state(::ConstantGustinessSpec) = false
+@inline wind_depends_on_surface_state(::DeardorffGustinessSpec) = false
