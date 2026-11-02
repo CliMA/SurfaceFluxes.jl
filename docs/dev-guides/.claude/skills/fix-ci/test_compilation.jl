@@ -355,7 +355,7 @@ function is_device_kwargs_eltype_fold_miss(report)
         # Union{} is a subtype of every type, but Tuple{Union{}} cannot be
         # constructed (it appears as the return type of calls that must throw).
         x isa Type && x !== Union{} && x <: Base.Pairs &&
-            !Base.isdispatchtuple(Tuple{x}) || return false
+        !Base.isdispatchtuple(Tuple{x}) || return false
         params = Base.unwrap_unionall(x).parameters
         return length(params) == 4 &&
                params[4] isa Type &&
