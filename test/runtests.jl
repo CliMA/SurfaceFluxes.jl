@@ -13,7 +13,7 @@ import SurfaceFluxes as SF
 import SurfaceFluxes.UniversalFunctions as UF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions.BusingerParams
-import ClimaParams as CP  # Load CreateParametersExt so `SurfaceFluxesParameters` accepts types
+import ClimaParams as CP
 
 const ArrayType = Array
 const FloatType = Float32  # Default scalar type used in several tests

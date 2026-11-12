@@ -48,6 +48,8 @@ validity).
 """
 module UniversalFunctions
 
+import ClimaParams as CP
+
 abstract type AbstractUniversalFunctionParameters{FT <: Real} end
 const AUFP = AbstractUniversalFunctionParameters
 
@@ -311,7 +313,7 @@ Mappings to Nishizawa & Kitamura (2018) coefficients:
 
 See Businger et al. (1971) and Nishizawa & Kitamura (2018).
 """
-Base.@kwdef struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
+CP.@params struct BusingerParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
@@ -552,7 +554,7 @@ including very stable conditions.
 
 Reference: Gryanik et al. (2020).
 """
-Base.@kwdef struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
+CP.@params struct GryanikParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
@@ -780,7 +782,7 @@ based on SHEBA data.
 
 Reference: Grachev et al. (2007).
 """
-Base.@kwdef struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
+CP.@params struct GrachevParams{FT} <: AbstractUniversalFunctionParameters{FT}
     Pr_0::FT
     a_m::FT
     a_h::FT
