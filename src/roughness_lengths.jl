@@ -95,7 +95,7 @@ The default values specified here are used when constructing the struct manually
 via `ClimaParams`, all fields are read from the TOML file: `stanton_number` and the
 `raupach_*` parameters.
 """
-Base.@kwdef struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
+CP.@params struct RaupachRoughnessParams{FT} <: AbstractRoughnessParams
     C_R::FT = 0.3
     C_S::FT = 0.003
     c_d1::FT = 7.5
