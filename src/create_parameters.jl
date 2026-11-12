@@ -1,16 +1,8 @@
-module CreateParametersExt
+# Constructors that read parameter values from ClimaParams
 
 import Thermodynamics.Parameters.ThermodynamicsParameters
-import SurfaceFluxes.Parameters.SurfaceFluxesParameters
-import SurfaceFluxes.UniversalFunctions:
-    AbstractUniversalFunctionParameters,
-    BusingerParams,
-    GryanikParams,
-    GrachevParams
-import ClimaParams as CP
-
-import SurfaceFluxes
-import SurfaceFluxes: ConstantRoughnessParams, COARE3RoughnessParams, RaupachRoughnessParams
+import .Parameters.SurfaceFluxesParameters
+import .UniversalFunctions: BusingerParams, GryanikParams, GrachevParams
 
 """
     SurfaceFluxesParameters(::Type{FT}, UFParams)
@@ -341,6 +333,4 @@ function GrachevParams(toml_dict::CP.ParamDict{FT}) where {FT}
     parameters = (; parameters..., Pr_0 = FT(1))
 
     return GrachevParams{FT}(; parameters..., unstable_params...)
-end
-
 end

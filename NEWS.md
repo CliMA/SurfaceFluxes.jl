@@ -1,3 +1,15 @@
+[v1.6.1] `SurfaceFluxesParameters`, `BusingerParams`, `GryanikParams`,
+`GrachevParams`, and `RaupachRoughnessParams` are defined with
+`ClimaParams.@params`. In the default "type" mode of ClimaParams, they are
+singletons that hold their values in a type parameter, so GPU kernels do not
+allocate any registers or parameter memory for them. Read parameter values with
+`getproperty`, since `getfield` returns `nothing` in "type" mode. Workflows that
+construct many parameter sets should set the `CLIMA_PARAMS_MODE` preference of
+ClimaParams to `"bits"`, which keeps parameter values in struct fields and
+avoids recompilation for every new set of values. ClimaParams 1.3.11 or later is
+a regular dependency, so constructing parameters no longer needs
+`import ClimaParams`.
+
 [v1.6.0] Prevent surface-callback oscillations at low wind speed with
 gustiness that depends on the surface state (`FlooredDeardorffGustinessSpec`):
 `evaluate_monin_obukhov_residual` updates the surface state with a two-stage

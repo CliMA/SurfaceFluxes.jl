@@ -13,6 +13,7 @@ const TD = Thermodynamics
 const TP = Thermodynamics.Parameters
 
 import RootSolvers as RS
+import ClimaParams as CP
 
 import .UniversalFunctions
 const UF = UniversalFunctions
@@ -105,6 +106,7 @@ include("physical_scales.jl")
 include("bulk_fluxes.jl")
 include("exchange_coefficients.jl")
 include("profile_recovery.jl")
+include("create_parameters.jl")
 
 @inline function default_solver_options(param_set::APS{FT}) where {FT}
     return SolverOptions{FT}()
