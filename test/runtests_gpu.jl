@@ -212,7 +212,7 @@ else
                 SF.ReferenceAboveSurface,
             }
             ConfRaupach = SF.SurfaceFluxConfig{
-                SF.RaupachRoughnessParams{FT},
+                typeof(SF.RaupachRoughnessParams{FT}()),
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,

@@ -51,8 +51,7 @@ Pkg.add("SurfaceFluxes")
 ```
 
 The parameter constructors used below load default values from
-[ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl), which is a weak dependency:
-add it to your environment and `import ClimaParams` before constructing a parameter set.
+[ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl).
 
 ## Features
 

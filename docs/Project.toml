@@ -7,5 +7,8 @@ Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 SurfaceFluxes = "49b00bb7-8bd4-4f2b-b78c-51cd0450215f"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
+[sources]
+ClimaParams = {rev = "dy/params_macro", url = "https://github.com/CliMA/ClimaParams.jl"}
+
 [compat]
 Documenter = "0.27"
