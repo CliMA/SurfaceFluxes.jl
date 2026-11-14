@@ -43,7 +43,7 @@ SurfaceFluxes.jl computes turbulent surface fluxes of momentum, heat, and moistu
 | `src/utilities.jl` | `surface_density`, geopotential helpers, reference-level conversion and validity checks, `non_zero`, Gauss-Legendre quadrature |
 | `src/input_builders.jl` | `build_surface_flux_inputs`: normalizes user inputs into a NamedTuple |
 | `src/Parameters.jl` | `SurfaceFluxesParameters` and accessors |
-| `ext/CreateParametersExt.jl` | ClimaParams-based constructors (weak dependency) |
+| `src/create_parameters.jl` | ClimaParams-based constructors |
 | `test/` | Test suite (`runtests.jl`; GPU via `runtests_gpu.jl`) |
 | `docs/` | Documentation source (`docs/src/`) and shared dev-guides (`docs/dev-guides/`) |
 
