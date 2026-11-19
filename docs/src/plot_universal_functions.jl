@@ -9,7 +9,7 @@ import SurfaceFluxes.Parameters.SurfaceFluxesParameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
 import ClimaParams as CP
 
-const FT = Float32
+FT = Float32
 
 ζ = FT(-0.1):FT(0.001):FT(0.1)
 
