@@ -1,6 +1,8 @@
 name: ci
 on:
   push:
+    branches:
+      - main
     tags: '*'
   pull_request:
 
@@ -20,8 +22,11 @@ jobs:
           - '1.13'
         os:
           - ubuntu-latest
-          - macOS-latest
           - windows-latest
+          # Org-wide macOS runner limit: run macOS only on pushes (main, tags).
+          - ${{ github.event_name == 'push' && 'macOS-latest' || '' }}
+        exclude:
+          - os: ''
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v2
