@@ -51,8 +51,7 @@ Pkg.add("SurfaceFluxes")
 ```
 
 The parameter constructors used below load default values from
-[ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl), which is a weak dependency:
-add it to your environment and `import ClimaParams` before constructing a parameter set.
+[ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl).
 
 ## Features
 
@@ -74,7 +73,6 @@ add it to your environment and `import ClimaParams` before constructing a parame
 using SurfaceFluxes
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
-import ClimaParams
 
 # Create parameters
 FT = Float64

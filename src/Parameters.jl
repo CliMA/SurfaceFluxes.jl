@@ -1,5 +1,6 @@
 module Parameters
 
+import ClimaParams as CP
 import Thermodynamics
 const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
@@ -31,7 +32,7 @@ Parameters for SurfaceFluxes.jl.
 - `gustiness_coeff`: Scaling coefficient for Deardorff gustiness (often β)
 - `gustiness_zi`: [m] Boundary layer height for gustiness (if fixed)
 """
-Base.@kwdef struct SurfaceFluxesParameters{
+CP.@params struct SurfaceFluxesParameters{
     FT,
     AUFPS <: UF.AbstractUniversalFunctionParameters{FT},
     TP <: TDPS{FT},

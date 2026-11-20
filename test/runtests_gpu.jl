@@ -4,7 +4,6 @@ using CUDA
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters as SFP
 import SurfaceFluxes.UniversalFunctions.BusingerParams
-import ClimaParams as CP
 
 if !CUDA.functional()
     @info "CUDA driver not available; skipping GPU tests"
@@ -212,7 +211,7 @@ else
                 SF.ReferenceAboveSurface,
             }
             ConfRaupach = SF.SurfaceFluxConfig{
-                SF.RaupachRoughnessParams{FT},
+                typeof(SF.RaupachRoughnessParams{FT}()),
                 SF.ConstantGustinessSpec{FT},
                 SF.MoistModel,
                 SF.NoRoughnessSubLayer,

@@ -7,7 +7,6 @@ import Plots
 import SurfaceFluxes as SF
 import SurfaceFluxes.Parameters.SurfaceFluxesParameters as SFP
 import SurfaceFluxes.UniversalFunctions as UF
-import ClimaParams as CP
 
 FT = Float32
 
@@ -32,7 +31,7 @@ function save_ϕ_figs(
     Plots.plot()
     for ufp in ufps
         ϕ_m = UF.phi.(ufp, ζ, UF.MomentumTransport())
-        label = "$(typeof(ufp))"
+        label = "$(nameof(typeof(ufp)))"
         Plots.plot!(
             ζ,
             ϕ_m;
@@ -48,7 +47,7 @@ function save_ϕ_figs(
     Plots.plot()
     for ufp in ufps
         ϕ_h = UF.phi.(ufp, ζ, UF.HeatTransport())
-        label = "$(typeof(ufp))"
+        label = "$(nameof(typeof(ufp)))"
         Plots.plot!(
             ζ,
             ϕ_h;
@@ -74,7 +73,7 @@ function save_ψ_figs(
     Plots.plot()
     for ufp in ufps
         ψ_m = UF.psi.(ufp, ζ, UF.MomentumTransport())
-        label = "$(typeof(ufp))"
+        label = "$(nameof(typeof(ufp)))"
         Plots.plot!(
             ζ,
             ψ_m;
@@ -90,7 +89,7 @@ function save_ψ_figs(
     Plots.plot()
     for ufp in ufps
         ψ_h = UF.psi.(ufp, ζ, UF.HeatTransport())
-        label = "$(typeof(ufp))"
+        label = "$(nameof(typeof(ufp)))"
         Plots.plot!(
             ζ,
             ψ_h;
