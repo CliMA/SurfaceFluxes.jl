@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Basic Usage · SurfaceFluxes.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">SurfaceFluxes.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../References/">References</a></li><li><a class="tocitem" href="../SurfaceFluxes/">Equations</a></li><li><a class="tocitem" href="../UniversalFunctions/">Universal Functions</a></li><li class="is-active"><a class="tocitem" href>Basic Usage</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Set-up-thermodynamics-and-surface-fluxes-parameters"><span>Set up thermodynamics and surface fluxes parameters</span></a></li><li class="toplevel"><a class="tocitem" href="#Define-conditions"><span>Define conditions</span></a></li><li class="toplevel"><a class="tocitem" href="#Compute-fluxes"><span>Compute fluxes</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Basic Usage</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Basic Usage</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/CliMA/SurfaceFluxes.jl/blob/main/docs/src/basic_usage.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Basic-usage"><a class="docs-heading-anchor" href="#Basic-usage">Basic usage</a><a id="Basic-usage-1"></a><a class="docs-heading-anchor-permalink" href="#Basic-usage" title="Permalink"></a></h1><pre><code class="nohighlight hljs">using SurfaceFluxes
+using Thermodynamics
+using StaticArrays
+import CLIMAParameters</code></pre><p>Next we define a helper function to estimate density of air at the surface given atmospheric conditions higher up, using the ideal gas law and an assumption of hydrostatic balance. This is useful when your surface model does not model the density of air.</p><pre><code class="nohighlight hljs">function compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
+     T_atmos = Thermodynamics.air_temperature(thermo_params, ts_atmos)
+     Rm_atmos = Thermodynamics.gas_constant_air(thermo_params, ts_atmos)
+     ρ_atmos = Thermodynamics.air_density(thermo_params, ts_atmos)
+     ρ_sfc =
+         ρ_atmos *
+         (T_sfc / T_atmos)^(Thermodynamics.cv_m(thermo_params, ts_atmos) / Rm_atmos)
+     return ρ_sfc
+end</code></pre><h1 id="Set-up-thermodynamics-and-surface-fluxes-parameters"><a class="docs-heading-anchor" href="#Set-up-thermodynamics-and-surface-fluxes-parameters">Set up thermodynamics and surface fluxes parameters</a><a id="Set-up-thermodynamics-and-surface-fluxes-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-thermodynamics-and-surface-fluxes-parameters" title="Permalink"></a></h1><pre><code class="nohighlight hljs">const CP = CLIMAParameters
+include(joinpath(pkgdir(SurfaceFluxes), &quot;parameters&quot;, &quot;create_parameters.jl&quot;))
+FT = Float32
+toml_dict = CP.create_toml_dict(FT; dict_type = &quot;alias&quot;)
+uf_type = UF.BusingerType()
+param_set = create_parameters(toml_dict, uf_type)
+thermo_params = SurfaceFluxes.Parameters.thermodynamics_params(param_set)</code></pre><p>Roughness lengths and displacement height</p><pre><code class="nohighlight hljs">z_0m = FT(0.01)
+z_0b = FT(0.001)
+d_sfc = FT(0)</code></pre><h1 id="Define-conditions"><a class="docs-heading-anchor" href="#Define-conditions">Define conditions</a><a id="Define-conditions-1"></a><a class="docs-heading-anchor-permalink" href="#Define-conditions" title="Permalink"></a></h1><p>First, at the lowest level in the atmosphere:</p><pre><code class="nohighlight hljs">h  = FT(10) # height at which measurements are made, in m
+u = FT(4) # horizontal windspeed
+P = FT(101350)
+T = FT(298.15)
+q = FT(0.006)
+ts_atmos = Thermodynamics.PhaseEquil_pTq(thermo_params, P, T, q) # you could use ρ instead</code></pre><p>Then, repeat for the land surface:</p><pre><code class="nohighlight hljs">u_sfc = FT(0)
+T_sfc = FT(290)
+ρ_sfc = compute_ρ_sfc(thermo_params, ts_atmos, T_sfc)
+q_sfc = FT(0.003)
+ts_sfc = Thermodynamics.PhaseEquil_ρTq(thermo_params, ρ_sfc, T_sfc, q_sfc)
+h_sfc = FT(0) # height at which surface measurements are made</code></pre><h1 id="Compute-fluxes"><a class="docs-heading-anchor" href="#Compute-fluxes">Compute fluxes</a><a id="Compute-fluxes-1"></a><a class="docs-heading-anchor-permalink" href="#Compute-fluxes" title="Permalink"></a></h1><p>SurfaceFluxes.jl expects a relative difference between where <code>u = 0</code>  and the atmosphere height. Here, we assume <code>h</code> and <code>h_sfc</code> are measured relative to a common reference. Then <code>d_sfc + h_sfc + z_0m</code> is the apparent source of momentum, and <code>Δh ≈ h - d_sfc - h_sfc</code> is the relative height difference between the apparent source of momentum and the atmosphere height.</p><p>In this we have neglected <code>z_0m</code> and <code>z_0b</code> (i.e. assumed they are small compared to <code>Δh</code>).</p><pre><code class="nohighlight hljs">Δh  = h - d_sfc - h_sfc	
+state_sfc = SurfaceFluxes.StateValues(FT(0), SVector{2, FT}(u_sfc, 0), ts_sfc)
+state_atmos = SurfaceFluxes.StateValues(
+    Δh,
+    SVector{2, FT}(u, 0),
+    ts_atmos,
+    )
+sc = SurfaceFluxes.ValuesOnly(     
+    state_atmos,
+    state_sfc,
+    z_0m,
+    z_0b,
+)</code></pre><p>Note that you could define wind in terms of horizontal velocity components (u,v) , but it won&#39;t change the result if you instead pass in (√(u²+v²), 0).</p><pre><code class="nohighlight hljs">conditions = SurfaceFluxes.surface_conditions(
+     param_set,
+     sc;
+     )</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../UniversalFunctions/">« Universal Functions</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Friday 8 December 2023 23:37">Friday 8 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
